@@ -42,6 +42,41 @@
     <%= link_to "Cancel", admin_licenses_path, class: "ml-2 text-sm text-gray-500" %>
   <% end %>
 
+  <div class="mt-8 border-t border-gray-200 pt-4">
+    <h2 class="text-sm font-medium text-gray-700">
+      Devices
+      <span class="ml-1 font-normal text-gray-500">
+        <%= @license.activations.active.size %> of <%= @license.max_activations %> seats in use
+      </span>
+    </h2>
+    <% activations = @license.activations.order(activated_at: :desc) %>
+    <% if activations.any? %>
+      <div class="mt-2 overflow-hidden rounded-lg border border-gray-200">
+        <table class="w-full text-sm">
+          <tbody class="divide-y divide-gray-100">
+            <% activations.each do |a| %>
+              <tr class="<%= "text-gray-400" if a.deactivated_at %>">
+                <td class="px-4 py-2"><%= a.device_name.presence || a.hardware_id %></td>
+                <td class="px-4 py-2 text-gray-500"><%= a.activated_at&.to_date %></td>
+                <td class="px-4 py-2 text-right">
+                  <% if a.deactivated_at %>
+                    <span class="text-gray-400">deactivated</span>
+                  <% else %>
+                    <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
+                      form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
+                      class: "text-sm text-red-600 hover:text-red-700 cursor-pointer" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="mt-2 text-sm text-gray-500">No devices yet.</p>
+    <% end %>
+  </div>
+
   <% unless @license.refunded? %>
     <div class="mt-6 border-t border-gray-200 pt-4">
       <%= button_to "Revoke license", admin_license_path(@license),
