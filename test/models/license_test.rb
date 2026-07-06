@@ -96,6 +96,23 @@ class LicenseTest < ActiveSupport::TestCase
     assert license.update_eligible?
   end
 
+  test "a versioned override requires a licensed_version snapshot" do
+    license = products(:cozy).licenses.new(status: "active", max_activations: 3,
+      update_policy: "versioned")
+    assert_not license.valid?
+    assert_includes license.errors.attribute_names, :licensed_version
+
+    license.licensed_version = 1
+    assert license.valid?
+  end
+
+  test "import creates an unclaimed license when the row has no email" do
+    rows = [ { product_slug: products(:cozy).slug, license_key: "COZY-NO-EMAIL" } ]
+    result = License.import(rows, source: "polar")
+    assert_equal 1, result[:imported]
+    assert_nil License.find_by_key("COZY-NO-EMAIL").customer
+  end
+
   test "activate! is idempotent and enforces capacity" do
     license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
     a = license.activate!(hardware_id: "HW-X")

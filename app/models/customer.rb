@@ -5,16 +5,10 @@ class Customer < ApplicationRecord
   validates :email, presence: true, uniqueness: true
   validates :stripe_customer_id, uniqueness: true, allow_nil: true
 
-  def self.upsert_from_stripe(email:, stripe_customer_id:)
-    customer = find_or_initialize_by(email:)
-    customer.stripe_customer_id = stripe_customer_id if stripe_customer_id
-    customer.save!
-    customer
-  end
-
-  def self.upsert!(email:, name: nil)
+  def self.upsert!(email:, name: nil, stripe_customer_id: nil)
     customer = find_or_initialize_by(email:)
     customer.name = name if name.present?
+    customer.stripe_customer_id = stripe_customer_id if stripe_customer_id
     customer.save!
     customer
   end

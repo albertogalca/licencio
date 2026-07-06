@@ -14,10 +14,32 @@ class License < ApplicationRecord
 
   validates :license_key, presence: true, uniqueness: true
   validates :status, :max_activations, presence: true
+  # A versioned license without a version snapshot is never update-eligible — reject the footgun.
+  validates :licensed_version, presence: true, if: :policy_versioned?
+
+  # Turns a verified Stripe checkout session into a license and emails it. Returns the license
+  # (nil if the payment was already fulfilled).
+  def self.fulfill_from_stripe_session(session)
+    customer = Customer.upsert!(
+      email: session.customer_details.email, stripe_customer_id: session.customer)
+    license = fulfill!(
+      product: Product.find(session.metadata.licencio_product_id), customer:,
+      quantity: session.metadata.quantity.to_i,
+      stripe_payment_id: session.payment_intent || session.id,
+      renew_key: session.metadata[:renew_license_key])
+    license&.deliver_later
+    license
+  end
+
+  def self.refund!(stripe_payment_id:)
+    find_by(stripe_payment_id:)&.update!(status: "refunded")
+  end
 
   def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, renew_key: nil)
     return if exists?(stripe_payment_id:)
-    if renew_key && (license = product.licenses.find_by(license_key: renew_key))
+    # Only the paying customer may renew their own key; anyone else's key issues a fresh license.
+    license = renew_key && product.licenses.find_by(license_key: renew_key, customer_id: customer&.id)
+    if license
       license.renew!(stripe_payment_id:)
     else
       product.issue_license!(customer:, quantity:, stripe_payment_id:)
@@ -27,6 +49,11 @@ class License < ApplicationRecord
   def renew!(stripe_payment_id:)
     from = [ expires_at, Time.current ].compact.max
     update!(status: "active", stripe_payment_id:, expires_at: product.license_expires_at(from:))
+    self
+  end
+
+  def deliver_later
+    LicenseDeliveryJob.perform_later(self)
   end
 
   def activate!(hardware_id:, device_name: nil)
@@ -86,7 +113,8 @@ class License < ApplicationRecord
   def self.import_row(row, source:)
     transaction do
       product  = Product.find_by!(slug: row[:product_slug])
-      customer = Customer.upsert!(email: row[:email], name: row[:name])
+      # Blank email → unclaimed license (schema allows a null customer); the buyer claims it later.
+      customer = Customer.upsert!(email: row[:email], name: row[:name]) if row[:email].present?
       license  = product.licenses.create!(
         license_key: row[:license_key], customer:, migration_source: source,
         status: row[:status].presence || "active",

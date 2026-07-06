@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     ENV["STRIPE_WEBHOOK_SECRET"] = "whsec_test"
     @product = products(:picmal) # time_limited, update_duration_days: 365
@@ -48,15 +50,47 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 730.days.from_now.to_i, license.reload.expires_at.to_i, 1.hour
   end
 
+  test "a renewal key belonging to a different buyer issues a new license instead" do
+    post_event completed_event(email: "owner@example.com", stripe_customer: "cus_owner", payment_intent: "pi_1")
+    victim = License.order(:created_at).last
+
+    assert_difference "License.count", 1 do
+      post_event completed_event(email: "attacker@example.com", stripe_customer: "cus_attacker",
+        payment_intent: "pi_2", renew_license_key: victim.license_key)
+    end
+    assert_equal victim.expires_at.to_i, victim.reload.expires_at.to_i, "victim's license untouched"
+  end
+
+  test "a completed purchase enqueues license delivery" do
+    assert_enqueued_with(job: LicenseDeliveryJob) do
+      post_event completed_event
+    end
+  end
+
+  test "charge.refunded marks the matching license refunded" do
+    post_event completed_event(payment_intent: "pi_ref")
+    license = License.order(:created_at).last
+    assert license.active?
+
+    post_event refunded_event(payment_intent: "pi_ref")
+    assert_response :ok
+    assert license.reload.refunded?
+  end
+
   private
+    def refunded_event(payment_intent:)
+      { type: "charge.refunded", data: { object: { payment_intent: } } }.to_json
+    end
+
     def completed_event(email: "buyer@example.com", product_id: @product.id,
-                        quantity: 1, payment_intent: "pi_test", renew_license_key: nil)
+                        quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
+                        stripe_customer: "cus_buyer")
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
       {
         type: "checkout.session.completed",
         data: { object: {
-          customer: "cus_buyer",
+          customer: stripe_customer,
           customer_details: { email: },
           metadata:,
           payment_intent:

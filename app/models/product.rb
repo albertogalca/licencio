@@ -34,11 +34,29 @@ class Product < ApplicationRecord
       licensed_version: (current_version if versioned?))
   end
 
+  def seats_for(price)
+    (price.metadata["seats"] || max_activations_default).to_i
+  end
+
   def variants
-    Stripe::Price.list(product: stripe_product_id, active: true).data.map do |p|
-      Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount,
-        seats: (p.metadata["seats"] || max_activations_default).to_i)
-    end.sort_by(&:amount_cents)
+    # ponytail: 5-min cache; Stripe price edits appear within 5 min. Shorten only if that lag bites.
+    Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
+      Stripe::Price.list(product: stripe_product_id, active: true).data.map do |p|
+        Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
+      end.sort_by(&:amount_cents)
+    end
+  end
+
+  def create_checkout_session(price_id:, email:, renew_license_key: nil)
+    price = Stripe::Price.retrieve(price_id)
+    raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
+    Stripe::Checkout::Session.create(
+      mode: "payment", customer_creation: "always",
+      line_items: [ { price: price.id, quantity: 1 } ],
+      customer_email: email.presence,
+      metadata: { licencio_product_id: id, quantity: seats_for(price),
+                  renew_license_key: renew_license_key.presence }.compact,
+      success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"])
   end
 
   def sign_jwt(claims)
