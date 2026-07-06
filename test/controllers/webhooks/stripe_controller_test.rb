@@ -62,8 +62,8 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_equal victim.expires_at.to_i, victim.reload.expires_at.to_i, "victim's license untouched"
   end
 
-  test "a completed purchase enqueues license delivery" do
-    assert_enqueued_with(job: LicenseDeliveryJob) do
+  test "a completed purchase enqueues the portal access email" do
+    assert_enqueued_with(job: PortalAccessJob) do
       post_event completed_event
     end
   end

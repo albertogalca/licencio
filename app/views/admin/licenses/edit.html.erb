@@ -46,7 +46,7 @@
     <h2 class="text-sm font-medium text-gray-700">
       Devices
       <span class="ml-1 font-normal text-gray-500">
-        <%= @license.activations.active.size %> of <%= @license.max_activations %> seats in use
+        <%= @license.activations.active.size %> of <%= @license.max_activations || "∞" %> seats in use
       </span>
     </h2>
     <% activations = @license.activations.order(activated_at: :desc) %>

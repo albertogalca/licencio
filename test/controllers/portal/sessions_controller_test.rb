@@ -5,7 +5,7 @@ class Portal::SessionsControllerTest < ActionDispatch::IntegrationTest
     customer = customers(:alberto)
     customer.update!(auth_token: "valid-token", auth_token_expires_at: 10.minutes.from_now)
 
-    get portal_session_path(token: "valid-token")
+    get portal_session_path(token: "valid-token", product: "cozy")
     assert_redirected_to portal_root_path
 
     follow_redirect!
@@ -27,7 +27,7 @@ class Portal::SessionsControllerTest < ActionDispatch::IntegrationTest
   test "signing out clears the session" do
     customer = customers(:alberto)
     customer.update!(auth_token: "t", auth_token_expires_at: 10.minutes.from_now)
-    get portal_session_path(token: "t")
+    get portal_session_path(token: "t", product: "cozy")
 
     delete portal_session_path
     assert_redirected_to new_portal_recovery_path

@@ -34,6 +34,9 @@ class License::Importer
           license_key: row[:license_key], customer:, migration_source: source,
           status: row[:status].presence || "active",
           max_activations: row[:max_activations].presence || product.max_activations_default,
+          # Per-license policy override (blank → inherits product). Versioned buyers need
+          # licensed_version set or update_eligible? is false; lifetime-variant buyers set update_policy.
+          update_policy: row[:update_policy].presence, licensed_version: row[:licensed_version].presence,
           expires_at: row[:expires_at], claimed_at: row[:claimed_at])
         activation_rows(row).each do |a|
           license.activations.create!(

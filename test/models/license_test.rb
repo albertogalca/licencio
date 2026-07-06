@@ -7,12 +7,18 @@ class LicenseTest < ActiveSupport::TestCase
     assert licenses(:picmal_expired).valid?
   end
 
-  test "requires license_key, status, and max_activations" do
+  test "requires license_key and status (max_activations nil = unlimited)" do
     license = License.new
     assert_not license.valid?
     assert_includes license.errors.attribute_names, :license_key
     assert_includes license.errors.attribute_names, :status
-    assert_includes license.errors.attribute_names, :max_activations
+    assert_not_includes license.errors.attribute_names, :max_activations
+  end
+
+  test "a nil max_activations means unlimited seats" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: nil)
+    10.times { |i| license.activate!(hardware_id: "HW-#{i}") }
+    assert_equal 10, license.activations.active.count # no cap
   end
 
   test "license_key is unique" do
@@ -111,6 +117,35 @@ class LicenseTest < ActiveSupport::TestCase
     result = License.import(rows, source: "polar")
     assert_equal 1, result[:imported]
     assert_nil License.find_by_key("COZY-NO-EMAIL").customer
+  end
+
+  test "import carries per-license update_policy and licensed_version" do
+    rows = [
+      { product_slug: products(:cozy).slug, license_key: "COZY-V1", licensed_version: "1" },
+      { product_slug: products(:cozy).slug, license_key: "COZY-LIFETIME", update_policy: "lifetime" },
+    ]
+    assert_equal 2, License.import(rows, source: "polar")[:imported]
+
+    v1 = License.find_by_key("COZY-V1") # inherits product's versioned policy, snapshot pins eligibility
+    assert_equal 1, v1.licensed_version
+    assert v1.update_eligible?
+
+    assert_equal "lifetime", License.find_by_key("COZY-LIFETIME").update_policy
+  end
+
+  test "issue_license! maps a lifetime price to a lifetime license; default inherits versioned" do
+    prod = Product.create!(name: "Versioned", slug: "vp", bundle_identifier: "com.x.vp",
+      license_prefix: "VP", update_policy: "versioned", current_version: 2)
+
+    lifetime = prod.issue_license!(customer: nil, quantity: nil, stripe_payment_id: "pi_lf", update_policy: "lifetime")
+    assert_equal "lifetime", lifetime.update_policy
+    assert_nil lifetime.licensed_version # lifetime ignores version snapshot
+    assert_nil lifetime.max_activations  # nil quantity = unlimited, not 0 seats
+    assert lifetime.update_eligible?
+
+    default = prod.issue_license!(customer: nil, quantity: nil, stripe_payment_id: "pi_v")
+    assert_nil default.update_policy      # inherits product default
+    assert_equal 2, default.licensed_version # pinned to current_version
   end
 
   test "activate! is idempotent and enforces capacity" do

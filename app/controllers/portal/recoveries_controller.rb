@@ -3,11 +3,12 @@ class Portal::RecoveriesController < Portal::BaseController
 
   def new
     @product_slug = params[:product]
+    @product = Product.find_by(slug: @product_slug) if @product_slug.present?
   end
 
   def create
     if product = Product.find_by(slug: params[:product])
-      Customer.find_by(email: params[:email])&.deliver_magic_link_later(product:)
+      Customer.find_by(email: params[:email])&.send_portal_access_later(product:)
     end
     redirect_to new_portal_recovery_path, notice: "If that email has a license, a sign-in link is on its way."
   end

@@ -20,7 +20,6 @@ class Product < ApplicationRecord
   validates :slug, :bundle_identifier, :license_prefix, :api_key,
     presence: true, uniqueness: true
   validates :eddsa_private_key, :eddsa_public_key, presence: true
-  validates :max_activations_default, presence: true
 
   def loops_api_key_or_default
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
@@ -35,14 +34,17 @@ class Product < ApplicationRecord
     time_limited? ? from + update_duration_days.days : nil
   end
 
-  def issue_license!(customer:, quantity:, stripe_payment_id:)
-    licenses.create!(customer:, status: "active", max_activations: quantity,
+  # update_policy nil → inherit the product's default; a "lifetime" Stripe price overrides it.
+  def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil)
+    effective = update_policy || self.update_policy
+    licenses.create!(customer:, status: "active", max_activations: quantity, update_policy:,
       stripe_payment_id:, expires_at: license_expires_at,
-      licensed_version: (current_version if versioned?))
+      licensed_version: (current_version if effective == "versioned"))
   end
 
   def seats_for(price)
-    (price.metadata["seats"] || max_activations_default).to_i
+    seats = price.metadata["seats"].presence || max_activations_default
+    seats&.to_i # nil = unlimited
   end
 
   def variants
@@ -62,6 +64,7 @@ class Product < ApplicationRecord
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       metadata: { licencio_product_id: id, quantity: seats_for(price),
+                  update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,
       success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"] }, stripe_opts)
   end

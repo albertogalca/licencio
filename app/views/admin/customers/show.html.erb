@@ -19,7 +19,7 @@
           <%= link_to "Edit", edit_admin_license_path(license), class: "text-sm text-gray-600 hover:text-gray-900" %>
         </div>
         <p class="mt-1 text-xs text-gray-500">
-          Seats <%= license.activations.count { |a| a.deactivated_at.nil? } %>/<%= license.max_activations %>
+          Seats <%= license.activations.count { |a| a.deactivated_at.nil? } %>/<%= license.max_activations || "∞" %>
           <% if license.expires_at %>· expires <%= license.expires_at.to_date %><% end %>
         </p>
         <% if license.activations.any? %>

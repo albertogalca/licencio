@@ -13,7 +13,7 @@ class Api::RecoveriesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a known email gets a magic link and returns 200" do
-    assert_enqueued_with(job: MagicLinkJob) do
+    assert_enqueued_with(job: PortalAccessJob) do
       recover(email: customers(:alberto).email)
     end
     assert_response :ok

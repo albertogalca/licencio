@@ -39,7 +39,7 @@
             <td class="px-4 py-2 text-gray-600"><%= license.product.name %></td>
             <td class="px-4 py-2 text-gray-600"><%= license.customer&.email %></td>
             <td class="px-4 py-2"><%= license.status %></td>
-            <td class="px-4 py-2 text-gray-600"><%= license.max_activations %></td>
+            <td class="px-4 py-2 text-gray-600"><%= license.max_activations || "∞" %></td>
             <td class="px-4 py-2 text-gray-600"><%= license.expires_at&.to_date %></td>
             <td class="px-4 py-2 text-right">
               <%= link_to "Edit", edit_admin_license_path(license), class: "text-gray-600 hover:text-gray-900" %>

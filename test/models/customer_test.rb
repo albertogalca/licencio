@@ -49,10 +49,10 @@ class CustomerTest < ActiveSupport::TestCase
     assert_nil Customer.authenticate_token("nope")
   end
 
-  test "deliver_magic_link_later sets a fresh token and enqueues the job" do
+  test "send_portal_access_later sets a fresh token and enqueues the job" do
     customer = customers(:nameless)
-    assert_enqueued_with(job: MagicLinkJob, args: [ customer, products(:cozy) ]) do
-      customer.deliver_magic_link_later(product: products(:cozy))
+    assert_enqueued_with(job: PortalAccessJob, args: [ customer, products(:cozy) ]) do
+      customer.send_portal_access_later(product: products(:cozy))
     end
     customer.reload
     assert customer.auth_token.present?

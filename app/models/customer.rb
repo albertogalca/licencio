@@ -19,9 +19,9 @@ class Customer < ApplicationRecord
     end
   end
 
-  def deliver_magic_link_later(product:)
+  def send_portal_access_later(product:)
     regenerate_auth_token
-    MagicLinkJob.perform_later(self, product)
+    PortalAccessJob.perform_later(self, product)
   end
 
   def clear_auth_token!

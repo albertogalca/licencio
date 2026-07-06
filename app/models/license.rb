@@ -21,7 +21,7 @@ class License < ApplicationRecord
   before_validation :assign_license_key, on: :create
 
   validates :license_key, presence: true, uniqueness: true
-  validates :status, :max_activations, presence: true
+  validates :status, presence: true # max_activations nil = unlimited seats
   # A versioned license without a version snapshot is never update-eligible — reject the footgun.
   validates :licensed_version, presence: true, if: :policy_versioned?
 
@@ -32,8 +32,9 @@ class License < ApplicationRecord
       email: session.customer_details.email, stripe_customer_id: session.customer)
     license = fulfill!(
       product: Product.find(session.metadata.licencio_product_id), customer:,
-      quantity: session.metadata.quantity.to_i,
+      quantity: session.metadata[:quantity]&.to_i, # absent = unlimited seats, not zero
       stripe_payment_id: session.payment_intent || session.id,
+      update_policy: session.metadata[:update_policy],
       renew_key: session.metadata[:renew_license_key])
     license&.deliver_later
     license
@@ -43,14 +44,14 @@ class License < ApplicationRecord
     find_by(stripe_payment_id:)&.update!(status: "refunded")
   end
 
-  def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, renew_key: nil)
+  def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, renew_key: nil, update_policy: nil)
     return if exists?(stripe_payment_id:)
     # Only the paying customer may renew their own key; anyone else's key issues a fresh license.
     license = renew_key && product.licenses.find_by(license_key: renew_key, customer_id: customer&.id)
     if license
       license.renew!(stripe_payment_id:)
     else
-      product.issue_license!(customer:, quantity:, stripe_payment_id:)
+      product.issue_license!(customer:, quantity:, stripe_payment_id:, update_policy:)
     end
   end
 
@@ -61,14 +62,14 @@ class License < ApplicationRecord
   end
 
   def deliver_later
-    LicenseDeliveryJob.perform_later(self)
+    customer&.send_portal_access_later(product:)
   end
 
   def activate!(hardware_id:, device_name: nil)
     with_lock do
       activations.active.find_by(hardware_id:) ||
         begin
-          raise CapacityExceeded if activations.active.count >= max_activations
+          raise CapacityExceeded if max_activations && activations.active.count >= max_activations
           activations.create!(hardware_id:, device_name:, activated_at: Time.current)
         end
     end

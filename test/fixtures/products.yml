@@ -7,7 +7,7 @@ cozy:
   update_policy: lifetime
   api_key: prod_cozy_apikey
   loops_api_key: loops_secret_cozy
-  loops_magic_link_transactional_id: tmpl_cozy_magic
+  loops_transactional_id: tmpl_cozy
   sender_email: hello@cozy.example
   eddsa_private_key: cozy_private_key
   eddsa_public_key: cozy_public_key

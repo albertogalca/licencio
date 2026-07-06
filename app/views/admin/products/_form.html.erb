@@ -97,12 +97,8 @@
     <% end %>
   </div>
   <div>
-    <%= form.label :loops_transactional_id, class: label %>
+    <%= form.label :loops_transactional_id, "Loops transactional ID (license key + portal sign-in link)", class: label %>
     <%= form.text_field :loops_transactional_id, class: field %>
-  </div>
-  <div>
-    <%= form.label :loops_magic_link_transactional_id, class: label %>
-    <%= form.text_field :loops_magic_link_transactional_id, class: field %>
   </div>
   <div>
     <%= form.label :loops_api_key, "Loops API key (leave blank to use default)", class: label %>
