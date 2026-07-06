@@ -1,0 +1,39 @@
+<% content_for :title, "Products — Licencio Admin" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-xl font-semibold">Products</h1>
+  <%= link_to "New product", new_admin_product_path, class: "rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-gray-800" %>
+</div>
+
+<% if @products.any? %>
+  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left text-gray-500">
+        <tr>
+          <th class="px-4 py-2 font-medium">Name</th>
+          <th class="px-4 py-2 font-medium">Slug</th>
+          <th class="px-4 py-2 font-medium">Prefix</th>
+          <th class="px-4 py-2 font-medium">Policy</th>
+          <th class="px-4 py-2 font-medium">Licenses</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @products.each do |product| %>
+          <tr>
+            <td class="px-4 py-2 font-medium"><%= product.name %></td>
+            <td class="px-4 py-2 text-gray-600"><%= product.slug %></td>
+            <td class="px-4 py-2 text-gray-600"><%= product.license_prefix %></td>
+            <td class="px-4 py-2 text-gray-600"><%= product.update_policy %></td>
+            <td class="px-4 py-2 text-gray-600"><%= product.licenses.count %></td>
+            <td class="px-4 py-2 text-right">
+              <%= link_to "Edit", edit_admin_product_path(product), class: "text-gray-600 hover:text-gray-900" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <p class="text-gray-500">No products yet.</p>
+<% end %>

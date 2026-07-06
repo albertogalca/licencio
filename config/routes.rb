@@ -17,6 +17,15 @@ Rails.application.routes.draw do
     end
   end
 
+  namespace :admin do
+    resource  :session, only: [ :new, :create, :destroy ]
+    resources :products, only: [ :index, :new, :create, :edit, :update ]
+    resources :licenses, only: [ :index, :new, :create, :edit, :update ]
+    resources :customers, only: [ :index, :show ]
+    resources :activations, only: :index
+    root to: "products#index"
+  end
+
   namespace :portal do
     get    "session", to: "sessions#create"      # magic-link consume (GET link)
     delete "session", to: "sessions#destroy"     # logout

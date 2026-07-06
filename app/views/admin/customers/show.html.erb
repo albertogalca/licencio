@@ -1,0 +1,40 @@
+<% content_for :title, "#{@customer.email} — Licencio Admin" %>
+
+<div class="mb-6">
+  <%= link_to "← Customers", admin_customers_path, class: "text-sm text-gray-500" %>
+  <h1 class="mt-1 text-xl font-semibold"><%= @customer.email %></h1>
+  <% if @customer.name %><p class="text-gray-600"><%= @customer.name %></p><% end %>
+</div>
+
+<h2 class="mb-3 text-sm font-semibold text-gray-500">Licenses</h2>
+<% if @licenses.any? %>
+  <div class="space-y-4">
+    <% @licenses.each do |license| %>
+      <div class="rounded-lg border border-gray-200 bg-white p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-medium"><%= license.product.name %> — <%= license.status %></p>
+            <p class="font-mono text-xs text-gray-500"><%= license.license_key %></p>
+          </div>
+          <%= link_to "Edit", edit_admin_license_path(license), class: "text-sm text-gray-600 hover:text-gray-900" %>
+        </div>
+        <p class="mt-1 text-xs text-gray-500">
+          Seats <%= license.activations.count { |a| a.deactivated_at.nil? } %>/<%= license.max_activations %>
+          <% if license.expires_at %>· expires <%= license.expires_at.to_date %><% end %>
+        </p>
+        <% if license.activations.any? %>
+          <ul class="mt-2 space-y-1 text-xs text-gray-600">
+            <% license.activations.each do |a| %>
+              <li>
+                <%= a.device_name.presence || a.hardware_id %>
+                <span class="text-gray-400"><%= a.deactivated_at ? "(deactivated)" : "(active)" %></span>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <p class="text-gray-500">No licenses.</p>
+<% end %>

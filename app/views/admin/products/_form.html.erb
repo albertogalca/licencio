@@ -1,0 +1,87 @@
+<%= form_with model: product, url: (product.new_record? ? admin_products_path : admin_product_path(product)),
+    method: (product.new_record? ? :post : :patch), class: "space-y-4" do |form| %>
+
+  <% if product.errors.any? %>
+    <div class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+      <ul class="list-disc pl-5">
+        <% product.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% field = "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+  <% label = "block text-sm font-medium text-gray-700" %>
+  <% ro = "mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500" %>
+
+  <div>
+    <%= form.label :name, class: label %>
+    <%= form.text_field :name, class: field %>
+  </div>
+
+  <% if product.new_record? %>
+    <div><%= form.label :slug, class: label %><%= form.text_field :slug, class: field %></div>
+    <div><%= form.label :bundle_identifier, class: label %><%= form.text_field :bundle_identifier, class: field %></div>
+    <div>
+      <%= form.label :license_prefix, class: label %>
+      <%= form.text_field :license_prefix, class: field %>
+      <p class="mt-1 text-xs text-gray-400">Baked into issued license keys — cannot be changed later.</p>
+    </div>
+  <% else %>
+    <div>
+      <span class="<%= label %>">Slug / Bundle / Prefix (locked)</span>
+      <p class="mt-1 text-sm text-gray-500"><%= product.slug %> · <%= product.bundle_identifier %> · <%= product.license_prefix %></p>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :update_policy, class: label %>
+    <%= form.select :update_policy, Product.update_policies.keys, {}, class: field %>
+  </div>
+  <div>
+    <%= form.label :max_activations_default, class: label %>
+    <%= form.number_field :max_activations_default, class: field %>
+  </div>
+  <div>
+    <%= form.label :update_duration_days, "Update duration (days, for time_limited)", class: label %>
+    <%= form.number_field :update_duration_days, class: field %>
+  </div>
+  <div>
+    <%= form.label :trial_days, class: label %>
+    <%= form.number_field :trial_days, class: field %>
+  </div>
+  <div>
+    <%= form.label :sender_email, class: label %>
+    <%= form.text_field :sender_email, class: field %>
+  </div>
+  <div>
+    <%= form.label :stripe_product_id, class: label %>
+    <%= form.text_field :stripe_product_id, class: field %>
+  </div>
+  <div>
+    <%= form.label :loops_transactional_id, class: label %>
+    <%= form.text_field :loops_transactional_id, class: field %>
+  </div>
+  <div>
+    <%= form.label :loops_magic_link_transactional_id, class: label %>
+    <%= form.text_field :loops_magic_link_transactional_id, class: field %>
+  </div>
+  <div>
+    <%= form.label :loops_api_key, "Loops API key (leave blank to use default)", class: label %>
+    <%= form.password_field :loops_api_key, value: nil, autocomplete: "off", class: field %>
+  </div>
+
+  <% unless product.new_record? %>
+    <div>
+      <span class="<%= label %>">API key (auto-generated)</span>
+      <input type="text" readonly value="<%= product.api_key %>" class="<%= ro %>">
+    </div>
+    <div>
+      <span class="<%= label %>">EdDSA public key (auto-generated)</span>
+      <input type="text" readonly value="<%= product.eddsa_public_key %>" class="<%= ro %>">
+    </div>
+  <% end %>
+
+  <%= form.submit (product.new_record? ? "Create product" : "Save changes"),
+    class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
+  <%= link_to "Cancel", admin_products_path, class: "ml-2 text-sm text-gray-500" %>
+<% end %>

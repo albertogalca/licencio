@@ -1,0 +1,45 @@
+<% content_for :title, "Edit license — Licencio Admin" %>
+
+<h1 class="mb-1 text-xl font-semibold">Edit license</h1>
+<p class="mb-6 font-mono text-xs text-gray-500"><%= @license.license_key %> · <%= @license.product.name %>
+  <% if @license.customer %>· <%= @license.customer.email %><% end %></p>
+
+<div class="max-w-xl">
+  <%= form_with model: @license, url: admin_license_path(@license), method: :patch, class: "space-y-4" do |form| %>
+    <% if @license.errors.any? %>
+      <div class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+        <ul class="list-disc pl-5">
+          <% @license.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <% field = "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    <% label = "block text-sm font-medium text-gray-700" %>
+
+    <div>
+      <%= form.label :status, class: label %>
+      <%= form.select :status, License.statuses.keys, {}, class: field %>
+    </div>
+    <div>
+      <%= form.label :max_activations, class: label %>
+      <%= form.number_field :max_activations, class: field %>
+    </div>
+    <div>
+      <%= form.label :expires_at, "Expires at (optional)", class: label %>
+      <%= form.datetime_local_field :expires_at, value: @license.expires_at&.strftime("%Y-%m-%dT%H:%M"), class: field %>
+    </div>
+
+    <%= form.submit "Save changes", class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
+    <%= link_to "Cancel", admin_licenses_path, class: "ml-2 text-sm text-gray-500" %>
+  <% end %>
+
+  <% unless @license.refunded? %>
+    <div class="mt-6 border-t border-gray-200 pt-4">
+      <%= button_to "Revoke license", admin_license_path(@license),
+        method: :patch, params: { license: { status: "refunded" } },
+        form: { data: { turbo_confirm: "Revoke this license? Its status becomes refunded." } },
+        class: "rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 cursor-pointer" %>
+    </div>
+  <% end %>
+</div>

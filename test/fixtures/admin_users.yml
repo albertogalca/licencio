@@ -1,0 +1,3 @@
+alberto:
+  email: admin@licencio.example
+  password_digest: <%= BCrypt::Password.create("secret123") %>

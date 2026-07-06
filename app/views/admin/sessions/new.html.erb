@@ -1,0 +1,19 @@
+<% content_for :title, "Sign in — Licencio Admin" %>
+
+<div class="mx-auto max-w-sm">
+  <h1 class="mb-6 text-xl font-semibold">Admin sign in</h1>
+
+  <%= form_with url: admin_session_path, method: :post, class: "space-y-4" do |form| %>
+    <div>
+      <%= form.label :email, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.email_field :email, autofocus: true, autocomplete: "username",
+        class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= form.label :password, class: "block text-sm font-medium text-gray-700" %>
+      <%= form.password_field :password, autocomplete: "current-password",
+        class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+    <%= form.submit "Sign in", class: "w-full rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
+  <% end %>
+</div>

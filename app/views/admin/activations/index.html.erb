@@ -1,0 +1,32 @@
+<% content_for :title, "Activations — Licencio Admin" %>
+
+<h1 class="mb-6 text-xl font-semibold">Activations</h1>
+
+<% if @activations.any? %>
+  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left text-gray-500">
+        <tr>
+          <th class="px-4 py-2 font-medium">Device</th>
+          <th class="px-4 py-2 font-medium">Product</th>
+          <th class="px-4 py-2 font-medium">Customer</th>
+          <th class="px-4 py-2 font-medium">Activated</th>
+          <th class="px-4 py-2 font-medium">State</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @activations.each do |a| %>
+          <tr>
+            <td class="px-4 py-2"><%= a.device_name.presence || a.hardware_id %></td>
+            <td class="px-4 py-2 text-gray-600"><%= a.license.product.name %></td>
+            <td class="px-4 py-2 text-gray-600"><%= a.license.customer&.email %></td>
+            <td class="px-4 py-2 text-gray-600"><%= a.activated_at&.to_date %></td>
+            <td class="px-4 py-2 text-gray-600"><%= a.deactivated_at ? "deactivated" : "active" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <p class="text-gray-500">No activations yet.</p>
+<% end %>

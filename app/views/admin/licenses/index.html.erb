@@ -1,0 +1,48 @@
+<% content_for :title, "Licenses — Licencio Admin" %>
+
+<div class="mb-6 flex items-center justify-between">
+  <h1 class="text-xl font-semibold">Licenses</h1>
+  <%= link_to "New license", new_admin_license_path, class: "rounded-md bg-gray-900 px-3 py-2 text-sm text-white hover:bg-gray-800" %>
+</div>
+
+<%= form_with url: admin_licenses_path, method: :get, class: "mb-4 flex gap-3 text-sm" do |form| %>
+  <%= form.select :product_id, Product.order(:name).pluck(:name, :id), { include_blank: "All products" },
+    class: "rounded-md border border-gray-300 px-3 py-2", onchange: "this.form.requestSubmit()" %>
+  <%= form.select :status, License.statuses.keys, { include_blank: "All statuses" },
+    selected: params[:status], class: "rounded-md border border-gray-300 px-3 py-2", onchange: "this.form.requestSubmit()" %>
+<% end %>
+
+<% if @licenses.any? %>
+  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left text-gray-500">
+        <tr>
+          <th class="px-4 py-2 font-medium">Key</th>
+          <th class="px-4 py-2 font-medium">Product</th>
+          <th class="px-4 py-2 font-medium">Customer</th>
+          <th class="px-4 py-2 font-medium">Status</th>
+          <th class="px-4 py-2 font-medium">Seats</th>
+          <th class="px-4 py-2 font-medium">Expires</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @licenses.each do |license| %>
+          <tr>
+            <td class="px-4 py-2 font-mono text-xs"><%= license.license_key %></td>
+            <td class="px-4 py-2 text-gray-600"><%= license.product.name %></td>
+            <td class="px-4 py-2 text-gray-600"><%= license.customer&.email %></td>
+            <td class="px-4 py-2"><%= license.status %></td>
+            <td class="px-4 py-2 text-gray-600"><%= license.max_activations %></td>
+            <td class="px-4 py-2 text-gray-600"><%= license.expires_at&.to_date %></td>
+            <td class="px-4 py-2 text-right">
+              <%= link_to "Edit", edit_admin_license_path(license), class: "text-gray-600 hover:text-gray-900" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <p class="text-gray-500">No licenses found.</p>
+<% end %>

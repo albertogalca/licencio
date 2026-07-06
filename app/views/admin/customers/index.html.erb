@@ -1,0 +1,32 @@
+<% content_for :title, "Customers — Licencio Admin" %>
+
+<h1 class="mb-6 text-xl font-semibold">Customers</h1>
+
+<% if @customers.any? %>
+  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left text-gray-500">
+        <tr>
+          <th class="px-4 py-2 font-medium">Email</th>
+          <th class="px-4 py-2 font-medium">Name</th>
+          <th class="px-4 py-2 font-medium">Licenses</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @customers.each do |customer| %>
+          <tr>
+            <td class="px-4 py-2 font-medium"><%= customer.email %></td>
+            <td class="px-4 py-2 text-gray-600"><%= customer.name %></td>
+            <td class="px-4 py-2 text-gray-600"><%= customer.licenses.count %></td>
+            <td class="px-4 py-2 text-right">
+              <%= link_to "View", admin_customer_path(customer), class: "text-gray-600 hover:text-gray-900" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <p class="text-gray-500">No customers yet.</p>
+<% end %>
