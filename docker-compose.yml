@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-licencio}
       POSTGRES_DB: ${POSTGRES_DB:-licencio_production}
     volumes:
-      - pg-data:/var/lib/postgresql/data
+      # Postgres 18+ stores data in a version subdir; mount the parent, not /data.
+      - pg-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-licencio} -d ${POSTGRES_DB:-licencio_production}"]
       interval: 5s
