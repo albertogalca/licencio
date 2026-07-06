@@ -1,0 +1,46 @@
+# One-command self-host: `docker compose up --build`
+# Works as-is on Coolify / Render / Hetzner / DigitalOcean (they read this file or the Dockerfile).
+# Copy .env.example to .env and fill it in first (at minimum RAILS_MASTER_KEY).
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-licencio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-licencio}
+      POSTGRES_DB: ${POSTGRES_DB:-licencio_production}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-licencio} -d ${POSTGRES_DB:-licencio_production}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Single database — Solid Cache/Queue/Cable live here too. The entrypoint runs db:prepare on boot.
+      DATABASE_URL: postgres://${POSTGRES_USER:-licencio}:${POSTGRES_PASSWORD:-licencio}@db:5432/${POSTGRES_DB:-licencio_production}
+      # Run the Solid Queue worker inside Puma — no separate worker container needed.
+      SOLID_QUEUE_IN_PUMA: "true"
+    ports:
+      - "${WEB_PORT:-80}:80"
+    volumes:
+      # Persist Active Storage uploads (config.active_storage.service = :local).
+      - storage:/rails/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg-data:
+  storage:

@@ -1,0 +1,7 @@
+alberto:
+  email: alberto@example.com
+  name: Alberto
+  stripe_customer_id: cus_alberto
+
+nameless:
+  email: nameless@example.com

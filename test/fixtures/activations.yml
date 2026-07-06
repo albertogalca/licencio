@@ -1,0 +1,11 @@
+cozy_macbook:
+  license: cozy_active
+  hardware_id: HW-AAAA-BBBB
+  device_name: Alberto's MacBook
+  activated_at: <%= 1.day.ago %>
+
+cozy_deactivated:
+  license: cozy_active
+  hardware_id: HW-CCCC-DDDD
+  activated_at: <%= 1.month.ago %>
+  deactivated_at: <%= 1.week.ago %>

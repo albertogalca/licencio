@@ -1,0 +1,22 @@
+cozy_active:
+  license_key: COZY-1111-2222-3333
+  product: cozy
+  customer: alberto
+  status: active
+  max_activations: 3
+  claimed_at: <%= 1.day.ago %>
+
+cozy_unclaimed:
+  license_key: COZY-4444-5555-6666
+  product: cozy
+  status: inactive
+  max_activations: 3
+  migration_source: lemon_squeezy
+
+picmal_expired:
+  license_key: PICM-7777-8888-9999
+  product: picmal
+  customer: nameless
+  status: expired
+  max_activations: 5
+  expires_at: <%= 1.week.ago %>

@@ -1,0 +1,24 @@
+<% content_for :title, "Recover your licenses — Licencio" %>
+
+<div class="mx-auto max-w-sm">
+  <h1 class="mb-2 text-2xl font-semibold">Recover your licenses</h1>
+  <p class="mb-6 text-sm text-gray-500">
+    Enter your email and we'll send you a sign-in link along with your license keys.
+  </p>
+
+  <%= form_with url: portal_recoveries_path, method: :post do |form| %>
+    <div class="mb-4">
+      <%= form.label :product, "Product", class: "mb-1 block text-sm font-medium" %>
+      <%= form.text_field :product, value: @product_slug,
+            placeholder: "e.g. cozy",
+            class: "w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+    <div class="mb-4">
+      <%= form.label :email, "Email", class: "mb-1 block text-sm font-medium" %>
+      <%= form.email_field :email, required: true, autofocus: true,
+            class: "w-full rounded-md border border-gray-300 px-3 py-2" %>
+    </div>
+    <%= form.submit "Send sign-in link",
+          class: "w-full rounded-md bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-700" %>
+  <% end %>
+</div>

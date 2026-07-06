@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Your licenses — Licencio" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= yield :head %>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-gray-50 text-gray-900">
+    <main class="mx-auto max-w-3xl px-5 py-12">
+      <% if notice %>
+        <p class="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm text-green-800"><%= notice %></p>
+      <% end %>
+      <% if alert %>
+        <p class="mb-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800"><%= alert %></p>
+      <% end %>
+      <%= yield %>
+    </main>
+  </body>
+</html>
