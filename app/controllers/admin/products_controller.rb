@@ -38,11 +38,14 @@ class Admin::ProductsController < Admin::BaseController
     # only settable on create. eddsa_private_key & api_key never come from the form.
     def product_params
       permitted = %i[name update_policy current_version max_activations_default trial_days
-        update_duration_days sender_email stripe_product_id
+        update_duration_days sender_email stripe_product_id stripe_secret_key stripe_webhook_secret
         loops_transactional_id loops_magic_link_transactional_id loops_api_key]
       permitted += %i[slug bundle_identifier license_prefix] if @product.nil? || @product.new_record?
       attrs = params.require(:product).permit(*permitted)
-      attrs.delete(:loops_api_key) if attrs[:loops_api_key].blank? # blank = leave existing key
+      # blank secret = leave existing key untouched
+      %i[loops_api_key stripe_secret_key stripe_webhook_secret].each do |k|
+        attrs.delete(k) if attrs[k].blank?
+      end
       attrs
     end
 end

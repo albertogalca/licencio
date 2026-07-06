@@ -11,7 +11,7 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
     captured = nil
     Stripe::Price.stub(:retrieve, price) do
-      Stripe::Checkout::Session.stub(:create, ->(**args) { captured = args; fake_session }) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
         post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" }
       end
     end

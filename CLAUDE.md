@@ -14,7 +14,9 @@ Postgres is managed by **DBngin**, engine named **`licencio`** — PostgreSQL 18
 
 ## Encryption
 
-`Product#loops_api_key` and `Product#eddsa_private_key` use Active Record `encrypts`. Keys live in Rails credentials under `active_record_encryption`. Test env sets `config.active_record.encryption.encrypt_fixtures = true` so encrypted columns round-trip through fixtures.
+`Product#loops_api_key`, `Product#eddsa_private_key`, `Product#stripe_secret_key`, and `Product#stripe_webhook_secret` use Active Record `encrypts`. Keys live in Rails credentials under `active_record_encryption`. Test env sets `config.active_record.encryption.encrypt_fixtures = true` so encrypted columns round-trip through fixtures.
+
+Stripe is per-Product (Studio Model) — no ENV fallback. Each Stripe call passes the product's own `stripe_secret_key` explicitly (`Product#stripe_opts`); there is no global `Stripe.api_key` (the initializer was removed). Inbound webhooks are addressed per product at `/webhooks/stripe/:product_id` and verified with that product's `stripe_webhook_secret`.
 
 ## Conventions
 

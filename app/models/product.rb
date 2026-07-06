@@ -9,6 +9,8 @@ class Product < ApplicationRecord
 
   encrypts :loops_api_key
   encrypts :eddsa_private_key
+  encrypts :stripe_secret_key
+  encrypts :stripe_webhook_secret
 
   enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }
 
@@ -22,6 +24,11 @@ class Product < ApplicationRecord
 
   def loops_api_key_or_default
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
+  end
+
+  # Verify an inbound webhook against this product's own signing secret.
+  def verify_webhook(payload, signature)
+    Stripe::Webhook.construct_event(payload, signature, stripe_webhook_secret)
   end
 
   def license_expires_at(from: Time.current)
@@ -41,22 +48,22 @@ class Product < ApplicationRecord
   def variants
     # ponytail: 5-min cache; Stripe price edits appear within 5 min. Shorten only if that lag bites.
     Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
-      Stripe::Price.list(product: stripe_product_id, active: true).data.map do |p|
+      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data.map do |p|
         Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
       end.sort_by(&:amount_cents)
     end
   end
 
   def create_checkout_session(price_id:, email:, renew_license_key: nil)
-    price = Stripe::Price.retrieve(price_id)
+    price = Stripe::Price.retrieve(price_id, stripe_opts)
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
-    Stripe::Checkout::Session.create(
+    Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       metadata: { licencio_product_id: id, quantity: seats_for(price),
                   renew_license_key: renew_license_key.presence }.compact,
-      success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"])
+      success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"] }, stripe_opts)
   end
 
   def sign_jwt(claims)
@@ -66,6 +73,8 @@ class Product < ApplicationRecord
   end
 
   private
+    def stripe_opts = { api_key: stripe_secret_key }
+
     def b64url(bytes) = Base64.urlsafe_encode64(bytes, padding: false)
 
     def generate_credentials

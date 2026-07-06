@@ -1,7 +1,7 @@
 class Webhooks::StripeController < ActionController::API
   def create
-    event = Stripe::Webhook.construct_event(
-      request.body.read, request.headers["Stripe-Signature"], ENV["STRIPE_WEBHOOK_SECRET"])
+    product = Product.find(params[:product_id])
+    event = product.verify_webhook(request.body.read, request.headers["Stripe-Signature"])
     case event.type
     when "checkout.session.completed"
       License.fulfill_from_stripe_session(event.data.object)

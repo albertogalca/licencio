@@ -4,14 +4,15 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
   setup do
-    ENV["STRIPE_WEBHOOK_SECRET"] = "whsec_test"
+    @secret = "whsec_test"
     @product = products(:picmal) # time_limited, update_duration_days: 365
+    @product.update!(stripe_webhook_secret: @secret)
   end
 
   test "invalid signature is rejected and fulfills nothing" do
     payload = completed_event
     assert_no_difference "License.count" do
-      post "/webhooks/stripe", params: payload,
+      post "/webhooks/stripe/#{@product.id}", params: payload,
         headers: { "Stripe-Signature" => "t=123,v1=deadbeef" }
     end
     assert_response :bad_request
@@ -99,13 +100,13 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     end
 
     def post_event(payload)
-      post "/webhooks/stripe", params: payload, headers: signed(payload)
+      post "/webhooks/stripe/#{@product.id}", params: payload, headers: signed(payload)
     end
 
     # CONTENT_TYPE json keeps the body byte-for-byte; form-encoding would break the signature.
     def signed(payload)
       ts  = Time.now.to_i
-      sig = OpenSSL::HMAC.hexdigest("SHA256", ENV["STRIPE_WEBHOOK_SECRET"], "#{ts}.#{payload}")
+      sig = OpenSSL::HMAC.hexdigest("SHA256", @secret, "#{ts}.#{payload}")
       { "Stripe-Signature" => "t=#{ts},v1=#{sig}", "CONTENT_TYPE" => "application/json" }
     end
 end

@@ -18,7 +18,9 @@ Loops for email.
 One Licencio instance hosts many independent **Products** — one row per app you
 sell. Each Product is a self-contained tenant that owns:
 
-- its own **Stripe product** (`stripe_product_id`),
+- its own **Stripe account** — `stripe_product_id`, `stripe_secret_key`, and
+  `stripe_webhook_secret` (the two keys encrypted at rest), so different Products can
+  bill through entirely separate Stripe accounts,
 - its own **EdDSA signing keypair** (auto-generated; private key encrypted at rest),
 - its own **device API key** (`prod_…`, auto-generated),
 - its own **Loops** email config (optional per-product API key + templates).
@@ -53,7 +55,7 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
 | `POST /api/admin/migrations/import` | `Bearer ADMIN_API_KEY` | bulk-import licenses (Lemon Squeezy / Polar) |
-| `POST /webhooks/stripe` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`) |
+| `POST /webhooks/stripe/:product_id` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`). Verified with that Product's `stripe_webhook_secret` |
 | `GET /portal` … | session cookie | customer self-serve portal |
 | `GET /up`, `/health` | — | health checks |
 
@@ -94,7 +96,8 @@ automatically (`config.assume_ssl` + `config.force_ssl`).
 
 ### Active Record encryption
 
-`Product#eddsa_private_key` and `Product#loops_api_key` are encrypted at rest.
+`Product#eddsa_private_key`, `Product#loops_api_key`, `Product#stripe_secret_key`,
+and `Product#stripe_webhook_secret` are encrypted at rest.
 The keys live in Rails credentials under `active_record_encryption`. If you
 generated fresh credentials in step 1, add them once:
 
@@ -115,8 +118,6 @@ See [`env.example`](env.example) for the full, commented list. The essentials:
 | `RAILS_MASTER_KEY` | ✅ | unlocks credentials + Active Record encryption |
 | `DATABASE_URL` | ✅ (auto-set by compose) | Postgres connection (single database) |
 | `APP_HOST` | ✅ in prod | host for magic-link / mailer URLs, e.g. `licenses.yourapp.com` |
-| `STRIPE_SECRET_KEY` | for sales | Stripe API key |
-| `STRIPE_WEBHOOK_SECRET` | for sales | verifies `/webhooks/stripe` |
 | `ADMIN_API_KEY` | for imports | Bearer token for `/api/admin/*` |
 | `LOOPS_API_KEY_DEFAULT` | for email | fallback Loops key (per-Product key overrides it) |
 | `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` | for checkout | Stripe redirect targets |
@@ -141,15 +142,17 @@ walkthrough.
 
 ## Connecting Stripe
 
-1. Create a Stripe **Product** and put its `prod_…` id on the Licencio Product.
+1. Create a Stripe **Product** and, on the Licencio Product in `/admin`, set its
+   `prod_…` id and its `stripe_secret_key` (`sk_…`). Different Licencio Products can
+   use different Stripe accounts — the key is stored (encrypted) per Product.
 2. Add one **Price** per variant (seat option) on that Stripe Product — e.g.
    `nickname` "3 seats", a one-time amount, and metadata **`seats: 3`**. The
    `seats` value becomes the license's device cap; missing metadata falls back to
    the product's `max_activations_default`. A single-price product is just one
    Price. Prices are managed entirely in Stripe — no price data is stored locally.
-3. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe`, event
-   `checkout.session.completed`. Copy its signing secret into
-   `STRIPE_WEBHOOK_SECRET`.
+3. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe/PRODUCT_ID` (the
+   Product's edit page shows the exact URL), event `checkout.session.completed`.
+   Paste its signing secret into the Product's `stripe_webhook_secret`.
 4. Your app calls `POST /api/checkout` with the Product `slug` and the chosen
    variant's `price_id` to get a Checkout URL. On payment, the webhook fulfills
    the license (idempotent on the Stripe payment id).

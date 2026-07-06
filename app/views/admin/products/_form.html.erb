@@ -86,6 +86,17 @@
     <% end %>
   </div>
   <div>
+    <%= form.label :stripe_secret_key, "Stripe secret key (leave blank to keep current)", class: label %>
+    <%= form.password_field :stripe_secret_key, value: nil, autocomplete: "off", class: field %>
+  </div>
+  <div>
+    <%= form.label :stripe_webhook_secret, "Stripe webhook signing secret (leave blank to keep current)", class: label %>
+    <%= form.password_field :stripe_webhook_secret, value: nil, autocomplete: "off", class: field %>
+    <% if product.persisted? %>
+      <p class="mt-1 text-sm text-gray-500">Point this account's Stripe webhook at <code><%= webhooks_stripe_url(product_id: product.id) %></code></p>
+    <% end %>
+  </div>
+  <div>
     <%= form.label :loops_transactional_id, class: label %>
     <%= form.text_field :loops_transactional_id, class: field %>
   </div>

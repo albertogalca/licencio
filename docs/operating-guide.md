@@ -23,8 +23,9 @@ Three audiences, three doors — keep them straight:
 
 The app is running (see the README's [Quick start](../README.md#quick-start-docker))
 and `RAILS_MASTER_KEY` is set — it unlocks Rails credentials **and** the encrypted
-`Product` columns (`eddsa_private_key`, `loops_api_key`). Without it the app can't
-sign tokens or send email.
+`Product` columns (`eddsa_private_key`, `loops_api_key`, `stripe_secret_key`,
+`stripe_webhook_secret`). Without it the app can't sign tokens, take payments, or
+send email.
 
 ---
 
@@ -47,15 +48,20 @@ Products list. Run the rake task again to add more admins.
 
 ## 3. Collect your Stripe values
 
-Do this once per deployment (the secret + webhook) and once per product (the
-product id). From the [Stripe Dashboard](https://dashboard.stripe.com):
+Every Product runs on its **own Stripe account** (the Studio Model). All three
+Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes in
+`.env`. From the [Stripe Dashboard](https://dashboard.stripe.com):
 
 | Value | Where in Stripe | Goes into |
 |-------|-----------------|-----------|
-| `STRIPE_SECRET_KEY` (`sk_…`) | Developers → API keys | `.env` |
 | `stripe_product_id` (`prod_…`) | Product catalog → your product | the **Product** in `/admin` |
-| `STRIPE_WEBHOOK_SECRET` (`whsec_…`) | Developers → Webhooks → your endpoint → *Signing secret* | `.env` |
+| `stripe_secret_key` (`sk_…`) | Developers → API keys | the **Product** in `/admin` (encrypted) |
+| `stripe_webhook_secret` (`whsec_…`) | Developers → Webhooks → your endpoint → *Signing secret* | the **Product** in `/admin` (encrypted) |
 | `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` | your own pages | `.env` |
+
+- **One account per Product.** Each Product carries its own `stripe_secret_key`, so
+  one deployment can sell different apps through separate Stripe accounts — a variant
+  list, checkout, or webhook for one Product never touches another's keys.
 
 **Two things to get right:**
 
@@ -68,14 +74,16 @@ product id). From the [Stripe Dashboard](https://dashboard.stripe.com):
    works out of the box (2 seats need not cost 2×). A single-price product is just
    one Price. Your website's buy button passes the chosen variant's `price_id` to
    `POST /api/checkout` (see §5).
-2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe`, events
+2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe/PRODUCT_ID`
+   (the Product's edit page shows the exact URL), events
    **`checkout.session.completed`** (turns a payment into a license — idempotent on
    the Stripe payment id, so retries are safe — and emails the buyer their key) and
    **`charge.refunded`** (flips the matching license to `refunded`, which blocks
-   further device activations). Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+   further device activations). Paste its signing secret into the Product's
+   `stripe_webhook_secret`.
 
-> Testing? Use `stripe listen --forward-to localhost:3000/webhooks/stripe` and
-> paste the `whsec_…` it prints.
+> Testing? Use `stripe listen --forward-to localhost:3000/webhooks/stripe/PRODUCT_ID`
+> and paste the `whsec_…` it prints into that Product's `stripe_webhook_secret`.
 
 ---
 
@@ -136,6 +144,10 @@ Products → **New product** in `/admin`. Fields:
 - `stripe_product_id` — from §3. Once set, the edit page shows a **read-only list of
   the product's variants** (each Stripe Price — nickname · seats · amount), pulled
   live from Stripe. Manage the prices themselves in Stripe, not here.
+- `stripe_secret_key`, `stripe_webhook_secret` — from §3; this product's Stripe
+  account. Required to load variants and take payments. Editing is blank-to-keep
+  (leave blank to keep the current value). The edit page prints this product's
+  webhook URL to register in Stripe.
 - `sender_email`, `loops_magic_link_transactional_id`, `loops_api_key` — from §4
   (leave the key blank to keep the current one / use the default).
 

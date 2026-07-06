@@ -35,7 +35,9 @@ Rails.application.routes.draw do
     root to: "dashboard#show"
   end
 
-  post "webhooks/stripe" => "webhooks/stripe#create"
+  # Each Stripe account POSTs to its own product's endpoint; verified with that
+  # product's stripe_webhook_secret.
+  post "webhooks/stripe/:product_id" => "webhooks/stripe#create", as: :webhooks_stripe
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
