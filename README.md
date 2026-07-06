@@ -10,6 +10,7 @@ database). No Redis, no external services required beyond Stripe and (optionally
 Loops for email.
 
 - **License**: MIT (see [`LICENSE`](LICENSE))
+- **Operating guide** (setup → Stripe/Loops → admin → website): [`docs/operating-guide.md`](docs/operating-guide.md)
 - **Client integration**: [`docs/client-integration.md`](docs/client-integration.md)
 
 ## The Studio Model
@@ -118,31 +119,21 @@ See [`env.example`](env.example) for the full, commented list. The essentials:
 
 ## Creating your first Product
 
-There is no admin UI for Products yet — create them from the Rails console. Only
-five fields are required; the API key and EdDSA keypair are generated for you.
+Create an admin login and use the admin UI:
 
 ```bash
-docker compose exec web bin/rails console
+docker compose exec web bin/rails "admin:create[you@example.com,a-strong-password]"
 ```
 
-```ruby
-product = Product.create!(
-  name:              "My App",
-  slug:              "my-app",           # used by /api/checkout
-  bundle_identifier: "com.example.myapp",
-  license_prefix:    "myapp",            # license keys look like myapp_ab12…
-  update_policy:     "lifetime",         # or "time_limited" (set update_duration_days)
-  stripe_product_id: "prod_...",         # your Stripe product
-  max_activations_default: 3
-)
-
-product.api_key            # => "prod_..."  → your app sends this as X-Api-Key
-product.eddsa_public_key   # => base64 → embed in your app to verify tokens offline
-```
+Sign in at `/admin`, then **Products → New**. `slug`, `bundle_identifier`, and
+`license_prefix` are set once (baked into license keys); the `api_key` and EdDSA
+keypair are generated for you and shown on the product's edit page.
 
 Ship `eddsa_public_key` inside your client app; it's static per Product and safe
 to publish. See [`docs/client-integration.md`](docs/client-integration.md) for the
-offline verification code (Swift/CryptoKit).
+offline verification code (Swift/CryptoKit), and
+[`docs/operating-guide.md`](docs/operating-guide.md) for the full field-by-field
+walkthrough.
 
 ## Connecting Stripe
 
@@ -170,6 +161,5 @@ bin/dev              # Rails server + Tailwind watcher
 - **No purchase-confirmation email.** Fulfillment creates the license but does
   not yet email the key to the buyer (the `loops_transactional_id` column exists
   for it). Buyers reach their keys via the portal magic link (`/api/licenses/recover`).
-- **Products are console-only** (no admin UI) — see above.
 
 PRs welcome.
