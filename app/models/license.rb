@@ -5,6 +5,14 @@ class License < ApplicationRecord
 
   enum :status, { active: "active", inactive: "inactive", expired: "expired", refunded: "refunded" }
   enum :migration_source, { lemon_squeezy: "lemon_squeezy", polar: "polar" }, prefix: true
+
+  # Admin free-text search across the license and its customer/product.
+  scope :search, ->(term) {
+    pattern = "%#{term.to_s.strip}%"
+    left_joins(:customer, :product).where(
+      "licenses.license_key ILIKE :p OR licenses.status ILIKE :p OR " \
+      "customers.email ILIKE :p OR customers.name ILIKE :p OR products.name ILIKE :p", p: pattern)
+  }
   # Nullable per-license override of the product's update policy. Nil → inherit product.
   enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }, prefix: :policy
 

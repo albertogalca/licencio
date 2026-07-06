@@ -2,7 +2,7 @@ class Admin::ProductsController < Admin::BaseController
   before_action :set_product, only: [ :edit, :update ]
 
   def index
-    @products = Product.order(:name)
+    @products = paginate(Product.order(:name))
   end
 
   def new

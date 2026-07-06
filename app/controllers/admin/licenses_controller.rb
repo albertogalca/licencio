@@ -2,9 +2,11 @@ class Admin::LicensesController < Admin::BaseController
   before_action :set_license, only: [ :edit, :update ]
 
   def index
-    @licenses = License.includes(:product, :customer).order(created_at: :desc)
-    @licenses = @licenses.where(product_id: params[:product_id]) if params[:product_id].present?
-    @licenses = @licenses.where(status: params[:status]) if params[:status].present?
+    scope = License.includes(:product, :customer).order(created_at: :desc)
+    scope = scope.where(product_id: params[:product_id]) if params[:product_id].present?
+    scope = scope.where(status: params[:status]) if params[:status].present?
+    scope = scope.search(params[:q]) if params[:q].present?
+    @licenses = paginate(scope)
   end
 
   def new

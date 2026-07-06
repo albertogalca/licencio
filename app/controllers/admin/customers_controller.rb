@@ -1,6 +1,6 @@
 class Admin::CustomersController < Admin::BaseController
   def index
-    @customers = Customer.order(:email)
+    @customers = paginate(Customer.order(:email))
   end
 
   def show

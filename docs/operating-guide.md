@@ -154,6 +154,10 @@ Products → **New product** in `/admin`. Fields:
 fulfills the order and issues the license automatically. You only touch the
 Licenses screen for manual grants (support, comps, testing) and status changes.
 
+- **Find a license** — the Licenses screen has a search box (matches license key,
+  customer email/name, product name, or status) alongside the **All products** /
+  **All statuses** filters; combine them freely. The Licenses, Customers, and
+  Activations lists paginate at 50 rows per page.
 - **Issue one manually** — Licenses → New. Pick the product, optionally enter a
   `customer_email` (a Customer is created if it doesn't exist), set
   `max_activations`, `status` (`active`), and optional `expires_at`. The license

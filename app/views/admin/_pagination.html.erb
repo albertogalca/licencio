@@ -1,0 +1,15 @@
+<% if @total_pages && @total_pages > 1 %>
+  <nav class="mt-4 flex items-center justify-between text-sm text-gray-600">
+    <span><%= @total_count %> total · page <%= @page %> of <%= @total_pages %></span>
+    <span class="flex gap-2">
+      <% if @page > 1 %>
+        <%= link_to "← Prev", "#{request.path}?#{request.query_parameters.merge(page: @page - 1).to_query}",
+          class: "rounded-md border border-gray-300 px-3 py-2 hover:bg-gray-100" %>
+      <% end %>
+      <% if @page < @total_pages %>
+        <%= link_to "Next →", "#{request.path}?#{request.query_parameters.merge(page: @page + 1).to_query}",
+          class: "rounded-md border border-gray-300 px-3 py-2 hover:bg-gray-100" %>
+      <% end %>
+    </span>
+  </nav>
+<% end %>
