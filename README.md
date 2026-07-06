@@ -53,7 +53,7 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
 | `POST /api/admin/migrations/import` | `Bearer ADMIN_API_KEY` | bulk-import licenses (Lemon Squeezy / Polar) |
-| `POST /webhooks/stripe` | Stripe signature | fulfill purchases (`checkout.session.completed`) |
+| `POST /webhooks/stripe` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`) |
 | `GET /portal` … | session cookie | customer self-serve portal |
 | `GET /up`, `/health` | — | health checks |
 
@@ -164,10 +164,13 @@ bin/rails test       # Minitest suite
 bin/dev              # Rails server + Tailwind watcher
 ```
 
-## Known gaps
+## Known limitations
 
-- **No purchase-confirmation email.** Fulfillment creates the license but does
-  not yet email the key to the buyer (the `loops_transactional_id` column exists
-  for it). Buyers reach their keys via the portal magic link (`/api/licenses/recover`).
+- **Refunds revoke server-side, not offline.** A `charge.refunded` webhook flips
+  the license to `refunded`, which blocks new device activations. But a token a
+  device already holds keeps verifying offline until its `expires_at` (and
+  `lifetime` licenses have none). That's inherent to offline verification — if you
+  need faster revocation, have the client re-activate periodically so the `403`
+  takes effect.
 
 PRs welcome.

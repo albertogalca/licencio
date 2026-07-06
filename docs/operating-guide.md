@@ -68,10 +68,11 @@ product id). From the [Stripe Dashboard](https://dashboard.stripe.com):
    works out of the box (2 seats need not cost 2×). A single-price product is just
    one Price. Your website's buy button passes the chosen variant's `price_id` to
    `POST /api/checkout` (see §5).
-2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe`, event
-   **`checkout.session.completed`**. This is what turns a payment into a license
-   (`License.fulfill!` — idempotent on the Stripe payment id, so retries are safe).
-   Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe`, events
+   **`checkout.session.completed`** (turns a payment into a license — idempotent on
+   the Stripe payment id, so retries are safe — and emails the buyer their key) and
+   **`charge.refunded`** (flips the matching license to `refunded`, which blocks
+   further device activations). Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
 
 > Testing? Use `stripe listen --forward-to localhost:3000/webhooks/stripe` and
 > paste the `whsec_…` it prints.
@@ -80,28 +81,33 @@ product id). From the [Stripe Dashboard](https://dashboard.stripe.com):
 
 ## 4. Collect your Loops values (email — optional)
 
-Loops sends the **magic-link email** that lets customers into the portal and
-lists their license keys. Skip this section if you don't want email yet — buyers
-can still be handed keys another way, but the "recover my license" flow won't work
-without it.
+Loops sends two transactional emails: the **magic-link email** (portal sign-in +
+the customer's keys) and the **purchase-delivery email** (the license key, sent
+automatically when a purchase completes). Skip this section if you don't want email
+yet — buyers can still be handed keys another way, but the "recover my license"
+flow and automatic delivery won't work without it.
 
 From the [Loops dashboard](https://app.loops.so):
 
 | Value | Where in Loops | Goes into |
 |-------|----------------|-----------|
 | API key | Settings → API | `loops_api_key` on the Product, **or** `LOOPS_API_KEY_DEFAULT` in `.env` |
-| `loops_magic_link_transactional_id` | Transactional → your email → its id | the Product in `/admin` |
+| `loops_magic_link_transactional_id` | Transactional → your magic-link email → its id | the Product in `/admin` |
+| `loops_transactional_id` | Transactional → your purchase-delivery email → its id | the Product in `/admin` |
 | `sender_email` | the from-address you send as | the Product in `/admin` |
 
 - **Per-product vs default key.** Set `loops_api_key` on a Product to send that
   product's mail from its own Loops account; leave it blank to fall back to
   `LOOPS_API_KEY_DEFAULT`. (This is the Studio Model — one app's email never leaks
   another app's keys.)
-- **Your Loops template must accept these data variables**, which the app sends:
-  `magic_link_url`, `product_name`, `sender_email`, `license_keys` (the customer's
-  keys for *this* product, newline-separated).
-- `loops_transactional_id` (a separate field on the form) is **reserved** — the
-  column exists for a future purchase-receipt email and isn't sent yet.
+- **Your templates must accept the data variables the app sends:**
+  - Magic-link email: `magic_link_url`, `product_name`, `sender_email`,
+    `license_keys` (the customer's keys for *this* product, newline-separated).
+  - Purchase-delivery email (`loops_transactional_id`): `license_key`,
+    `product_name`, `sender_email`.
+- **Delivery is best-effort on config.** If a Product has no `loops_transactional_id`
+  set, purchases still fulfill — the buyer just isn't emailed and reaches their key
+  via the recover flow. Set the id to turn delivery on.
 
 ---
 
@@ -163,7 +169,11 @@ Licenses screen for manual grants (support, comps, testing) and status changes.
   keeps them on v1.
 - **"Activate / deactivate" a license = its `status`.** Edit a license to switch
   between `active`, `inactive`, `expired`, `refunded`. Only `active` licenses can
-  activate devices. (Refunds/expiries you handle by setting the status here.)
+  activate devices. A Stripe refund (`charge.refunded`) flips the status to
+  `refunded` automatically; set any of these by hand for manual revocations or
+  comps. Note: blocking `status` only stops *new* device activations — a token a
+  device already holds keeps verifying offline until its `expires_at` (see the
+  README's "Known limitations").
 - **Device seats** (which machines are using a license) are managed by the app via
   the API, or by the customer in the portal — not from the admin. **Activations**
   is a read-only log of every device seat.
@@ -205,8 +215,10 @@ can render a pricing table without duplicating amounts in your site code.
 `product_slug` and `price_id` are required (the price must belong to the product's
 Stripe product, else 404). Optional body fields: `email` (prefills Checkout),
 `renew_license_key` (renew an existing license instead of issuing a new one — pass
-the same variant's `price_id`). Seat count comes from the price's `seats` metadata.
-On payment, the webhook issues the license — nothing else to do.
+the same variant's `price_id`). Renewal only applies when the key belongs to the
+paying customer; a key from someone else just issues them a fresh license instead.
+Seat count comes from the price's `seats` metadata. On payment, the webhook issues
+the license — nothing else to do.
 
 ### b) "Recover my license" link
 
