@@ -70,4 +70,4 @@ group :development do
   gem "web-console"
 end
 
-gem "dotenv-rails", "~> 3.2", groups: [:development, :test]
+gem "dotenv-rails", "~> 3.2", groups: [ :development, :test ]
