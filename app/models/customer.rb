@@ -28,6 +28,7 @@ class Customer < ApplicationRecord
   end
 
   def send_portal_access_later(product:)
+    return unless licenses.exists?(product:) # nothing to deliver — don't rotate the token or email
     regenerate_auth_token
     PortalAccessJob.perform_later(self, product)
   end

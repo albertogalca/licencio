@@ -15,7 +15,8 @@ class Portal::SessionsController < Portal::BaseController
   end
 
   def destroy
+    product = current_product
     reset_session
-    redirect_to new_portal_recovery_path, notice: "Signed out."
+    redirect_to new_portal_recovery_path(product: product&.slug), notice: "Signed out."
   end
 end

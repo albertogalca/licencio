@@ -16,6 +16,8 @@ class Portal::BaseController < ApplicationController
     end
 
     def require_customer
-      redirect_to new_portal_recovery_path(product: params[:product]) unless current_customer && current_product
+      unless current_customer && current_product
+        redirect_to new_portal_recovery_path(product: current_product&.slug || params[:product])
+      end
     end
 end

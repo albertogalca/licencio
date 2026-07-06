@@ -49,14 +49,22 @@ class CustomerTest < ActiveSupport::TestCase
     assert_nil Customer.authenticate_token("nope")
   end
 
-  test "send_portal_access_later sets a fresh token and enqueues the job" do
-    customer = customers(:nameless)
+  test "send_portal_access_later sets a fresh token and enqueues the job for a license holder" do
+    customer = customers(:alberto) # owns a cozy license
     assert_enqueued_with(job: PortalAccessJob, args: [ customer, products(:cozy) ]) do
       customer.send_portal_access_later(product: products(:cozy))
     end
     customer.reload
     assert customer.auth_token.present?
     assert customer.auth_token_expires_at > Time.current
+  end
+
+  test "send_portal_access_later is a no-op when the customer has no license for that product" do
+    customer = customers(:nameless) # owns a picmal license, not cozy
+    assert_no_enqueued_jobs do
+      customer.send_portal_access_later(product: products(:cozy))
+    end
+    assert_nil customer.reload.auth_token # token not rotated
   end
 
   test "clear_auth_token! wipes the token" do

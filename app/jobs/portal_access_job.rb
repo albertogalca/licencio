@@ -1,8 +1,11 @@
 class PortalAccessJob < ApplicationJob
-  # One email = this product's license key(s) + a portal sign-in link. Sent on purchase and on recovery.
-  # The magic link is scoped to the product, so a Cozy email only ever opens the Cozy portal view.
   def perform(customer, product)
-    return if customer.nil? || product.loops_transactional_id.blank?
+    return if customer.nil?
+    if product.loops_transactional_id.blank?
+      Rails.logger.warn("PortalAccessJob: #{product.slug} has no loops_transactional_id; " \
+        "skipping portal email for #{customer.email}")
+      return
+    end
     Loops.send_transactional(
       api_key: product.loops_api_key_or_default,
       transactional_id: product.loops_transactional_id,

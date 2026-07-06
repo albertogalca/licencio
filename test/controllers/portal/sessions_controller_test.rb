@@ -30,9 +30,9 @@ class Portal::SessionsControllerTest < ActionDispatch::IntegrationTest
     get portal_session_path(token: "t", product: "cozy")
 
     delete portal_session_path
-    assert_redirected_to new_portal_recovery_path
+    assert_redirected_to new_portal_recovery_path(product: "cozy") # logout keeps product context
 
     get portal_root_path
-    assert_redirected_to new_portal_recovery_path
+    assert_redirected_to new_portal_recovery_path # session gone, no product to carry
   end
 end
