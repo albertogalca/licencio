@@ -1,6 +1,4 @@
-class Api::CheckoutsController < ActionController::API
-  rescue_from ActiveRecord::RecordNotFound, with: -> { head :not_found }
-
+class Api::CheckoutsController < Api::PublicController
   def create
     product = Product.find_by!(slug: params[:product_slug])
     session = product.create_checkout_session(

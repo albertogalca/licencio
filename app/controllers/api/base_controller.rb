@@ -1,7 +1,6 @@
-class Api::BaseController < ActionController::API
+class Api::BaseController < Api::PublicController
   before_action :authenticate_product
 
-  rescue_from ActiveRecord::RecordNotFound, with: -> { head :not_found }
   rescue_from License::CapacityExceeded, with: -> { head :conflict }
 
   private

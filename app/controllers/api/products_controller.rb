@@ -1,6 +1,4 @@
-class Api::ProductsController < ActionController::API
-  rescue_from ActiveRecord::RecordNotFound, with: -> { head :not_found }
-
+class Api::ProductsController < Api::PublicController
   # Lets the storefront list a product's purchasable variants (Stripe prices).
   def variants
     product = Product.find_by!(slug: params[:slug])
