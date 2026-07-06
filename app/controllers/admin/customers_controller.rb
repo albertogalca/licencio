@@ -1,6 +1,9 @@
 class Admin::CustomersController < Admin::BaseController
   def index
-    @customers = paginate(Customer.order(:email))
+    scope = Customer.order(:email)
+    scope = scope.search(params[:q]) if params[:q].present?
+    scope = scope.for_product(params[:product_id]) if params[:product_id].present?
+    @customers = paginate(scope)
   end
 
   def show

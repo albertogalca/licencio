@@ -1,0 +1,47 @@
+<% content_for :title, "Overview — Licencio" %>
+
+<h1 class="mb-6 text-xl font-semibold">Overview</h1>
+
+<% stats = [
+     { label: "Active licenses", value: @active_licenses },
+     { label: "New licenses",    value: @new_licenses,  sub: "last 30 days" },
+     { label: "Refunded",        value: @refunded,      sub: "last 30 days" },
+     { label: "Customers",       value: @customers },
+     { label: "Active devices",  value: @active_devices },
+   ] %>
+
+<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+  <% stats.each do |stat| %>
+    <div class="rounded-lg border border-gray-200 bg-white p-4">
+      <p class="text-xs font-medium text-gray-500"><%= stat[:label] %></p>
+      <p class="mt-1 text-2xl font-semibold tabular-nums"><%= number_with_delimiter(stat[:value]) %></p>
+      <p class="mt-0.5 text-xs text-gray-500"><%= stat[:sub] || " " %></p>
+    </div>
+  <% end %>
+</div>
+
+<h2 class="mb-3 mt-8 text-sm font-semibold text-gray-500">By product</h2>
+<div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-left text-gray-500">
+      <tr>
+        <th class="px-4 py-2 font-medium">Product</th>
+        <th class="px-4 py-2 font-medium">Licenses</th>
+        <th class="px-4 py-2 font-medium">Active</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      <% @products.each do |row| %>
+        <tr class="transition-colors hover:bg-gray-50">
+          <td class="px-4 py-2 font-medium"><%= row[:product].name %></td>
+          <td class="px-4 py-2 text-gray-600 tabular-nums"><%= number_with_delimiter(row[:licenses]) %></td>
+          <td class="px-4 py-2 text-gray-600 tabular-nums"><%= number_with_delimiter(row[:active]) %></td>
+          <td class="px-4 py-2 text-right">
+            <%= link_to "View", admin_licenses_path(product_id: row[:product].id), class: "text-gray-600 hover:text-gray-900" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

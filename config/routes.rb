@@ -24,7 +24,7 @@ Rails.application.routes.draw do
     resources :licenses, only: [ :index, :new, :create, :edit, :update ]
     resources :customers, only: [ :index, :show ]
     resources :activations, only: [ :index, :destroy ]
-    root to: "products#index"
+    root to: "dashboard#show"
   end
 
   namespace :portal do

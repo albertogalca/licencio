@@ -70,7 +70,7 @@
               <% variants.each do |v| %>
                 <li>
                   <%= v.name.presence || "(no nickname)" %> ·
-                  <%= v.seats %> seat<%= "s" unless v.seats == 1 %> ·
+                  <%= v.seats || "∞" %> seat<%= "s" unless v.seats == 1 %> ·
                   $<%= "%.2f" % (v.amount_cents.to_i / 100.0) %>
                   <span class="text-gray-400"><%= v.price_id %></span>
                 </li>
