@@ -38,11 +38,13 @@ class Admin::LicensesController < Admin::BaseController
     end
 
     def license_params
-      params.require(:license).permit(:product_id, :max_activations, :status, :expires_at)
+      params.require(:license).permit(:product_id, :max_activations, :status, :expires_at,
+        :update_policy, :licensed_version)
     end
 
     def update_params
-      params.require(:license).permit(:max_activations, :status, :expires_at)
+      params.require(:license).permit(:max_activations, :status, :expires_at,
+        :update_policy, :licensed_version)
     end
 
     def find_or_create_customer

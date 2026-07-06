@@ -29,6 +29,14 @@
       <%= form.label :expires_at, "Expires at (optional)", class: label %>
       <%= form.datetime_local_field :expires_at, value: @license.expires_at&.strftime("%Y-%m-%dT%H:%M"), class: field %>
     </div>
+    <div>
+      <%= form.label :update_policy, "Update policy", class: label %>
+      <%= form.select :update_policy, License.update_policies.keys, { include_blank: "Inherit from product" }, class: field %>
+    </div>
+    <div>
+      <%= form.label :licensed_version, "Version (bump to grant a v2+ upgrade)", class: label %>
+      <%= form.number_field :licensed_version, class: field %>
+    </div>
 
     <%= form.submit "Save changes", class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
     <%= link_to "Cancel", admin_licenses_path, class: "ml-2 text-sm text-gray-500" %>

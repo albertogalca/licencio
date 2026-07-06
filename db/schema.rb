@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_06_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_06_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -51,11 +51,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_150000) do
     t.uuid "customer_id"
     t.datetime "expires_at"
     t.string "license_key", null: false
+    t.integer "licensed_version"
     t.integer "max_activations", null: false
     t.string "migration_source"
     t.uuid "product_id", null: false
     t.string "status", null: false
     t.string "stripe_payment_id"
+    t.string "update_policy"
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_licenses_on_customer_id"
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
@@ -66,6 +68,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_150000) do
     t.string "api_key", null: false
     t.string "bundle_identifier", null: false
     t.datetime "created_at", null: false
+    t.integer "current_version", default: 1, null: false
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "license_prefix", null: false

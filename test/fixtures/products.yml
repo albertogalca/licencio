@@ -21,5 +21,6 @@ picmal:
   update_policy: time_limited
   update_duration_days: 365
   api_key: prod_picmal_apikey
+  stripe_product_id: prod_picmal_stripe
   eddsa_private_key: picmal_private_key
   eddsa_public_key: picmal_public_key

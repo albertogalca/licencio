@@ -71,6 +71,31 @@ class LicenseTest < ActiveSupport::TestCase
     assert_not license.update_eligible?, "past the 365-day window"
   end
 
+  test "per-license policy overrides the product's" do
+    license = licenses(:cozy_active) # product cozy is lifetime
+    license.update!(update_policy: "versioned", licensed_version: 1)
+    assert_equal "versioned", license.effective_update_policy
+  end
+
+  test "versioned license is eligible until the product outgrows its version" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: 3,
+      update_policy: "versioned", licensed_version: 1)
+    assert license.update_eligible?, "v1 license, product still on v1"
+
+    license.product.update!(current_version: 2)
+    assert_not license.reload.update_eligible?, "product moved to v2, v1 license excluded"
+
+    license.update!(licensed_version: 2) # paid v2 upgrade
+    assert license.update_eligible?, "bumped to v2, eligible again"
+  end
+
+  test "lifetime override stays eligible regardless of product version" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: 3,
+      update_policy: "lifetime")
+    license.product.update!(current_version: 5)
+    assert license.update_eligible?
+  end
+
   test "activate! is idempotent and enforces capacity" do
     license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
     a = license.activate!(hardware_id: "HW-X")

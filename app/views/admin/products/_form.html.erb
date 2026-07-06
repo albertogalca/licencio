@@ -38,6 +38,10 @@
     <%= form.select :update_policy, Product.update_policies.keys, {}, class: field %>
   </div>
   <div>
+    <%= form.label :current_version, "Current version (latest released major version, for versioned)", class: label %>
+    <%= form.number_field :current_version, class: field %>
+  </div>
+  <div>
     <%= form.label :max_activations_default, class: label %>
     <%= form.number_field :max_activations_default, class: field %>
   </div>
@@ -56,6 +60,30 @@
   <div>
     <%= form.label :stripe_product_id, class: label %>
     <%= form.text_field :stripe_product_id, class: field %>
+    <% if product.persisted? && product.stripe_product_id.present? %>
+      <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+        <p class="mb-1 font-medium text-gray-700">Variants (managed in Stripe)</p>
+        <% begin %>
+          <% variants = product.variants %>
+          <% if variants.any? %>
+            <ul class="space-y-1 text-gray-600">
+              <% variants.each do |v| %>
+                <li>
+                  <%= v.name.presence || "(no nickname)" %> ·
+                  <%= v.seats %> seat<%= "s" unless v.seats == 1 %> ·
+                  $<%= "%.2f" % (v.amount_cents.to_i / 100.0) %>
+                  <span class="text-gray-400"><%= v.price_id %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-gray-400">No Stripe prices on this product yet.</p>
+          <% end %>
+        <% rescue => e %>
+          <p class="text-gray-400">Couldn't load variants from Stripe (<%= e.class %>).</p>
+        <% end %>
+      </div>
+    <% end %>
   </div>
   <div>
     <%= form.label :loops_transactional_id, class: label %>

@@ -64,7 +64,33 @@ class ProductTest < ActiveSupport::TestCase
     assert_equal product.eddsa_public_key, derived
   end
 
+  test "variants maps Stripe prices, sorts by amount, and reads seats from metadata" do
+    list = Struct.new(:data).new([
+      fake_price("price_c", "3 seats", 4077, { "seats" => "3" }),
+      fake_price("price_a", "1 seat",  1599, { "seats" => "1" }),
+      fake_price("price_b", "2 seats", 2878, { "seats" => "2" })
+    ])
+    Stripe::Price.stub(:list, list) do
+      variants = products(:picmal).variants
+      assert_equal %w[price_a price_b price_c], variants.map(&:price_id) # amount-sorted
+      assert_equal [ 1, 2, 3 ], variants.map(&:seats)
+      assert_equal "1 seat", variants.first.name
+      assert_equal 1599, variants.first.amount_cents
+    end
+  end
+
+  test "variants falls back to max_activations_default when seats metadata is absent" do
+    list = Struct.new(:data).new([ fake_price("price_x", "Studio", 12000, {}) ])
+    Stripe::Price.stub(:list, list) do
+      assert_equal products(:picmal).max_activations_default, products(:picmal).variants.first.seats
+    end
+  end
+
   private
+    def fake_price(id, nickname, unit_amount, metadata)
+      Struct.new(:id, :nickname, :unit_amount, :metadata).new(id, nickname, unit_amount, metadata)
+    end
+
     def create_product
       suffix = SecureRandom.hex(4)
       Product.create!(

@@ -32,10 +32,13 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
                 └─ Customer               (the buyer; passwordless, magic-link portal)
 ```
 
-- **Product** — a sellable app. Update policy is `lifetime` or `time_limited`
-  (`update_duration_days`). Sets `max_activations_default` (seats per license).
+- **Product** — a sellable app. Default update policy is `lifetime`, `time_limited`
+  (`update_duration_days`), or `versioned` (gated by `current_version`, the latest
+  released major version). Sets `max_activations_default` (seats per license).
 - **License** — issued on purchase. Has a unique `license_key`, a seat cap
-  (`max_activations`), optional `expires_at`.
+  (`max_activations`), optional `expires_at`. Can carry its own `update_policy`
+  (overrides the product's) plus `licensed_version` — so one product can sell both
+  lifetime and version-locked (e.g. "v1") licenses at once.
 - **Activation** — one device seat (`hardware_id` + `device_name`).
 - **Customer** — the buyer. No passwords; signs into the portal via emailed
   magic link.
@@ -44,7 +47,8 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 
 | Route | Auth | Purpose |
 |-------|------|---------|
-| `POST /api/checkout` | product slug in body | create a Stripe Checkout session |
+| `GET /api/products/:slug/variants` | none | list a product's variants (Stripe prices) for a pricing page |
+| `POST /api/checkout` | product `slug` + Stripe `price_id` in body | create a Stripe Checkout session for the chosen variant |
 | `POST /api/licenses/activate` | `X-Api-Key` | activate a device → `{ jwt, public_key }` |
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
@@ -137,14 +141,18 @@ walkthrough.
 
 ## Connecting Stripe
 
-1. Create a Stripe **Product** with a one-time **default price**; put its
-   `prod_…` id on the Licencio Product.
-2. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe`, event
+1. Create a Stripe **Product** and put its `prod_…` id on the Licencio Product.
+2. Add one **Price** per variant (seat option) on that Stripe Product — e.g.
+   `nickname` "3 seats", a one-time amount, and metadata **`seats: 3`**. The
+   `seats` value becomes the license's device cap; missing metadata falls back to
+   the product's `max_activations_default`. A single-price product is just one
+   Price. Prices are managed entirely in Stripe — no price data is stored locally.
+3. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe`, event
    `checkout.session.completed`. Copy its signing secret into
    `STRIPE_WEBHOOK_SECRET`.
-3. Your app calls `POST /api/checkout` with the Product `slug` to get a Checkout
-   URL. On payment, the webhook fulfills the license (idempotent on the Stripe
-   payment id).
+4. Your app calls `POST /api/checkout` with the Product `slug` and the chosen
+   variant's `price_id` to get a Checkout URL. On payment, the webhook fulfills
+   the license (idempotent on the Stripe payment id).
 
 ## Development
 

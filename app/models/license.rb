@@ -5,6 +5,8 @@ class License < ApplicationRecord
 
   enum :status, { active: "active", inactive: "inactive", expired: "expired", refunded: "refunded" }
   enum :migration_source, { lemon_squeezy: "lemon_squeezy", polar: "polar" }, prefix: true
+  # Nullable per-license override of the product's update policy. Nil → inherit product.
+  enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }, prefix: :policy
 
   CapacityExceeded = Class.new(StandardError)
 
@@ -46,8 +48,16 @@ class License < ApplicationRecord
       update_eligible: update_eligible?, nonce:, iat: Time.current.to_i }
   end
 
+  def effective_update_policy
+    update_policy || product.update_policy
+  end
+
   def update_eligible?
-    product.lifetime? || (claimed_at || created_at) + product.update_duration_days.days > Time.current
+    case effective_update_policy
+    when "lifetime"  then true
+    when "versioned" then licensed_version.present? && product.current_version <= licensed_version
+    else                  (claimed_at || created_at) + product.update_duration_days.days > Time.current
+    end
   end
 
   def self.generate_key(product)

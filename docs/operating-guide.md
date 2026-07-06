@@ -59,9 +59,15 @@ product id). From the [Stripe Dashboard](https://dashboard.stripe.com):
 
 **Two things to get right:**
 
-1. **The Stripe product needs a default price.** Checkout reads
-   `Stripe::Product.retrieve(stripe_product_id).default_price` — a product with no
-   default price will fail. Set one (one-time price) on the product in Stripe.
+1. **The Stripe product needs a Price per variant.** Add one **Price** to the
+   Stripe product for each seat option — set a `nickname` (e.g. "2 seats"), a
+   one-time amount, and metadata **`seats`** (e.g. `2`). That `seats` value becomes
+   the license's device cap; if it's missing, checkout falls back to the product's
+   `max_activations_default`. Prices are pure Stripe config — nothing is stored in
+   the app, so you can add, rename, or reprice variants any time. Non-linear pricing
+   works out of the box (2 seats need not cost 2×). A single-price product is just
+   one Price. Your website's buy button passes the chosen variant's `price_id` to
+   `POST /api/checkout` (see §5).
 2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe`, event
    **`checkout.session.completed`**. This is what turns a payment into a license
    (`License.fulfill!` — idempotent on the Stripe payment id, so retries are safe).
@@ -112,10 +118,18 @@ Products → **New product** in `/admin`. Fields:
 **Editable any time:**
 
 - `name`
-- `update_policy` — `lifetime`, or `time_limited` (then set `update_duration_days`).
-- `max_activations_default` — device seats per license (default 3).
+- `update_policy` — the product **default**: `lifetime`, `time_limited` (then set
+  `update_duration_days`), or `versioned` (then set `current_version`). Individual
+  licenses can override this — see §6.
+- `current_version` — for `versioned` products, the latest released major version
+  (starts at 1). Bump it to 2 when you ship v2: every v1 license stops being update
+  eligible until it's upgraded.
+- `max_activations_default` — fallback device seats per license (default 3), used
+  when a purchased variant's Stripe price has no `seats` metadata.
 - `trial_days` — optional.
-- `stripe_product_id` — from §3.
+- `stripe_product_id` — from §3. Once set, the edit page shows a **read-only list of
+  the product's variants** (each Stripe Price — nickname · seats · amount), pulled
+  live from Stripe. Manage the prices themselves in Stripe, not here.
 - `sender_email`, `loops_magic_link_transactional_id`, `loops_api_key` — from §4
   (leave the key blank to keep the current one / use the default).
 
@@ -138,6 +152,15 @@ Licenses screen for manual grants (support, comps, testing) and status changes.
   `customer_email` (a Customer is created if it doesn't exist), set
   `max_activations`, `status` (`active`), and optional `expires_at`. The license
   key is generated on save.
+- **Update policy per license** — leave "Update policy" blank to inherit the
+  product's, or override it on this one license (`lifetime` / `time_limited` /
+  `versioned`). This is how one product sells both kinds at once: e.g. a "lifetime"
+  license and a `versioned` license with **Version** = 1 for the same app, same price.
+  A `versioned` license stays update eligible while the product's `current_version`
+  is ≤ its Version, and stops when you ship a higher major version.
+- **Grant a v2 upgrade** — edit the customer's `versioned` license and bump its
+  **Version** (1 → 2). They become eligible for v2 updates again; leaving it at 1
+  keeps them on v1.
 - **"Activate / deactivate" a license = its `status`.** Edit a license to switch
   between `active`, `inactive`, `expired`, `refunded`. Only `active` licenses can
   activate devices. (Refunds/expiries you handle by setting the status here.)
@@ -156,17 +179,22 @@ Three things your marketing site links to. All framework-agnostic — plain HTML
 
 ### a) Buy button → Stripe Checkout
 
-`POST /api/checkout` takes a product `slug`, returns a Stripe URL to redirect to.
-No API key needed.
+`POST /api/checkout` takes a product `slug` and a variant `price_id` (the Stripe
+`price_…` for the seat option being bought), returns a Stripe URL to redirect to.
+No API key needed. Hardcode each variant's `price_id` on your site (copy them from
+the Stripe product), or fetch them at page load with
+`GET /api/products/:slug/variants` — it returns
+`{ variants: [{ price_id, name, amount_cents, seats }, …] }`, cheapest first, so you
+can render a pricing table without duplicating amounts in your site code.
 
 ```html
-<button id="buy">Buy My App — $49</button>
+<button id="buy" data-price="price_123">Buy My App — 2 seats, $28.78</button>
 <script>
-  document.getElementById("buy").addEventListener("click", async () => {
+  document.getElementById("buy").addEventListener("click", async (e) => {
     const res = await fetch("https://YOUR_APP_HOST/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_slug: "my-app", quantity: 1 }),
+      body: JSON.stringify({ product_slug: "my-app", price_id: e.target.dataset.price }),
     });
     const { url } = await res.json();
     window.location = url; // off to Stripe Checkout
@@ -174,8 +202,10 @@ No API key needed.
 </script>
 ```
 
-Optional body fields: `quantity` (default 1), `email` (prefills Checkout),
-`renew_license_key` (renew an existing license instead of issuing a new one).
+`product_slug` and `price_id` are required (the price must belong to the product's
+Stripe product, else 404). Optional body fields: `email` (prefills Checkout),
+`renew_license_key` (renew an existing license instead of issuing a new one — pass
+the same variant's `price_id`). Seat count comes from the price's `seats` metadata.
 On payment, the webhook issues the license — nothing else to do.
 
 ### b) "Recover my license" link

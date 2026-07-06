@@ -1,12 +1,16 @@
 require "ed25519"
 
 class Product < ApplicationRecord
+  # A purchasable option = one Stripe Price on this product's Stripe Product.
+  # nickname → label, unit_amount → price, metadata.seats → license max_activations.
+  Variant = Data.define(:price_id, :name, :amount_cents, :seats)
+
   has_many :licenses, dependent: :restrict_with_error
 
   encrypts :loops_api_key
   encrypts :eddsa_private_key
 
-  enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited" }
+  enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }
 
   before_validation :generate_credentials, on: :create
 
@@ -26,7 +30,15 @@ class Product < ApplicationRecord
 
   def issue_license!(customer:, quantity:, stripe_payment_id:)
     licenses.create!(customer:, status: "active", max_activations: quantity,
-      stripe_payment_id:, expires_at: license_expires_at)
+      stripe_payment_id:, expires_at: license_expires_at,
+      licensed_version: (current_version if versioned?))
+  end
+
+  def variants
+    Stripe::Price.list(product: stripe_product_id, active: true).data.map do |p|
+      Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount,
+        seats: (p.metadata["seats"] || max_activations_default).to_i)
+    end.sort_by(&:amount_cents)
   end
 
   def sign_jwt(claims)

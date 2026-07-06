@@ -19,8 +19,8 @@ base64url(header) . base64url(payload) . base64url(signature)
   |-------------------|----------------------------------------------------------------|
   | `hardware_id`     | device you sent at activation — bind the token to this machine  |
   | `license_key`     | the license this token belongs to                              |
-  | `expires_at`      | ISO-8601, or `null` for a lifetime license                     |
-  | `update_eligible` | `true` if this device may install updates (per product policy) |
+  | `expires_at`      | ISO-8601, or `null` for a lifetime/version-locked license      |
+  | `update_eligible` | `true` if this device may install updates (per the license's update policy) |
   | `nonce`           | value you sent at activation — anti-replay for this device      |
   | `iat`             | issued-at (Unix seconds)                                       |
 
