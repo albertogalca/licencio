@@ -119,6 +119,33 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "activation without a license key starts a trial when the product offers one" do
+    @product.update!(trial_days: 14)
+    assert_difference "License.count", 1 do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json
+    end
+    assert_response :ok
+    trial = License.order(:created_at).last
+    assert trial.trial?
+    assert_in_delta 14.days.from_now.to_i, trial.expires_at.to_i, 1.hour
+  end
+
+  test "re-activating a device returns the same trial, never a second one" do
+    @product.update!(trial_days: 14)
+    post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json
+    assert_no_difference "License.count" do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json
+    end
+    assert_response :ok
+  end
+
+  test "activation without a license key is forbidden when the product has no trial" do
+    assert_no_difference "License.count" do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json
+    end
+    assert_response :forbidden
+  end
+
   private
     def b64url_decode(str) = Base64.urlsafe_decode64(str + "=" * ((4 - str.length % 4) % 4))
 end

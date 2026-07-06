@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_06_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_06_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,10 +57,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_06_190000) do
     t.uuid "product_id", null: false
     t.string "status", null: false
     t.string "stripe_payment_id"
+    t.boolean "trial", default: false, null: false
     t.string "update_policy"
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_licenses_on_customer_id"
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
+    t.index ["product_id", "stripe_payment_id"], name: "index_licenses_on_product_and_stripe_payment", unique: true, where: "(stripe_payment_id IS NOT NULL)"
     t.index ["product_id"], name: "index_licenses_on_product_id"
   end
 

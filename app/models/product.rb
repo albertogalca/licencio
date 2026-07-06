@@ -1,8 +1,6 @@
 require "ed25519"
 
 class Product < ApplicationRecord
-  # A purchasable option = one Stripe Price on this product's Stripe Product.
-  # nickname → label, unit_amount → price, metadata.seats → license max_activations.
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
 
   has_many :licenses, dependent: :restrict_with_error
@@ -20,35 +18,38 @@ class Product < ApplicationRecord
   validates :slug, :bundle_identifier, :license_prefix, :api_key,
     presence: true, uniqueness: true
   validates :eddsa_private_key, :eddsa_public_key, presence: true
+  # A Stripe-selling product must carry its full credential set, so it can't validate yet
+  # blow up at checkout/webhook. Blank secrets on edit are dropped by the controller, so an
+  # already-configured product keeps its stored keys.
+  with_options if: -> { stripe_product_id.present? } do
+    validates :stripe_secret_key, :stripe_webhook_secret, :loops_transactional_id, presence: true
+  end
 
   def loops_api_key_or_default
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
   end
 
-  # Verify an inbound webhook against this product's own signing secret.
   def verify_webhook(payload, signature)
     Stripe::Webhook.construct_event(payload, signature, stripe_webhook_secret)
   end
 
-  def license_expires_at(from: Time.current)
-    time_limited? ? from + update_duration_days.days : nil
+  def license_expires_at(from: Time.current, policy: update_policy)
+    policy == "time_limited" ? from + update_duration_days.days : nil
   end
 
-  # update_policy nil → inherit the product's default; a "lifetime" Stripe price overrides it.
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil)
     effective = update_policy || self.update_policy
     licenses.create!(customer:, status: "active", max_activations: quantity, update_policy:,
-      stripe_payment_id:, expires_at: license_expires_at,
+      stripe_payment_id:, expires_at: license_expires_at(policy: effective),
       licensed_version: (current_version if effective == "versioned"))
   end
 
   def seats_for(price)
-    seats = price.metadata["seats"].presence || max_activations_default
-    seats&.to_i # nil = unlimited
+    seats = (price.metadata["seats"].presence || max_activations_default)&.to_i
+    seats if seats&.positive?
   end
 
   def variants
-    # ponytail: 5-min cache; Stripe price edits appear within 5 min. Shorten only if that lag bites.
     Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
       Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data.map do |p|
         Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
@@ -67,6 +68,14 @@ class Product < ApplicationRecord
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,
       success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"] }, stripe_opts)
+  end
+
+  def trial_for(hardware_id:)
+    return unless trial_days
+    licenses.trials.joins(:activations).find_by(activations: { hardware_id: }) ||
+      licenses.create!(status: "active", trial: true, max_activations: 1,
+        expires_at: trial_days.days.from_now,
+        licensed_version: (current_version if versioned?)).tap { |l| l.activate!(hardware_id:) }
   end
 
   def sign_jwt(claims)

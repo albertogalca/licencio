@@ -14,6 +14,23 @@ class ProductTest < ActiveSupport::TestCase
     assert_includes product.errors.attribute_names, :update_policy
   end
 
+  test "a Stripe product id requires its secrets and a Loops template" do
+    product = products(:cozy) # no stripe_product_id → creds optional
+    assert product.valid?
+
+    product.stripe_product_id = "prod_x"
+    product.stripe_secret_key = product.stripe_webhook_secret = product.loops_transactional_id = nil
+    assert_not product.valid?
+    assert_includes product.errors.attribute_names, :stripe_secret_key
+    assert_includes product.errors.attribute_names, :stripe_webhook_secret
+    assert_includes product.errors.attribute_names, :loops_transactional_id
+
+    product.stripe_secret_key = "sk_test"
+    product.stripe_webhook_secret = "whsec_test"
+    product.loops_transactional_id = "tmpl_test"
+    assert product.valid?
+  end
+
   test "slug, bundle_identifier, license_prefix, and api_key are unique" do
     existing = products(:cozy)
     dup = existing.dup

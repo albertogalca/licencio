@@ -11,5 +11,7 @@ class Webhooks::StripeController < ActionController::API
     head :ok
   rescue Stripe::SignatureVerificationError
     head :bad_request
+  rescue ActiveRecord::RecordNotFound
+    head :not_found # unknown/deleted product id in the webhook URL (a malformed body is a 400 upstream)
   end
 end

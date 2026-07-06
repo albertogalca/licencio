@@ -78,6 +78,20 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert license.reload.refunded?
   end
 
+  test "a duplicate completed event fulfills only once" do
+    post_event completed_event(payment_intent: "pi_dup")
+    assert_no_difference "License.count" do
+      post_event completed_event(payment_intent: "pi_dup")
+    end
+    assert_response :ok
+  end
+
+  test "an unknown product id in the URL is not found" do
+    payload = completed_event
+    post "/webhooks/stripe/#{SecureRandom.uuid}", params: payload, headers: signed(payload)
+    assert_response :not_found
+  end
+
   private
     def refunded_event(payment_intent:)
       { type: "charge.refunded", data: { object: { payment_intent: } } }.to_json
