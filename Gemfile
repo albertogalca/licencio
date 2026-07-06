@@ -39,9 +39,6 @@ gem "kamal", require: false
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
 
-# Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 2.0"
-
 # EdDSA (Ed25519) keypairs for signing license keys
 gem "ed25519", "~> 1.4"
 
