@@ -148,8 +148,10 @@ walkthrough.
 2. Add one **Price** per variant (seat option) on that Stripe Product — e.g.
    `nickname` "3 seats", a one-time amount, and metadata **`seats: 3`**. The
    `seats` value becomes the license's device cap; missing metadata falls back to
-   the product's `max_activations_default`. A single-price product is just one
-   Price. Prices are managed entirely in Stripe — no price data is stored locally.
+   the product's `max_activations_default` (blank there = unlimited seats). Add
+   metadata `update_policy: lifetime` to sell a lifetime variant on a versioned
+   product. A single-price product is just one Price. Prices are managed entirely
+   in Stripe — no price data is stored locally.
 3. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe/PRODUCT_ID` (the
    Product's edit page shows the exact URL), event `checkout.session.completed`.
    Paste its signing secret into the Product's `stripe_webhook_secret`.

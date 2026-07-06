@@ -69,11 +69,17 @@ Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes
    Stripe product for each seat option — set a `nickname` (e.g. "2 seats"), a
    one-time amount, and metadata **`seats`** (e.g. `2`). That `seats` value becomes
    the license's device cap; if it's missing, checkout falls back to the product's
-   `max_activations_default`. Prices are pure Stripe config — nothing is stored in
-   the app, so you can add, rename, or reprice variants any time. Non-linear pricing
-   works out of the box (2 seats need not cost 2×). A single-price product is just
-   one Price. Your website's buy button passes the chosen variant's `price_id` to
-   `POST /api/checkout` (see §5).
+   `max_activations_default` — and if that's blank too, the license gets **unlimited
+   seats**. Prices are pure Stripe config — nothing is stored in the app, so you can
+   add, rename, or reprice variants any time. Non-linear pricing works out of the box
+   (2 seats need not cost 2×). A single-price product is just one Price. Your
+   website's buy button passes the chosen variant's `price_id` to `POST /api/checkout`
+   (see §5).
+   - **Selling a lifetime option on a `versioned` product?** Add price metadata
+     **`update_policy`** = `lifetime` on that Price. Licenses bought through it get a
+     per-license `lifetime` override (always update-eligible); prices without it
+     inherit the product's default policy. This is how one product sells, e.g., a
+     "v1" and a "lifetime" variant at the same price.
 2. **Add the webhook endpoint** → `https://YOUR_APP_HOST/webhooks/stripe/PRODUCT_ID`
    (the Product's edit page shows the exact URL), events
    **`checkout.session.completed`** (turns a payment into a license — idempotent on
@@ -89,30 +95,28 @@ Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes
 
 ## 4. Collect your Loops values (email — optional)
 
-Loops sends two transactional emails: the **magic-link email** (portal sign-in +
-the customer's keys) and the **purchase-delivery email** (the license key, sent
-automatically when a purchase completes). Skip this section if you don't want email
-yet — buyers can still be handed keys another way, but the "recover my license"
-flow and automatic delivery won't work without it.
+Loops sends **one** transactional email that doubles as purchase delivery and portal
+access: the customer's keys for this product **plus** a product-scoped sign-in link.
+It fires automatically when a purchase completes, and again whenever a customer uses
+the "recover my license" flow. Skip this section if you don't want email yet — buyers
+can still be handed keys another way, but automatic delivery and recovery won't work
+without it.
 
 From the [Loops dashboard](https://app.loops.so):
 
 | Value | Where in Loops | Goes into |
 |-------|----------------|-----------|
 | API key | Settings → API | `loops_api_key` on the Product, **or** `LOOPS_API_KEY_DEFAULT` in `.env` |
-| `loops_magic_link_transactional_id` | Transactional → your magic-link email → its id | the Product in `/admin` |
-| `loops_transactional_id` | Transactional → your purchase-delivery email → its id | the Product in `/admin` |
+| `loops_transactional_id` | Transactional → your email → its id | the Product in `/admin` |
 | `sender_email` | the from-address you send as | the Product in `/admin` |
 
 - **Per-product vs default key.** Set `loops_api_key` on a Product to send that
   product's mail from its own Loops account; leave it blank to fall back to
   `LOOPS_API_KEY_DEFAULT`. (This is the Studio Model — one app's email never leaks
   another app's keys.)
-- **Your templates must accept the data variables the app sends:**
-  - Magic-link email: `magic_link_url`, `product_name`, `sender_email`,
-    `license_keys` (the customer's keys for *this* product, newline-separated).
-  - Purchase-delivery email (`loops_transactional_id`): `license_key`,
-    `product_name`, `sender_email`.
+- **Your template must accept the data variables the app sends:** `license_keys`
+  (the customer's keys for *this* product, newline-separated), `magic_link_url`
+  (a single-use, product-scoped portal sign-in link), `product_name`, `sender_email`.
 - **Delivery is best-effort on config.** If a Product has no `loops_transactional_id`
   set, purchases still fulfill — the buyer just isn't emailed and reaches their key
   via the recover flow. Set the id to turn delivery on.
@@ -138,8 +142,9 @@ Products → **New product** in `/admin`. Fields:
 - `current_version` — for `versioned` products, the latest released major version
   (starts at 1). Bump it to 2 when you ship v2: every v1 license stops being update
   eligible until it's upgraded.
-- `max_activations_default` — fallback device seats per license (default 3), used
-  when a purchased variant's Stripe price has no `seats` metadata.
+- `max_activations_default` — fallback device seats per license, used when a
+  purchased variant's Stripe price has no `seats` metadata. Leave it **blank for
+  unlimited** seats (shown as ∞).
 - `trial_days` — optional.
 - `stripe_product_id` — from §3. Once set, the edit page shows a **read-only list of
   the product's variants** (each Stripe Price — nickname · seats · amount), pulled
@@ -148,7 +153,7 @@ Products → **New product** in `/admin`. Fields:
   account. Required to load variants and take payments. Editing is blank-to-keep
   (leave blank to keep the current value). The edit page prints this product's
   webhook URL to register in Stripe.
-- `sender_email`, `loops_magic_link_transactional_id`, `loops_api_key` — from §4
+- `sender_email`, `loops_transactional_id`, `loops_api_key` — from §4
   (leave the key blank to keep the current one / use the default).
 
 **Auto-generated — copy these from the product's edit page:**
@@ -172,8 +177,8 @@ Licenses screen for manual grants (support, comps, testing) and status changes.
   Activations lists paginate at 50 rows per page.
 - **Issue one manually** — Licenses → New. Pick the product, optionally enter a
   `customer_email` (a Customer is created if it doesn't exist), set
-  `max_activations`, `status` (`active`), and optional `expires_at`. The license
-  key is generated on save.
+  `max_activations` (leave blank for unlimited seats), `status` (`active`), and
+  optional `expires_at`. The license key is generated on save.
 - **Update policy per license** — leave "Update policy" blank to inherit the
   product's, or override it on this one license (`lifetime` / `time_limited` /
   `versioned`). This is how one product sells both kinds at once: e.g. a "lifetime"
@@ -264,9 +269,10 @@ Always returns `200` (it won't reveal whether the email exists).
 ### c) "Manage my licenses" link
 
 Same door as recovery — the emailed magic link drops the customer into
-**`/portal`**, where they see their keys per product and can free a device seat
-(deactivate a machine). Just link them to the recovery form from (b); no separate
-page to build.
+**`/portal`**, **scoped to the product the link came from** (a Cozy link never shows
+another app's licenses), where they see that product's keys and can free a device
+seat (deactivate a machine). Just link them to the recovery form from (b); no
+separate page to build.
 
 ---
 
@@ -276,3 +282,27 @@ When your installed app needs a signed token, it calls
 `POST /api/licenses/activate` with the product `X-Api-Key`. That flow — request,
 response, and offline verification — is documented in full in
 [`client-integration.md`](client-integration.md).
+
+---
+
+## 8. Migrating from another store
+
+Moving an existing product (Gumroad, Lemon Squeezy, Polar, …) onto Licencio?
+Import your past customers as licenses so their apps keep working — **preserve the
+original key strings** and each buyer re-validates against Licencio with the key
+they already have.
+
+- **Import endpoint** — `POST /admin/migrations/import` (admin-only) takes CSV or
+  JSON rows and a `source` (`lemon_squeezy` or `polar`). Each row maps to a license:
+  `product_slug`, `license_key`, optional `email`/`name` (blank email = an unclaimed
+  license the buyer claims later), `status`, `max_activations` (blank inherits the
+  product default — leave the product's `max_activations_default` blank for
+  unlimited), `expires_at`, and per-license `update_policy` / `licensed_version`
+  (so versioned buyers get a version snapshot and lifetime buyers an override).
+  Re-runnable: rows whose `license_key` already exists are skipped.
+- **Polar** exposes keys only through its API (no CSV), so pull them with an
+  Organization Access Token — see `lib/tasks/polar.rake` for a worked example that
+  maps each Polar product's license-keys benefit to a policy.
+- **Old "unlimited" sentinels** — a prior Lemon Squeezy import used `999` to mean
+  unlimited; `bin/rails licenses:normalize_unlimited` converts those to real
+  unlimited (nil) seats.
