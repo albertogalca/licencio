@@ -8,7 +8,7 @@ namespace :polar do
   # license_keys benefit per Polar product. v1 buyers get licensed_version pinned; lifetime overrides.
   COZY_BENEFITS = {
     "0f965825-44c0-4cb1-9f52-baa0711f621a" => { update_policy: nil,        licensed_version: 1 }, # Cozy for Desktop
-    "eadd5689-4d1f-4213-94d2-d0bf55f7a275" => { update_policy: "lifetime", licensed_version: nil }, # Cozy (Lifetime)
+    "eadd5689-4d1f-4213-94d2-d0bf55f7a275" => { update_policy: "lifetime", licensed_version: nil } # Cozy (Lifetime)
   }.freeze
   STATUS_MAP = { "granted" => "active", "revoked" => "refunded", "disabled" => "inactive" }.freeze
 

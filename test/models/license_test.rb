@@ -122,7 +122,7 @@ class LicenseTest < ActiveSupport::TestCase
   test "import carries per-license update_policy and licensed_version" do
     rows = [
       { product_slug: products(:cozy).slug, license_key: "COZY-V1", licensed_version: "1" },
-      { product_slug: products(:cozy).slug, license_key: "COZY-LIFETIME", update_policy: "lifetime" },
+      { product_slug: products(:cozy).slug, license_key: "COZY-LIFETIME", update_policy: "lifetime" }
     ]
     assert_equal 2, License.import(rows, source: "polar")[:imported]
 

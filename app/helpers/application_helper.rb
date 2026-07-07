@@ -9,7 +9,7 @@ module ApplicationHelper
     "active" => "badge-emerald",
     "expired" => "badge-amber",
     "refunded" => "badge-red",
-    "inactive" => "badge-gray",
+    "inactive" => "badge-gray"
   }.freeze
 
   def status_badge(status)
