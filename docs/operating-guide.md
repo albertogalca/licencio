@@ -124,22 +124,34 @@ product's webhook URL.
 
 ### Email delivery (Loops — optional)
 
-Licencio sends **one** transactional email that both delivers the purchase and
-gives portal access: the customer's keys for this product plus a sign-in link. It
-fires when a purchase completes and again whenever someone uses "recover my
-license." Skip this if you don't want email yet — purchases still fulfill, buyers
-just reach their key through the recover flow instead.
+Licencio sends transactional email through **Loops** — one template per moment.
+Every template is **optional**: leave its id blank and that one email is skipped
+(purchases still fulfill; buyers can always reach their key through the recover
+flow). Each is a separate field on the product.
 
-To turn it on, from the [Loops dashboard](https://app.loops.so):
+| When it fires | Product field (Loops template id) | Variables the template receives |
+|---------------|-----------------------------------|---------------------------------|
+| **Purchase / renewal** — receipt with the bought key | `purchase_transactional_id` | `product_name`, `license_keys` (just the purchased key), `amount`, `magic_link_url`, `sender_email` |
+| **Recover / manual grant** — portal access, all of the customer's keys | `loops_transactional_id` | `product_name`, `license_keys` (all, newline-separated), `magic_link_url`, `sender_email` |
+| **Full refund** — cancellation notice | `refund_transactional_id` | `product_name`, `license_keys`, `magic_link_url`, `sender_email` |
+| **~7 days before a `time_limited` license expires** (daily sweep) | `expiry_reminder_transactional_id` | `product_name`, `license_keys` (that key), `expires_at`, `magic_link_url`, `sender_email` |
+
+Ready-to-paste HTML for the receipt, refund, and expiry emails lives in
+[`docs/email-templates/`](email-templates/) — upload each in Loops and copy its id
+into the matching field. Loops merge tags look like `{DATA_VARIABLE:product_name}`.
+Every `magic_link_url` carries the product and is reusable for 30 minutes (see §3).
+
+Auth and from-address (shared by all templates):
 
 | Field | Where in Loops |
 |-------|----------------|
 | `loops_api_key` | Settings → API (or leave blank to use `LOOPS_API_KEY_DEFAULT` from `.env`) |
-| `loops_transactional_id` | Transactional → your email → its id |
 | `sender_email` | the from-address you send as |
 
-Your Loops template must accept these variables: `license_keys` (newline-
-separated), `magic_link_url`, `product_name`, `sender_email`.
+**Contact sync.** On purchase the buyer is also added to your Loops audience as a
+contact (`source: "Stripe"`, subscribed); a full refund unsubscribes them. This
+reuses `loops_api_key` — no extra setup — and is how you segment buyers for
+broadcasts.
 
 ---
 
@@ -184,14 +196,22 @@ one app never shows another app's licenses).
 
 In the portal a customer can:
 
-- **See their licenses** for that product — the keys and every device using them.
+- **See their licenses** for that product — the keys, the expiry date (for
+  `time_limited` licenses), and every device using them.
 - **Free up a seat** by deactivating a device (frees a machine so they can
   install elsewhere).
+- **Renew a license** — when a `time_limited` license is expired or within 30 days
+  of expiring, a **Renew** button appears (with a price picker) that sends them
+  straight to Stripe Checkout, tagged to extend *that* license. A freshly renewed
+  license, far from expiry, hides the button. (Renewal needs the product's Stripe
+  keys and checkout URLs, same as a purchase.)
 
-Sign-in links are per product and single-use, valid 30 minutes. Someone who owns
-two of your apps can hold one live link for each — requesting one never cancels
-the other. You don't build any of this; you just link customers to the recover
-form (§4).
+Sign-in links are per product, valid 30 minutes and **reusable within that
+window** — reopening the same link works until it expires, so an emailed link
+isn't a one-shot. Someone who owns two of your apps holds one live link for each;
+requesting one never cancels the other. An expired link bounces to the recover
+form, pre-scoped to the right product. You don't build any of this; you just link
+customers to the recover form (§4).
 
 ---
 
@@ -304,7 +324,9 @@ occasional manual grant or status change.
 - **Activate / deactivate = the license `status`.** Edit a license to switch
   between `active`, `inactive`, `expired`, `refunded`. Only `active` licenses can
   activate new devices. A full Stripe refund (`charge.refunded`) flips a license
-  to `refunded` for you; set the others by hand for manual revocations. **Heads
+  to `refunded` for you — and, if configured, emails the buyer a cancellation
+  notice and unsubscribes them from Loops (unless they still hold another active
+  license for that product). Set the others by hand for manual revocations. **Heads
   up:** changing status blocks *new and renewed* activations, but a token a device
   already holds keeps verifying offline until its lease (`exp`) lapses — up to
   7 days. An online app re-activates in the background and revokes near-instantly;
