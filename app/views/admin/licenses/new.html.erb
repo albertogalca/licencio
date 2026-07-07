@@ -1,50 +1,52 @@
 <% content_for :title, "New license — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold">New license</h1>
+<h1 class="mb-6 text-xl font-semibold tracking-tight">New license</h1>
 
-<div class="max-w-xl">
+<div class="card max-w-xl p-6">
   <%= form_with model: @license, url: admin_licenses_path, method: :post, class: "space-y-4" do |form| %>
     <% if @license.errors.any? %>
-      <div class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+      <div class="rounded-md border-l-2 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">
         <ul class="list-disc pl-5">
           <% @license.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
         </ul>
       </div>
     <% end %>
 
-    <% field = "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
-    <% label = "block text-sm font-medium text-gray-700" %>
+    <div>
+      <%= form.label :product_id, "Product", class: "field-label" %>
+      <%= form.select :product_id, Product.order(:name).pluck(:name, :id), { include_blank: "Select a product" }, class: "field-select" %>
+    </div>
+    <div>
+      <%= form.label :customer_email, "Customer email", class: "field-label" %>
+      <%= form.email_field :customer_email, class: "field-input" %>
+      <p class="field-hint">Optional — a customer is created if this email is new.</p>
+    </div>
+    <div>
+      <%= form.label :max_activations, class: "field-label" %>
+      <%= form.number_field :max_activations, value: @license.max_activations || 3, class: "field-input" %>
+    </div>
+    <div>
+      <%= form.label :status, class: "field-label" %>
+      <%= form.select :status, License.statuses.keys, {}, class: "field-select" %>
+    </div>
+    <div>
+      <%= form.label :expires_at, "Expires at", class: "field-label" %>
+      <%= form.datetime_local_field :expires_at, class: "field-input" %>
+      <p class="field-hint">Optional.</p>
+    </div>
+    <div>
+      <%= form.label :update_policy, "Update policy", class: "field-label" %>
+      <%= form.select :update_policy, License.update_policies.keys, { include_blank: "Inherit from product" }, class: "field-select" %>
+    </div>
+    <div>
+      <%= form.label :licensed_version, "Version", class: "field-label" %>
+      <%= form.number_field :licensed_version, class: "field-input" %>
+      <p class="field-hint">For versioned policy — the max major version this license updates to.</p>
+    </div>
 
-    <div>
-      <%= form.label :product_id, "Product", class: label %>
-      <%= form.select :product_id, Product.order(:name).pluck(:name, :id), { include_blank: "Select a product" }, class: field %>
+    <div class="flex items-center gap-3 border-t border-gray-100 pt-4">
+      <%= form.submit "Create license", class: "btn-primary" %>
+      <%= link_to "Cancel", admin_licenses_path, class: "link-muted text-sm" %>
     </div>
-    <div>
-      <%= form.label :customer_email, "Customer email (optional — created if new)", class: label %>
-      <%= form.email_field :customer_email, class: field %>
-    </div>
-    <div>
-      <%= form.label :max_activations, class: label %>
-      <%= form.number_field :max_activations, value: @license.max_activations || 3, class: field %>
-    </div>
-    <div>
-      <%= form.label :status, class: label %>
-      <%= form.select :status, License.statuses.keys, {}, class: field %>
-    </div>
-    <div>
-      <%= form.label :expires_at, "Expires at (optional)", class: label %>
-      <%= form.datetime_local_field :expires_at, class: field %>
-    </div>
-    <div>
-      <%= form.label :update_policy, "Update policy", class: label %>
-      <%= form.select :update_policy, License.update_policies.keys, { include_blank: "Inherit from product" }, class: field %>
-    </div>
-    <div>
-      <%= form.label :licensed_version, "Version (for versioned policy — the max major version this license updates to)", class: label %>
-      <%= form.number_field :licensed_version, class: field %>
-    </div>
-
-    <%= form.submit "Create license", class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
-    <%= link_to "Cancel", admin_licenses_path, class: "ml-2 text-sm text-gray-500" %>
   <% end %>
 </div>

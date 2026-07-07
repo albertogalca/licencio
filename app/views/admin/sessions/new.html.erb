@@ -1,19 +1,25 @@
 <% content_for :title, "Sign in — Licencio" %>
 
-<div class="mx-auto max-w-sm">
-  <h1 class="mb-6 text-xl font-semibold">Admin sign in</h1>
+<div class="mx-auto mt-12 max-w-sm">
+  <div class="mb-6 flex items-center justify-center gap-2">
+    <%= image_tag "/icon.svg", alt: "", class: "h-6 w-6", aria: { hidden: true } %>
+    <span class="text-lg font-semibold tracking-tight">Licencio</span>
+  </div>
+  <div class="card p-6">
+    <h1 class="mb-5 text-base font-semibold">Sign in</h1>
 
-  <%= form_with url: admin_session_path, method: :post, class: "space-y-4" do |form| %>
-    <div>
-      <%= form.label :email, class: "block text-sm font-medium text-gray-700" %>
-      <%= form.email_field :email, autofocus: true, autocomplete: "username",
-        class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
-    </div>
-    <div>
-      <%= form.label :password, class: "block text-sm font-medium text-gray-700" %>
-      <%= form.password_field :password, autocomplete: "current-password",
-        class: "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
-    </div>
-    <%= form.submit "Sign in", class: "w-full rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
-  <% end %>
+    <%= form_with url: admin_session_path, method: :post, class: "space-y-4" do |form| %>
+      <div>
+        <%= form.label :email, class: "field-label" %>
+        <%= form.email_field :email, autofocus: true, autocomplete: "username",
+          class: "field-input" %>
+      </div>
+      <div>
+        <%= form.label :password, class: "field-label" %>
+        <%= form.password_field :password, autocomplete: "current-password",
+          class: "field-input" %>
+      </div>
+      <%= form.submit "Sign in", class: "btn-primary w-full" %>
+    <% end %>
+  </div>
 </div>

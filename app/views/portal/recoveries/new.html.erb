@@ -1,30 +1,33 @@
 <% content_for :title, "Recover your licenses — Licencio" %>
+<% content_for :centered, "1" %>
 
-<div class="mx-auto max-w-sm">
-  <h1 class="mb-2 text-2xl font-semibold">
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-2xl font-semibold tracking-tight">
     Recover your <%= @product&.name || "licenses" %><%= " licenses" if @product %>
   </h1>
   <p class="mb-6 text-sm text-gray-500">
     Enter your email and we'll send you a sign-in link along with your license keys.
   </p>
 
-  <%= form_with url: portal_recoveries_path, method: :post do |form| %>
-    <% if @product_slug.present? %>
-      <%= form.hidden_field :product, value: @product_slug %>
-    <% else %>
-      <div class="mb-4">
-        <%= form.label :product, "Product", class: "mb-1 block text-sm font-medium" %>
-        <%= form.text_field :product, value: @product_slug,
-              placeholder: "product name",
-              class: "w-full rounded-md border border-gray-300 px-3 py-2" %>
+  <div class="card p-6">
+    <%= form_with url: portal_recoveries_path, method: :post, class: "space-y-4" do |form| %>
+      <% if @product_slug.present? %>
+        <%= form.hidden_field :product, value: @product_slug %>
+      <% else %>
+        <div>
+          <%= form.label :product, "Product", class: "field-label" %>
+          <%= form.text_field :product, value: @product_slug,
+                placeholder: "product name",
+                class: "field-input" %>
+        </div>
+      <% end %>
+      <div>
+        <%= form.label :email, "Email", class: "field-label" %>
+        <%= form.email_field :email, required: true, autofocus: true,
+              placeholder: "you@example.com",
+              class: "field-input" %>
       </div>
+      <%= form.submit "Send sign-in link", class: "btn-primary w-full" %>
     <% end %>
-    <div class="mb-4">
-      <%= form.label :email, "Email", class: "mb-1 block text-sm font-medium" %>
-      <%= form.email_field :email, required: true, autofocus: true,
-            class: "w-full rounded-md border border-gray-300 px-3 py-2" %>
-    </div>
-    <%= form.submit "Send sign-in link",
-          class: "w-full rounded-md bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-700" %>
-  <% end %>
+  </div>
 </div>

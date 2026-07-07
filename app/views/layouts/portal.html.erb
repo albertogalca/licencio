@@ -11,15 +11,14 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-gray-50 text-gray-900">
-    <main class="mx-auto max-w-3xl px-5 py-12">
-      <% if notice %>
-        <p class="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm text-green-800"><%= notice %></p>
-      <% end %>
-      <% if alert %>
-        <p class="mb-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800"><%= alert %></p>
-      <% end %>
+  <body class="flex min-h-screen flex-col bg-gray-50 text-gray-900 antialiased">
+    <main class="mx-auto flex w-full max-w-3xl grow flex-col px-5 py-12 <%= "items-center justify-center gap-6" if content_for?(:centered) %>">
+      <%= render "layouts/flash" %>
       <%= yield %>
+      <p class="flex items-center gap-1.5 self-center text-xs text-gray-400 <%= "mt-auto pt-10" unless content_for?(:centered) %>">
+        <%= image_tag "/icon.svg", alt: "", class: "h-4 w-4", aria: { hidden: true } %>
+        Powered by Licencio
+      </p>
     </main>
   </body>
 </html>

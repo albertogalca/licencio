@@ -1,88 +1,94 @@
 <% content_for :title, "Edit license — Licencio" %>
 
-<h1 class="mb-1 text-xl font-semibold">Edit license</h1>
+<h1 class="mb-1 text-xl font-semibold tracking-tight">Edit license</h1>
 <p class="mb-6 font-mono text-xs text-gray-500"><%= @license.license_key %> · <%= @license.product.name %>
   <% if @license.customer %>· <%= @license.customer.email %><% end %></p>
 
-<div class="max-w-xl">
-  <%= form_with model: @license, url: admin_license_path(@license), method: :patch, class: "space-y-4" do |form| %>
-    <% if @license.errors.any? %>
-      <div class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
-        <ul class="list-disc pl-5">
-          <% @license.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
-        </ul>
+<div class="max-w-xl space-y-6">
+  <div class="card p-6">
+    <%= form_with model: @license, url: admin_license_path(@license), method: :patch, class: "space-y-4" do |form| %>
+      <% if @license.errors.any? %>
+        <div class="rounded-md border-l-2 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <ul class="list-disc pl-5">
+            <% @license.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div>
+        <%= form.label :status, class: "field-label" %>
+        <%= form.select :status, License.statuses.keys, {}, class: "field-select" %>
+      </div>
+      <div>
+        <%= form.label :max_activations, class: "field-label" %>
+        <%= form.number_field :max_activations, class: "field-input" %>
+      </div>
+      <div>
+        <%= form.label :expires_at, "Expires at", class: "field-label" %>
+        <%= form.datetime_local_field :expires_at, value: @license.expires_at&.strftime("%Y-%m-%dT%H:%M"), class: "field-input" %>
+        <p class="field-hint">Optional.</p>
+      </div>
+      <div>
+        <%= form.label :update_policy, "Update policy", class: "field-label" %>
+        <%= form.select :update_policy, License.update_policies.keys, { include_blank: "Inherit from product" }, class: "field-select" %>
+      </div>
+      <div>
+        <%= form.label :licensed_version, "Version", class: "field-label" %>
+        <%= form.number_field :licensed_version, class: "field-input" %>
+        <p class="field-hint">Bump to grant a v2+ upgrade.</p>
+      </div>
+
+      <div class="flex items-center gap-3 border-t border-gray-100 pt-4">
+        <%= form.submit "Save changes", class: "btn-primary" %>
+        <%= link_to "Cancel", admin_licenses_path, class: "link-muted text-sm" %>
       </div>
     <% end %>
+  </div>
 
-    <% field = "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
-    <% label = "block text-sm font-medium text-gray-700" %>
-
-    <div>
-      <%= form.label :status, class: label %>
-      <%= form.select :status, License.statuses.keys, {}, class: field %>
-    </div>
-    <div>
-      <%= form.label :max_activations, class: label %>
-      <%= form.number_field :max_activations, class: field %>
-    </div>
-    <div>
-      <%= form.label :expires_at, "Expires at (optional)", class: label %>
-      <%= form.datetime_local_field :expires_at, value: @license.expires_at&.strftime("%Y-%m-%dT%H:%M"), class: field %>
-    </div>
-    <div>
-      <%= form.label :update_policy, "Update policy", class: label %>
-      <%= form.select :update_policy, License.update_policies.keys, { include_blank: "Inherit from product" }, class: field %>
-    </div>
-    <div>
-      <%= form.label :licensed_version, "Version (bump to grant a v2+ upgrade)", class: label %>
-      <%= form.number_field :licensed_version, class: field %>
-    </div>
-
-    <%= form.submit "Save changes", class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
-    <%= link_to "Cancel", admin_licenses_path, class: "ml-2 text-sm text-gray-500" %>
-  <% end %>
-
-  <div class="mt-8 border-t border-gray-200 pt-4">
-    <h2 class="text-sm font-medium text-gray-700">
+  <div class="card p-6">
+    <h2 class="flex items-baseline gap-2 text-sm font-semibold text-gray-900">
       Devices
-      <span class="ml-1 font-normal text-gray-500">
+      <span class="font-normal text-gray-500">
         <%= @license.activations.active.size %> of <%= @license.max_activations || "∞" %> seats in use
       </span>
     </h2>
     <% activations = @license.activations.order(activated_at: :desc) %>
     <% if activations.any? %>
-      <div class="mt-2 overflow-hidden rounded-lg border border-gray-200">
-        <table class="w-full text-sm">
-          <tbody class="divide-y divide-gray-100">
-            <% activations.each do |a| %>
-              <tr class="<%= "text-gray-400" if a.deactivated_at %>">
-                <td class="px-4 py-2"><%= a.device_name.presence || a.hardware_id %></td>
-                <td class="px-4 py-2 text-gray-500"><%= a.activated_at&.to_date %></td>
-                <td class="px-4 py-2 text-right">
-                  <% if a.deactivated_at %>
-                    <span class="text-gray-400">deactivated</span>
-                  <% else %>
-                    <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
-                      form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
-                      class: "text-sm text-red-600 hover:text-red-700 cursor-pointer" %>
-                  <% end %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
+      <div class="mt-3 -mx-2 divide-y divide-gray-100">
+        <% activations.each do |a| %>
+          <div class="flex items-center gap-3 px-2 py-2.5 text-sm">
+            <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" aria-hidden="true"></span>
+            <span class="flex-1 truncate <%= "text-gray-400" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
+            <span class="shrink-0 text-xs text-gray-400 tabular-nums"><%= a.activated_at&.to_date %></span>
+            <div class="w-24 shrink-0 text-right">
+              <% if a.deactivated_at %>
+                <span class="text-xs text-gray-400">deactivated</span>
+              <% else %>
+                <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
+                  form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
+                  class: "text-xs font-medium text-red-600 hover:text-red-700 cursor-pointer" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
       </div>
     <% else %>
-      <p class="mt-2 text-sm text-gray-500">No devices yet.</p>
+      <p class="mt-3 text-sm text-gray-500">No devices yet.</p>
     <% end %>
   </div>
 
   <% unless @license.refunded? %>
-    <div class="mt-6 border-t border-gray-200 pt-4">
-      <%= button_to "Revoke license", admin_license_path(@license),
-        method: :patch, params: { license: { status: "refunded" } },
-        form: { data: { turbo_confirm: "Revoke this license? Its status becomes refunded." } },
-        class: "rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 cursor-pointer" %>
+    <div class="card border-red-200 p-6">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Revoke license</h2>
+          <p class="field-hint">Sets the status to refunded and blocks activation.</p>
+        </div>
+        <%= button_to "Revoke license", admin_license_path(@license),
+          method: :patch, params: { license: { status: "refunded" } },
+          form: { data: { turbo_confirm: "Revoke this license? Its status becomes refunded." } },
+          class: "btn-danger shrink-0" %>
+      </div>
     </div>
   <% end %>
 </div>

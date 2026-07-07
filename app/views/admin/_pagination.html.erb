@@ -1,14 +1,18 @@
 <% if @total_pages && @total_pages > 1 %>
-  <nav class="mt-4 flex items-center justify-between text-sm text-gray-600">
-    <span><%= @total_count %> total · page <%= @page %> of <%= @total_pages %></span>
+  <nav class="mt-5 flex items-center justify-between text-sm text-gray-500">
+    <span><span class="tabular-nums font-medium text-gray-700"><%= @total_count %></span> total · page <span class="tabular-nums"><%= @page %></span> of <span class="tabular-nums"><%= @total_pages %></span></span>
     <span class="flex gap-2">
       <% if @page > 1 %>
         <%= link_to "← Prev", "#{request.path}?#{request.query_parameters.merge(page: @page - 1).to_query}",
-          class: "rounded-md border border-gray-300 px-3 py-2 hover:bg-gray-100" %>
+          class: "inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50" %>
+      <% else %>
+        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-300">← Prev</span>
       <% end %>
       <% if @page < @total_pages %>
         <%= link_to "Next →", "#{request.path}?#{request.query_parameters.merge(page: @page + 1).to_query}",
-          class: "rounded-md border border-gray-300 px-3 py-2 hover:bg-gray-100" %>
+          class: "inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50" %>
+      <% else %>
+        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-300">Next →</span>
       <% end %>
     </span>
   </nav>

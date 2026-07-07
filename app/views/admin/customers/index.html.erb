@@ -1,44 +1,44 @@
 <% content_for :title, "Customers — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold">Customers</h1>
+<h1 class="mb-6 text-xl font-semibold tracking-tight">Customers</h1>
 
-<%= form_with url: admin_customers_path, method: :get, class: "mb-4 flex flex-wrap gap-3 text-sm" do |form| %>
+<%= form_with url: admin_customers_path, method: :get, class: "mb-5 flex flex-wrap items-center gap-3" do |form| %>
   <%= form.text_field :q, value: params[:q], placeholder: "Search email, name…",
-    class: "min-w-64 flex-1 rounded-md border border-gray-300 px-3 py-2" %>
+    class: "field-input min-w-64 flex-1" %>
   <%= form.select :product_id, Product.order(:name).pluck(:name, :id), { include_blank: "All products", selected: params[:product_id] },
-    class: "select-field rounded-md border border-gray-300 px-3 py-2", onchange: "this.form.requestSubmit()" %>
-  <%= form.submit "Search", class: "rounded-md bg-gray-900 px-3 py-2 text-white hover:bg-gray-800" %>
+    class: "field-select w-auto", onchange: "this.form.requestSubmit()" %>
+  <%= form.submit "Search", class: "btn-primary" %>
   <% if params[:q].present? || params[:product_id].present? %>
-    <%= link_to "Clear", admin_customers_path, class: "px-3 py-2 text-gray-600 hover:text-gray-900" %>
+    <%= link_to "Clear", admin_customers_path, class: "link-muted px-1" %>
   <% end %>
 <% end %>
 
 <% if @customers.any? %>
-  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
-    <table class="w-full text-sm">
-      <thead class="bg-gray-50 text-left text-gray-500">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
         <tr>
-          <th class="px-4 py-2 font-medium">Email</th>
-          <th class="px-4 py-2 font-medium">Name</th>
-          <th class="px-4 py-2 font-medium">Licenses</th>
-          <th class="px-4 py-2"></th>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Licenses</th>
+          <th></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody>
         <% @customers.each do |customer| %>
-          <tr class="transition-colors hover:bg-gray-50">
-            <td class="px-4 py-2 font-medium">
-              <%= link_to admin_customer_path(customer), class: "flex items-center gap-2 hover:text-gray-900" do %>
-                <%= image_tag gravatar_url(customer.email), alt: "", width: 24, height: 24, loading: "lazy", class: "h-6 w-6 rounded-full bg-gray-100" %>
-                <%= customer.email %>
+          <tr>
+            <td class="font-medium">
+              <%= link_to admin_customer_path(customer), class: "flex items-center gap-2.5 hover:text-gray-900" do %>
+                <%= image_tag gravatar_url(customer.email), alt: "", width: 24, height: 24, loading: "lazy", class: "h-6 w-6 rounded-full bg-gray-100 ring-1 ring-gray-200" %>
+                <span class="truncate"><%= customer.email %></span>
               <% end %>
             </td>
-            <td class="px-4 py-2 text-gray-600"><%= customer.name %></td>
-            <td class="px-4 py-2">
-              <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"><%= customer.licenses.count %></span>
+            <td class="text-gray-600"><%= customer.name %></td>
+            <td>
+              <span class="badge-gray tabular-nums"><%= customer.licenses.count %></span>
             </td>
-            <td class="px-4 py-2 text-right">
-              <%= link_to "View", admin_customer_path(customer), class: "text-gray-600 hover:text-gray-900" %>
+            <td class="text-right">
+              <%= link_to "View", admin_customer_path(customer), class: "link-muted" %>
             </td>
           </tr>
         <% end %>
@@ -47,7 +47,7 @@
   </div>
   <%= render "admin/pagination" %>
 <% elsif params[:q].present? || params[:product_id].present? %>
-  <p class="text-gray-500">No customers found.</p>
+  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No customers found.</p>
 <% else %>
-  <p class="text-gray-500">No customers yet.</p>
+  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No customers yet.</p>
 <% end %>

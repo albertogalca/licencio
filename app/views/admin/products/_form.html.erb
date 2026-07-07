@@ -1,122 +1,149 @@
 <%= form_with model: product, url: (product.new_record? ? admin_products_path : admin_product_path(product)),
-    method: (product.new_record? ? :post : :patch), class: "space-y-4" do |form| %>
+    method: (product.new_record? ? :post : :patch), class: "space-y-6" do |form| %>
 
   <% if product.errors.any? %>
-    <div class="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+    <div class="rounded-md border-l-2 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">
       <ul class="list-disc pl-5">
         <% product.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
       </ul>
     </div>
   <% end %>
 
-  <% field = "mt-1 w-full rounded-md border border-gray-300 px-3 py-2" %>
-  <% label = "block text-sm font-medium text-gray-700" %>
-  <% ro = "mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500" %>
+  <% ro = "mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-500" %>
 
-  <div>
-    <%= form.label :name, class: label %>
-    <%= form.text_field :name, class: field %>
-  </div>
+  <section class="card space-y-4 p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Basics</h2>
 
-  <% if product.new_record? %>
-    <div><%= form.label :slug, class: label %><%= form.text_field :slug, class: field %></div>
-    <div><%= form.label :bundle_identifier, class: label %><%= form.text_field :bundle_identifier, class: field %></div>
     <div>
-      <%= form.label :license_prefix, class: label %>
-      <%= form.text_field :license_prefix, class: field %>
-      <p class="mt-1 text-xs text-gray-400">Baked into issued license keys — cannot be changed later.</p>
+      <%= form.label :name, class: "field-label" %>
+      <%= form.text_field :name, class: "field-input" %>
     </div>
-  <% else %>
-    <div>
-      <span class="<%= label %>">Slug / Bundle / Prefix (locked)</span>
-      <p class="mt-1 text-sm text-gray-500"><%= product.slug %> · <%= product.bundle_identifier %> · <%= product.license_prefix %></p>
-    </div>
-  <% end %>
 
-  <div>
-    <%= form.label :update_policy, class: label %>
-    <%= form.select :update_policy, Product.update_policies.keys, {}, class: field %>
-  </div>
-  <div>
-    <%= form.label :current_version, "Current version (latest released major version, for versioned)", class: label %>
-    <%= form.number_field :current_version, class: field %>
-  </div>
-  <div>
-    <%= form.label :max_activations_default, class: label %>
-    <%= form.number_field :max_activations_default, class: field %>
-  </div>
-  <div>
-    <%= form.label :update_duration_days, "Update duration (days, for time_limited)", class: label %>
-    <%= form.number_field :update_duration_days, class: field %>
-  </div>
-  <div>
-    <%= form.label :trial_days, class: label %>
-    <%= form.number_field :trial_days, class: field %>
-  </div>
-  <div>
-    <%= form.label :sender_email, class: label %>
-    <%= form.text_field :sender_email, class: field %>
-  </div>
-  <div>
-    <%= form.label :stripe_product_id, class: label %>
-    <%= form.text_field :stripe_product_id, class: field %>
-    <% if product.persisted? && product.stripe_product_id.present? %>
-      <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-        <p class="mb-1 font-medium text-gray-700">Variants (managed in Stripe)</p>
-        <% begin %>
-          <% variants = product.variants %>
-          <% if variants.any? %>
-            <ul class="space-y-1 text-gray-600">
-              <% variants.each do |v| %>
-                <li>
-                  <%= v.name.presence || "(no nickname)" %> ·
-                  <%= v.seats || "∞" %> seat<%= "s" unless v.seats == 1 %> ·
-                  $<%= "%.2f" % (v.amount_cents.to_i / 100.0) %>
-                  <span class="text-gray-400"><%= v.price_id %></span>
-                </li>
-              <% end %>
-            </ul>
-          <% else %>
-            <p class="text-gray-400">No Stripe prices on this product yet.</p>
-          <% end %>
-        <% rescue => e %>
-          <p class="text-gray-400">Couldn't load variants from Stripe (<%= e.class %>).</p>
-        <% end %>
+    <% if product.new_record? %>
+      <div><%= form.label :slug, class: "field-label" %><%= form.text_field :slug, class: "field-input" %></div>
+      <div><%= form.label :bundle_identifier, class: "field-label" %><%= form.text_field :bundle_identifier, class: "field-input" %></div>
+      <div>
+        <%= form.label :license_prefix, class: "field-label" %>
+        <%= form.text_field :license_prefix, class: "field-input" %>
+        <p class="field-hint">Baked into issued license keys — cannot be changed later.</p>
+      </div>
+    <% else %>
+      <div>
+        <span class="field-label">Slug / Bundle / Prefix (locked)</span>
+        <p class="font-mono text-xs text-gray-500"><%= product.slug %> · <%= product.bundle_identifier %> · <%= product.license_prefix %></p>
       </div>
     <% end %>
-  </div>
-  <div>
-    <%= form.label :stripe_secret_key, "Stripe secret key (leave blank to keep current)", class: label %>
-    <%= form.password_field :stripe_secret_key, value: nil, autocomplete: "off", class: field %>
-  </div>
-  <div>
-    <%= form.label :stripe_webhook_secret, "Stripe webhook signing secret (leave blank to keep current)", class: label %>
-    <%= form.password_field :stripe_webhook_secret, value: nil, autocomplete: "off", class: field %>
-    <% if product.persisted? %>
-      <p class="mt-1 text-sm text-gray-500">Point this account's Stripe webhook at <code><%= webhooks_stripe_url(product_id: product.id) %></code></p>
-    <% end %>
-  </div>
-  <div>
-    <%= form.label :loops_transactional_id, "Loops transactional ID (license key + portal sign-in link)", class: label %>
-    <%= form.text_field :loops_transactional_id, class: field %>
-  </div>
-  <div>
-    <%= form.label :loops_api_key, "Loops API key (leave blank to use default)", class: label %>
-    <%= form.password_field :loops_api_key, value: nil, autocomplete: "off", class: field %>
-  </div>
+  </section>
+
+  <section class="card space-y-4 p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Licensing</h2>
+
+    <div>
+      <%= form.label :update_policy, class: "field-label" %>
+      <%= form.select :update_policy, Product.update_policies.keys, {}, class: "field-select" %>
+    </div>
+    <div>
+      <%= form.label :current_version, "Current version", class: "field-label" %>
+      <%= form.number_field :current_version, class: "field-input" %>
+      <p class="field-hint">Latest released major version, for versioned policy.</p>
+    </div>
+    <div>
+      <%= form.label :max_activations_default, class: "field-label" %>
+      <%= form.number_field :max_activations_default, class: "field-input" %>
+    </div>
+    <div>
+      <%= form.label :update_duration_days, "Update duration (days)", class: "field-label" %>
+      <%= form.number_field :update_duration_days, class: "field-input" %>
+      <p class="field-hint">For time_limited policy.</p>
+    </div>
+    <div>
+      <%= form.label :trial_days, class: "field-label" %>
+      <%= form.number_field :trial_days, class: "field-input" %>
+    </div>
+  </section>
+
+  <section class="card space-y-4 p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Stripe</h2>
+
+    <div>
+      <%= form.label :stripe_product_id, class: "field-label" %>
+      <%= form.text_field :stripe_product_id, class: "field-input" %>
+      <% if product.persisted? && product.stripe_product_id.present? %>
+        <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+          <p class="mb-1 font-medium text-gray-700">Variants (managed in Stripe)</p>
+          <% begin %>
+            <% variants = product.variants %>
+            <% if variants.any? %>
+              <ul class="space-y-1 text-gray-600">
+                <% variants.each do |v| %>
+                  <li>
+                    <%= v.name.presence || "(no nickname)" %> ·
+                    <%= v.seats || "∞" %> seat<%= "s" unless v.seats == 1 %> ·
+                    $<%= "%.2f" % (v.amount_cents.to_i / 100.0) %>
+                    <span class="font-mono text-xs text-gray-400"><%= v.price_id %></span>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <p class="text-gray-400">No Stripe prices on this product yet.</p>
+            <% end %>
+          <% rescue => e %>
+            <p class="text-gray-400">Couldn't load variants from Stripe (<%= e.class %>).</p>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    <div>
+      <%= form.label :stripe_secret_key, "Stripe secret key", class: "field-label" %>
+      <%= form.password_field :stripe_secret_key, value: nil, autocomplete: "off", class: "field-input" %>
+      <p class="field-hint">Leave blank to keep current.</p>
+    </div>
+    <div>
+      <%= form.label :stripe_webhook_secret, "Stripe webhook signing secret", class: "field-label" %>
+      <%= form.password_field :stripe_webhook_secret, value: nil, autocomplete: "off", class: "field-input" %>
+      <% if product.persisted? %>
+        <p class="field-hint">Point this account's Stripe webhook at <code class="rounded bg-gray-100 px-1 py-0.5"><%= webhooks_stripe_url(product_id: product.id) %></code></p>
+      <% else %>
+        <p class="field-hint">Leave blank to keep current.</p>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="card space-y-4 p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Email</h2>
+
+    <div>
+      <%= form.label :sender_email, class: "field-label" %>
+      <%= form.text_field :sender_email, class: "field-input" %>
+    </div>
+    <div>
+      <%= form.label :loops_transactional_id, "Loops transactional ID", class: "field-label" %>
+      <%= form.text_field :loops_transactional_id, class: "field-input" %>
+      <p class="field-hint">License key + portal sign-in link email.</p>
+    </div>
+    <div>
+      <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>
+      <%= form.password_field :loops_api_key, value: nil, autocomplete: "off", class: "field-input" %>
+      <p class="field-hint">Leave blank to use default.</p>
+    </div>
+  </section>
 
   <% unless product.new_record? %>
-    <div>
-      <span class="<%= label %>">API key (auto-generated)</span>
-      <input type="text" readonly value="<%= product.api_key %>" class="<%= ro %>">
-    </div>
-    <div>
-      <span class="<%= label %>">EdDSA public key (auto-generated)</span>
-      <input type="text" readonly value="<%= product.eddsa_public_key %>" class="<%= ro %>">
-    </div>
+    <section class="card space-y-4 p-6">
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Keys (auto-generated)</h2>
+      <div>
+        <span class="field-label">API key</span>
+        <input type="text" readonly value="<%= product.api_key %>" class="<%= ro %>">
+      </div>
+      <div>
+        <span class="field-label">EdDSA public key</span>
+        <input type="text" readonly value="<%= product.eddsa_public_key %>" class="<%= ro %>">
+      </div>
+    </section>
   <% end %>
 
-  <%= form.submit (product.new_record? ? "Create product" : "Save changes"),
-    class: "rounded-md bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 cursor-pointer" %>
-  <%= link_to "Cancel", admin_products_path, class: "ml-2 text-sm text-gray-500" %>
+  <div class="flex items-center gap-3">
+    <%= form.submit (product.new_record? ? "Create product" : "Save changes"), class: "btn-primary" %>
+    <%= link_to "Cancel", admin_products_path, class: "link-muted text-sm" %>
+  </div>
 <% end %>

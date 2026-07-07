@@ -1,33 +1,36 @@
 <% content_for :title, "Activations — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold">Activations</h1>
+<h1 class="mb-6 text-xl font-semibold tracking-tight">Activations</h1>
 
 <% if @activations.any? %>
-  <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
-    <table class="w-full text-sm">
-      <thead class="bg-gray-50 text-left text-gray-500">
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
         <tr>
-          <th class="px-4 py-2 font-medium">Device</th>
-          <th class="px-4 py-2 font-medium">Product</th>
-          <th class="px-4 py-2 font-medium">Customer</th>
-          <th class="px-4 py-2 font-medium">Activated</th>
-          <th class="px-4 py-2 font-medium">State</th>
+          <th>Device</th>
+          <th>Product</th>
+          <th>Customer</th>
+          <th>Activated</th>
+          <th>State</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody>
         <% @activations.each do |a| %>
           <tr>
-            <td class="px-4 py-2"><%= a.device_name.presence || a.hardware_id %></td>
-            <td class="px-4 py-2 text-gray-600"><%= a.license.product.name %></td>
-            <td class="px-4 py-2 text-gray-600"><%= a.license.customer&.email %></td>
-            <td class="px-4 py-2 text-gray-600"><%= a.activated_at&.to_date %></td>
-            <td class="px-4 py-2 text-gray-600">
+            <td class="flex items-center gap-2">
+              <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" aria-hidden="true"></span>
+              <span class="truncate"><%= a.device_name.presence || a.hardware_id %></span>
+            </td>
+            <td class="text-gray-600"><%= a.license.product.name %></td>
+            <td class="text-gray-600"><%= a.license.customer&.email %></td>
+            <td class="text-gray-600 tabular-nums"><%= a.activated_at&.to_date %></td>
+            <td class="text-right">
               <% if a.deactivated_at %>
-                deactivated
+                <span class="text-xs text-gray-400">deactivated</span>
               <% else %>
                 <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
                   form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
-                  class: "text-red-600 hover:text-red-700 cursor-pointer" %>
+                  class: "text-xs font-medium text-red-600 hover:text-red-700 cursor-pointer" %>
               <% end %>
             </td>
           </tr>
@@ -37,5 +40,5 @@
   </div>
   <%= render "admin/pagination" %>
 <% else %>
-  <p class="text-gray-500">No activations yet.</p>
+  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No activations yet.</p>
 <% end %>
