@@ -10,6 +10,6 @@ class Portal::RecoveriesController < Portal::BaseController
     if product = Product.find_by(slug: params[:product])
       Customer.find_by(email: params[:email])&.send_portal_access_later(product:)
     end
-    redirect_to new_portal_recovery_path, notice: "If that email has a license, a sign-in link is on its way."
+    redirect_to new_portal_recovery_path(product: params[:product].presence), notice: "If that email has a license, a sign-in link is on its way."
   end
 end
