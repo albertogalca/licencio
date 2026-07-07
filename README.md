@@ -1,4 +1,8 @@
-# Licencio
+<p align="center">
+  <img src="public/icon.svg" alt="Licencio" width="72" height="72">
+</p>
+
+<h1 align="center">Licencio</h1>
 
 Self-hostable software-licensing backend. Sell licenses for your apps through
 Stripe, and hand every activated device a **cryptographically signed license

@@ -1,3 +1,5 @@
+<img src="../public/icon.svg" alt="Licencio" width="40" height="40" align="left">
+
 # Client integration — verifying a license offline
 
 Licencio issues each activated device an **EdDSA (Ed25519) signed JWT**. Your app

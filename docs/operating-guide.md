@@ -1,3 +1,5 @@
+<img src="../public/icon.svg" alt="Licencio" width="40" height="40" align="left">
+
 # Operating guide — running your license store
 
 This is the day-to-day guide for **operators**: set the app up, collect the
