@@ -109,6 +109,14 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "an active license past its expiry is forbidden (no JWT slips between sweeps)" do
+    @license.update!(status: "active", expires_at: 1.day.ago)
+    assert_no_difference "Activation.count" do
+      activate(hardware_id: "HW-1")
+    end
+    assert_response :forbidden
+  end
+
   test "another product's license is not found" do
     other = Product.create!(
       name: "Other", slug: "other", bundle_identifier: "com.other.app",

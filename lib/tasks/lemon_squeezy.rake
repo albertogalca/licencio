@@ -14,7 +14,7 @@ namespace :lemon_squeezy do
     dry   = ENV["DRY_RUN"].present?
 
     # LS activation_limit 0/nil = unlimited; we store unlimited as nil.
-    by_key = each_ls_license_key(token, ENV["LS_PRODUCT_ID"]).each_with_object({}) do |a, h|
+    by_key = LemonSqueezyApi.each_license_key(token, ENV["LS_PRODUCT_ID"]).each_with_object({}) do |a, h|
       limit = a["activation_limit"].to_i
       h[a["key"]] = { expected: (limit.positive? ? limit : nil),
                       instances: a["instances_count"].to_i, email: a["user_email"] }
@@ -33,13 +33,13 @@ namespace :lemon_squeezy do
     imported_keys = License.migration_source_lemon_squeezy.pluck(:license_key).to_set
     ls_not_imported = by_key.keys.reject { |k| imported_keys.include?(k) }
 
-    report("MISMATCH (cap ≠ LS activation_limit)", mismatch) do |lic, ls|
+    LemonSqueezyApi.report("MISMATCH (cap ≠ LS activation_limit)", mismatch) do |lic, ls|
       "#{lic.license_key}  #{ls[:email]}  #{lic.max_activations.inspect} → #{ls[:expected].inspect}  (LS instances: #{ls[:instances]})"
     end
-    report("OVERCAPACITY (active devices > corrected cap)", overcapacity) do |lic, ls|
+    LemonSqueezyApi.report("OVERCAPACITY (active devices > corrected cap)", overcapacity) do |lic, ls|
       "#{lic.license_key}  #{ls[:email]}  active #{lic.activations.active.count} > cap #{ls[:expected]}"
     end
-    report("NOT IN LS (local key absent from LS — review by hand)", not_in_ls) do |lic|
+    LemonSqueezyApi.report("NOT IN LS (local key absent from LS — review by hand)", not_in_ls) do |lic|
       "#{lic.license_key}  cap #{lic.max_activations.inspect}"
     end
     puts "\nLS keys not imported locally: #{ls_not_imported.size}" \
@@ -56,27 +56,32 @@ namespace :lemon_squeezy do
   end
 end
 
-def report(title, rows)
-  puts "\n== #{title}: #{rows.size} =="
-  rows.each { |r| puts "  #{yield(*r)}" }
-end
+# Namespaced so these helpers stay off top-level Object.
+module LemonSqueezyApi
+  module_function
 
-# Paginates GET /v1/license-keys (JSON:API), yielding each key's attributes hash.
-def each_ls_license_key(token, product_id = nil)
-  page = 1
-  items = []
-  loop do
-    uri = URI("https://api.lemonsqueezy.com/v1/license-keys")
-    query = { "page[number]" => page, "page[size]" => 100 }
-    query["filter[product_id]"] = product_id if product_id.present?
-    uri.query = URI.encode_www_form(query)
-    res = Net::HTTP.get_response(uri,
-      "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.api+json")
-    raise "Lemon Squeezy #{res.code}: #{res.body}" unless res.code == "200"
-    body = JSON.parse(res.body)
-    items.concat(body["data"].map { |d| d["attributes"] })
-    break if page >= body.dig("meta", "page", "lastPage").to_i
-    page += 1
+  def report(title, rows)
+    puts "\n== #{title}: #{rows.size} =="
+    rows.each { |r| puts "  #{yield(*r)}" }
   end
-  items
+
+  # Paginates GET /v1/license-keys (JSON:API), yielding each key's attributes hash.
+  def each_license_key(token, product_id = nil)
+    page = 1
+    items = []
+    loop do
+      uri = URI("https://api.lemonsqueezy.com/v1/license-keys")
+      query = { "page[number]" => page, "page[size]" => 100 }
+      query["filter[product_id]"] = product_id if product_id.present?
+      uri.query = URI.encode_www_form(query)
+      res = Net::HTTP.get_response(uri,
+        "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.api+json")
+      raise "Lemon Squeezy #{res.code}: #{res.body}" unless res.code == "200"
+      body = JSON.parse(res.body)
+      items.concat(body["data"].map { |d| d["attributes"] })
+      break if page >= body.dig("meta", "page", "lastPage").to_i
+      page += 1
+    end
+    items
+  end
 end

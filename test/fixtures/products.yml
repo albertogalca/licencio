@@ -24,6 +24,8 @@ picmal:
   stripe_product_id: prod_picmal_stripe
   stripe_secret_key: sk_test_picmal
   stripe_webhook_secret: whsec_picmal
+  checkout_success_url: https://picmal.example/thanks
+  checkout_cancel_url: https://picmal.example/pricing
   loops_transactional_id: tmpl_picmal
   eddsa_private_key: picmal_private_key
   eddsa_public_key: picmal_public_key

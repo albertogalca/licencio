@@ -6,7 +6,7 @@ class Api::ActivationsController < Api::BaseController
       else
         @product.trial_for(hardware_id: params[:hardware_id]) or return head :forbidden
       end
-    if license.active?
+    if license.activatable?
       license.activate!(hardware_id: params[:hardware_id], device_name: params[:device_name])
       claims = license.token_claims(hardware_id: params[:hardware_id], nonce: params[:nonce])
       render json: { jwt: @product.sign_jwt(claims), public_key: @product.eddsa_public_key }

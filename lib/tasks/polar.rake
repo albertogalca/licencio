@@ -16,7 +16,7 @@ namespace :polar do
   task import_cozy: :environment do
     token = ENV.fetch("POLAR_TOKEN")
     rows = COZY_BENEFITS.flat_map do |benefit_id, policy|
-      each_license_key(token, benefit_id).map do |lk|
+      PolarApi.each_license_key(token, benefit_id).map do |lk|
         { product_slug: "cozy", license_key: lk["key"],
           email: lk.dig("customer", "email"), name: lk.dig("customer", "name"),
           status: STATUS_MAP.fetch(lk["status"], "active"),
@@ -34,19 +34,24 @@ namespace :polar do
   end
 end
 
-# Paginates GET /v1/license-keys/ for one benefit. Trailing slash required (307 otherwise).
-def each_license_key(token, benefit_id)
-  page = 1
-  items = []
-  loop do
-    uri = URI("https://api.polar.sh/v1/license-keys/")
-    uri.query = URI.encode_www_form(benefit_id:, page:, limit: 100)
-    res = Net::HTTP.get_response(uri, "Authorization" => "Bearer #{token}")
-    raise "Polar #{res.code}: #{res.body}" unless res.code == "200"
-    body = JSON.parse(res.body)
-    items.concat(body["items"])
-    break if page >= body.dig("pagination", "max_page").to_i
-    page += 1
+# Namespaced so the pagination helper stays off top-level Object.
+module PolarApi
+  module_function
+
+  # Paginates GET /v1/license-keys/ for one benefit. Trailing slash required (307 otherwise).
+  def each_license_key(token, benefit_id)
+    page = 1
+    items = []
+    loop do
+      uri = URI("https://api.polar.sh/v1/license-keys/")
+      uri.query = URI.encode_www_form(benefit_id:, page:, limit: 100)
+      res = Net::HTTP.get_response(uri, "Authorization" => "Bearer #{token}")
+      raise "Polar #{res.code}: #{res.body}" unless res.code == "200"
+      body = JSON.parse(res.body)
+      items.concat(body["items"])
+      break if page >= body.dig("pagination", "max_page").to_i
+      page += 1
+    end
+    items
   end
-  items
 end

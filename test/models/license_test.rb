@@ -155,6 +155,28 @@ class LicenseTest < ActiveSupport::TestCase
     assert_raises(License::CapacityExceeded) { license.activate!(hardware_id: "HW-Y") }
   end
 
+  test "expire_overdue! flips only past-due active licenses to expired" do
+    overdue = products(:cozy).licenses.create!(status: "active", max_activations: 1, expires_at: 1.hour.ago)
+    future  = products(:cozy).licenses.create!(status: "active", max_activations: 1, expires_at: 1.hour.from_now)
+    lifetime = licenses(:cozy_active) # no expires_at
+
+    assert_equal 1, License.expire_overdue!
+    assert overdue.reload.expired?
+    assert future.reload.active?
+    assert lifetime.reload.active?
+  end
+
+  test "activatable? requires active status and a live (or absent) expiry" do
+    active = products(:cozy).licenses.create!(status: "active", max_activations: 1)
+    assert active.activatable?
+
+    active.update!(expires_at: 1.day.ago)
+    assert_not active.activatable?, "expired-but-active must not be activatable"
+
+    active.update!(expires_at: 1.day.from_now)
+    assert active.activatable?
+  end
+
   test "deactivate! frees the seat" do
     license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
     license.activate!(hardware_id: "HW-X")

@@ -14,7 +14,7 @@ class ProductTest < ActiveSupport::TestCase
     assert_includes product.errors.attribute_names, :update_policy
   end
 
-  test "a Stripe product id requires its secrets and a Loops template" do
+  test "a Stripe product id requires its secrets, checkout URLs, and a Loops template" do
     product = products(:cozy) # no stripe_product_id → creds optional
     assert product.valid?
 
@@ -24,10 +24,14 @@ class ProductTest < ActiveSupport::TestCase
     assert_includes product.errors.attribute_names, :stripe_secret_key
     assert_includes product.errors.attribute_names, :stripe_webhook_secret
     assert_includes product.errors.attribute_names, :loops_transactional_id
+    assert_includes product.errors.attribute_names, :checkout_success_url
+    assert_includes product.errors.attribute_names, :checkout_cancel_url
 
     product.stripe_secret_key = "sk_test"
     product.stripe_webhook_secret = "whsec_test"
     product.loops_transactional_id = "tmpl_test"
+    product.checkout_success_url = "https://x.example/thanks"
+    product.checkout_cancel_url = "https://x.example/pricing"
     assert product.valid?
   end
 

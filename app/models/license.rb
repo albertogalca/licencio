@@ -3,6 +3,8 @@ class License < ApplicationRecord
   belongs_to :customer, optional: true
   has_many :activations, dependent: :destroy
 
+  # status writers: "active" (issue/renew/trial/import), "refunded" (refund!),
+  # "expired" (hourly expire_overdue! sweep), "inactive" (polar import: disabled keys).
   enum :status, { active: "active", inactive: "inactive", expired: "expired", refunded: "refunded" }
   enum :migration_source, { lemon_squeezy: "lemon_squeezy", polar: "polar" }, prefix: true
 
@@ -13,7 +15,7 @@ class License < ApplicationRecord
       "customers.email ILIKE :p OR customers.name ILIKE :p OR products.name ILIKE :p", p: pattern)
   }
 
-  enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }, prefix: :policy
+  enum :update_policy, Product::UPDATE_POLICIES, prefix: :policy
 
   scope :trials, -> { where(trial: true) }
 
@@ -103,6 +105,18 @@ class License < ApplicationRecord
   def self.find_by_key(key) = find_by(license_key: key)
 
   def self.import(rows, source:) = Importer.import(rows, source:)
+
+  # Hourly sweep (config/recurring.yml) so status matches reality — an expired
+  # time_limited license stops reading as "active" in admin, dashboards, and the
+  # activation gate below.
+  def self.expire_overdue! = active.where("expires_at < ?", Time.current).update_all(status: "expired", updated_at: Time.current)
+
+  def expired? = expires_at&.past? || false
+
+  # The activation gate: active status AND not past its expiry. The sweep keeps
+  # status honest, but check expires_at here too so a just-expired license can't
+  # slip a signed JWT between sweeps.
+  def activatable? = active? && !expired?
 
   private
     def assign_license_key

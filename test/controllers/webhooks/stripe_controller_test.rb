@@ -78,6 +78,15 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert license.reload.refunded?
   end
 
+  test "a partial refund leaves the license active" do
+    post_event completed_event(payment_intent: "pi_part")
+    license = License.order(:created_at).last
+
+    post_event refunded_event(payment_intent: "pi_part", amount: 1000, amount_refunded: 400)
+    assert_response :ok
+    assert license.reload.active?, "partial refund must not revoke the license"
+  end
+
   test "a duplicate completed event fulfills only once" do
     post_event completed_event(payment_intent: "pi_dup")
     assert_no_difference "License.count" do
@@ -93,8 +102,9 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
-    def refunded_event(payment_intent:)
-      { type: "charge.refunded", data: { object: { payment_intent: } } }.to_json
+    def refunded_event(payment_intent:, amount: 1000, amount_refunded: 1000)
+      { type: "charge.refunded",
+        data: { object: { payment_intent:, amount:, amount_refunded: } } }.to_json
     end
 
     def completed_event(email: "buyer@example.com", product_id: @product.id,

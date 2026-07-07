@@ -107,6 +107,15 @@
         <p class="field-hint">Leave blank to keep current.</p>
       <% end %>
     </div>
+    <div>
+      <%= form.label :checkout_success_url, "Checkout success URL", class: "field-label" %>
+      <%= form.url_field :checkout_success_url, class: "field-input" %>
+      <p class="field-hint">Where Stripe sends the buyer after a successful checkout.</p>
+    </div>
+    <div>
+      <%= form.label :checkout_cancel_url, "Checkout cancel URL", class: "field-label" %>
+      <%= form.url_field :checkout_cancel_url, class: "field-input" %>
+    </div>
   </section>
 
   <section class="card space-y-4 p-6">

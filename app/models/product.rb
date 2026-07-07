@@ -3,6 +3,9 @@ require "ed25519"
 class Product < ApplicationRecord
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
 
+  # Shared with License, which can override a product's policy per license.
+  UPDATE_POLICIES = { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }.freeze
+
   has_many :licenses, dependent: :restrict_with_error
 
   encrypts :loops_api_key
@@ -10,7 +13,7 @@ class Product < ApplicationRecord
   encrypts :stripe_secret_key
   encrypts :stripe_webhook_secret
 
-  enum :update_policy, { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }
+  enum :update_policy, UPDATE_POLICIES
 
   before_validation :generate_credentials, on: :create
 
@@ -22,7 +25,8 @@ class Product < ApplicationRecord
   # blow up at checkout/webhook. Blank secrets on edit are dropped by the controller, so an
   # already-configured product keeps its stored keys.
   with_options if: -> { stripe_product_id.present? } do
-    validates :stripe_secret_key, :stripe_webhook_secret, :loops_transactional_id, presence: true
+    validates :stripe_secret_key, :stripe_webhook_secret, :loops_transactional_id,
+      :checkout_success_url, :checkout_cancel_url, presence: true
   end
 
   def loops_api_key_or_default
@@ -67,7 +71,7 @@ class Product < ApplicationRecord
       metadata: { licencio_product_id: id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,
-      success_url: ENV["CHECKOUT_SUCCESS_URL"], cancel_url: ENV["CHECKOUT_CANCEL_URL"] }, stripe_opts)
+      success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
   end
 
   def trial_for(hardware_id:)

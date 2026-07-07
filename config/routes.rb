@@ -7,7 +7,7 @@ Rails.application.routes.draw do
   get "health" => "rails/health#show"
 
   namespace :api do
-    get    "products/:slug/variants" => "products#variants"
+    get    "products/:product_slug/variants" => "products#variants"
     post   "checkout"            => "checkouts#create"
     post   "licenses/activate"   => "activations#create"
     delete "licenses/deactivate" => "activations#destroy"

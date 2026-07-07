@@ -11,7 +11,7 @@ class Admin::LicensesControllerTest < ActionDispatch::IntegrationTest
     assert_select "*", /seats in use/
     # active device is deactivatable; the deactivated one is not
     assert_select "form[action=?][method=post]", admin_activation_path(activations(:cozy_macbook))
-    assert_select "td", /deactivated/
+    assert_select "span", /deactivated/
   end
 
   private
