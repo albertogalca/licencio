@@ -2,6 +2,7 @@ class Activation < ApplicationRecord
   belongs_to :license
 
   scope :active, -> { where(deactivated_at: nil) }
+  scope :provisional, -> { where(provisional: true) }
 
   validates :hardware_id, :activated_at, presence: true
 

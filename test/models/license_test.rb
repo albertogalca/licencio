@@ -155,6 +155,33 @@ class LicenseTest < ActiveSupport::TestCase
     assert_raises(License::CapacityExceeded) { license.activate!(hardware_id: "HW-Y") }
   end
 
+  test "real activation evicts an LS placeholder seat, then the cap bites" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: 2)
+    license.import_provisional_activation!(hardware_id: "ls-1", device_name: "Mac A", activated_at: 2.days.ago)
+    license.import_provisional_activation!(hardware_id: "ls-2", device_name: "Mac B", activated_at: 1.day.ago)
+    assert_equal 2, license.activations.active.count
+
+    license.activate!(hardware_id: "HW-REAL-1") # evicts oldest placeholder (ls-1)
+    assert_equal 1, license.activations.active.provisional.count
+    assert license.activations.active.find_by(hardware_id: "HW-REAL-1")
+
+    license.activate!(hardware_id: "HW-REAL-2") # evicts the last placeholder (ls-2)
+    assert_equal 0, license.activations.active.provisional.count
+    assert_equal 2, license.activations.active.count
+
+    # No placeholder left — a real device never evicts another real device.
+    assert_raises(License::CapacityExceeded) { license.activate!(hardware_id: "HW-REAL-3") }
+    assert license.activations.active.find_by(hardware_id: "HW-REAL-2")
+  end
+
+  test "import_provisional_activation! is idempotent and respects the cap" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
+    license.import_provisional_activation!(hardware_id: "ls-1", device_name: "Mac A", activated_at: 1.day.ago)
+    license.import_provisional_activation!(hardware_id: "ls-1", device_name: "Mac A", activated_at: 1.day.ago) # re-run
+    license.import_provisional_activation!(hardware_id: "ls-2", device_name: "Mac B", activated_at: 1.day.ago) # over cap
+    assert_equal 1, license.activations.active.count
+  end
+
   test "renew! is idempotent — a duplicate payment id does not extend twice" do
     license = products(:picmal).licenses.create!(status: "active", max_activations: 5) # 365-day window
     license.renew!(stripe_payment_id: "pi_renew")

@@ -89,10 +89,23 @@ class License < ApplicationRecord
     with_lock do
       activations.active.find_by(hardware_id:) ||
         begin
-          raise CapacityExceeded if max_activations && activations.active.count >= max_activations
+          if max_activations && activations.active.count >= max_activations
+            # Migration: a real device reclaims a Lemon Squeezy placeholder seat; once the
+            # placeholders are gone the cap bites. Never evicts a real (non-provisional) device.
+            activations.active.provisional.order(:activated_at).first&.deactivate! or
+              raise CapacityExceeded
+          end
           activations.create!(hardware_id:, device_name:, activated_at: Time.current)
         end
     end
+  end
+
+  # Materializes one active Lemon Squeezy activation as a placeholder that occupies a seat until a
+  # real device reclaims it (see activate!). Idempotent on hardware_id; caps at max_activations.
+  def import_provisional_activation!(hardware_id:, device_name:, activated_at:)
+    return if activations.exists?(hardware_id:)
+    return if max_activations && activations.active.count >= max_activations
+    activations.create!(hardware_id:, device_name:, activated_at:, provisional: true)
   end
 
   def deactivate!(hardware_id:)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_07_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -21,6 +21,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_130000) do
     t.string "device_name"
     t.string "hardware_id", null: false
     t.uuid "license_id", null: false
+    t.boolean "provisional", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["license_id"], name: "index_activations_on_license_id"
   end

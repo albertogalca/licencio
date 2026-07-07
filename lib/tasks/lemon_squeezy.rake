@@ -54,6 +54,44 @@ namespace :lemon_squeezy do
       puts "\nNo mismatches — nothing to backfill."
     end
   end
+
+  # Imports each active LS activation instance as a *provisional* placeholder that occupies a seat
+  # until the real device reclaims it (License#activate! evicts the oldest provisional first). Preserves
+  # current seat occupancy across the parallel cutover so maxed-out buyers can't grab extra seats.
+  # Idempotent (skips instances already imported) — safe to re-run near the end of the migration.
+  #   LS_TOKEN=… DRY_RUN=1 bin/rails lemon_squeezy:import_instances   # report only
+  #   LS_TOKEN=…            bin/rails lemon_squeezy:import_instances   # create placeholders
+  # LS_PRODUCT_ID=… scopes the LS pull to one product (picmal).
+  desc "Import active Lemon Squeezy instances as provisional seat placeholders"
+  task import_instances: :environment do
+    token = ENV.fetch("LS_TOKEN")
+    dry   = ENV["DRY_RUN"].present?
+
+    created = 0; no_license = 0; capped = []
+    LemonSqueezyApi.each_license_key(token, ENV["LS_PRODUCT_ID"]).each do |a|
+      license = License.migration_source_lemon_squeezy.find_by(license_key: a["key"])
+      next(no_license += 1) unless license
+
+      active = license.activations.active.count  # projected seat count (accurate in dry runs too)
+      cap = license.max_activations
+      LemonSqueezyApi.each_instance(token, a["id"]).each do |inst|
+        hardware_id = "ls-#{inst['id']}"
+        next if license.activations.exists?(hardware_id:)  # already imported — don't resurrect
+        if cap && active >= cap
+          capped << "#{license.license_key}  #{inst['name']}"
+          next
+        end
+        active += 1
+        created += 1
+        license.import_provisional_activation!(
+          hardware_id:, device_name: inst["name"], activated_at: inst["created_at"]) unless dry
+      end
+    end
+
+    LemonSqueezyApi.report("CAPPED (LS instance over cap — not imported)", capped) { |r| r }
+    puts "\n#{dry ? 'DRY RUN — would create' : 'Created'} #{created} provisional activation(s). " \
+      "LS keys not imported locally: #{no_license}."
+  end
 end
 
 # Namespaced so these helpers stay off top-level Object.
@@ -65,20 +103,28 @@ module LemonSqueezyApi
     rows.each { |r| puts "  #{yield(*r)}" }
   end
 
-  # Paginates GET /v1/license-keys (JSON:API), yielding each key's attributes hash.
+  # License keys (attributes + JSON:API id), optionally scoped to one product.
   def each_license_key(token, product_id = nil)
+    paginate(token, "license-keys", { "filter[product_id]" => product_id }.compact)
+  end
+
+  # Activation instances for one license key — each carries name + created_at + id.
+  def each_instance(token, license_key_id)
+    paginate(token, "license-key-instances", { "filter[license_key_id]" => license_key_id })
+  end
+
+  # Paginates a JSON:API collection, returning each item's attributes merged with its id.
+  def paginate(token, resource, query = {})
     page = 1
     items = []
     loop do
-      uri = URI("https://api.lemonsqueezy.com/v1/license-keys")
-      query = { "page[number]" => page, "page[size]" => 100 }
-      query["filter[product_id]"] = product_id if product_id.present?
-      uri.query = URI.encode_www_form(query)
+      uri = URI("https://api.lemonsqueezy.com/v1/#{resource}")
+      uri.query = URI.encode_www_form(query.merge("page[number]" => page, "page[size]" => 100))
       res = Net::HTTP.get_response(uri,
         "Authorization" => "Bearer #{token}", "Accept" => "application/vnd.api+json")
       raise "Lemon Squeezy #{res.code}: #{res.body}" unless res.code == "200"
       body = JSON.parse(res.body)
-      items.concat(body["data"].map { |d| d["attributes"] })
+      items.concat(body["data"].map { |d| d["attributes"].merge("id" => d["id"]) })
       break if page >= body.dig("meta", "page", "lastPage").to_i
       page += 1
     end
