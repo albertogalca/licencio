@@ -62,9 +62,29 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_equal victim.expires_at.to_i, victim.reload.expires_at.to_i, "victim's license untouched"
   end
 
-  test "a completed purchase enqueues the portal access email" do
-    assert_enqueued_with(job: PortalAccessJob) do
-      post_event completed_event
+  test "a completed purchase enqueues the receipt email and a subscribe contact sync" do
+    assert_enqueued_with(job: LicenseEmailJob) do
+      assert_enqueued_with(job: LoopsContactJob) do
+        post_event completed_event
+      end
+    end
+  end
+
+  test "a refund enqueues an unsubscribe contact sync and a refund email" do
+    post_event completed_event(payment_intent: "pi_unsub")
+    assert_enqueued_with(job: LicenseEmailJob) do
+      assert_enqueued_with(job: LoopsContactJob) do
+        post_event refunded_event(payment_intent: "pi_unsub")
+      end
+    end
+  end
+
+  test "a refund does not unsubscribe while the buyer keeps another active license" do
+    # Same buyer, two purchases of this product; refunding one leaves the other active.
+    post_event completed_event(payment_intent: "pi_a")
+    post_event completed_event(payment_intent: "pi_b")
+    assert_no_enqueued_jobs only: LoopsContactJob do
+      post_event refunded_event(payment_intent: "pi_a")
     end
   end
 
@@ -130,7 +150,7 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
 
     def completed_event(email: "buyer@example.com", product_id: @product.id,
                         quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
-                        stripe_customer: "cus_buyer")
+                        stripe_customer: "cus_buyer", amount_total: 2999, currency: "eur")
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
       {
@@ -139,7 +159,9 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
           customer: stripe_customer,
           customer_details: { email: },
           metadata:,
-          payment_intent:
+          payment_intent:,
+          amount_total:,
+          currency:
         } }
       }.to_json
     end

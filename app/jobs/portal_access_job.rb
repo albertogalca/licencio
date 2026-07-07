@@ -13,7 +13,7 @@ class PortalAccessJob < ApplicationJob
       transactional_id: product.loops_transactional_id,
       email: customer.email,
       data: {
-        magic_link_url: url_helpers.portal_session_url(token: portal_token.token),
+        magic_link_url: url_helpers.portal_session_url(token: portal_token.token, product: product.slug),
         license_keys: product.licenses.where(customer:).pluck(:license_key).join("\n"),
         product_name: product.name,
         sender_email: product.sender_email

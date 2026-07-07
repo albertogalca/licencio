@@ -59,4 +59,48 @@ class CustomerTest < ActiveSupport::TestCase
     PortalToken.issue!(customer:, product: products(:picmal))
     assert_equal 2, customer.portal_tokens.count
   end
+
+  test "send_purchase_email_later issues a token and enqueues a receipt for only that license's key" do
+    license  = licenses(:cozy_active)
+    customer = license.customer
+    assert_difference "PortalToken.count", 1 do
+      assert_enqueued_with(job: LicenseEmailJob) do
+        customer.send_purchase_email_later(license:, amount: 2999, currency: "eur")
+      end
+    end
+    job = enqueued_jobs.find { |j| j["job_class"] == "LicenseEmailJob" }
+    data = job["arguments"].last["data"]
+    assert_equal license.license_key, data[:license_keys] || data["license_keys"]
+  end
+
+  test "send_refund_email_later issues a token and enqueues the refund email for a license holder" do
+    customer = customers(:alberto)
+    assert_difference "PortalToken.count", 1 do
+      assert_enqueued_with(job: LicenseEmailJob) do
+        customer.send_refund_email_later(product: products(:cozy))
+      end
+    end
+  end
+
+  test "send_expiry_reminder_later enqueues the reminder for the license's product" do
+    license = licenses(:picmal_expired) # time_limited — has an expires_at
+    assert_enqueued_with(job: LicenseEmailJob) do
+      license.customer.send_expiry_reminder_later(license:)
+    end
+  end
+
+  test "unsubscribe_from_loops_later enqueues an unsubscribe when no active license remains" do
+    customer = customers(:nameless) # picmal_expired is not active
+    assert_enqueued_with(job: LoopsContactJob,
+      args: [ customer, products(:picmal), { subscribed: false } ]) do
+      customer.unsubscribe_from_loops_later(product: products(:picmal))
+    end
+  end
+
+  test "unsubscribe_from_loops_later skips while an active license for the product remains" do
+    customer = customers(:alberto) # cozy_active is still active
+    assert_no_enqueued_jobs only: LoopsContactJob do
+      customer.unsubscribe_from_loops_later(product: products(:cozy))
+    end
+  end
 end

@@ -49,6 +49,36 @@
         <% end %>
       </div>
 
+      <% if license.effective_update_policy == "time_limited" && license.expires_at %>
+        <p class="mb-4 text-xs text-gray-500">
+          <% if license.expires_at.past? %>
+            Expired <span class="font-medium text-red-600"><%= license.expires_at.to_date.to_fs(:long) %></span>
+          <% else %>
+            Expires <span class="font-medium text-gray-700"><%= license.expires_at.to_date.to_fs(:long) %></span>
+          <% end %>
+        </p>
+
+        <% if license.renewable? %>
+          <% variants = current_product.variants %>
+          <% if variants.any? %>
+            <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
+            <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "mb-4 flex items-stretch gap-2" do %>
+              <%= hidden_field_tag :license_id, license.id %>
+              <% if variants.size > 1 %>
+                <% default = (variants.find { |v| v.seats == license.max_activations } || variants.first).price_id %>
+                <%= select_tag :price_id,
+                      options_for_select(variants.map { |v| [ v.name.presence || v.price_id, v.price_id ] }, default),
+                      class: "field-select text-sm" %>
+              <% else %>
+                <%= hidden_field_tag :price_id, variants.first.price_id %>
+              <% end %>
+              <%= submit_tag "Renew license",
+                    class: "inline-flex shrink-0 cursor-pointer items-center rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+
       <% active = license.activations.active %>
       <% if active.any? %>
         <div class="overflow-x-auto">

@@ -6,10 +6,11 @@ class Portal::SessionsController < Portal::BaseController
       reset_session
       session[:customer_id] = token.customer_id
       session[:portal_product_id] = token.product_id # product is bound to the token
-      token.destroy! # single-use link
+      # Link is reusable within its 30-minute window (see PortalToken) — reopening it isn't confusing.
       redirect_to portal_root_path
     else
-      redirect_to new_portal_recovery_path, alert: "That link is invalid or has expired. Request a new one."
+      # Carry the product from the link so an expired link recovers to the right product.
+      redirect_to new_portal_recovery_path(product: params[:product]), alert: "That link is invalid or has expired. Request a new one."
     end
   end
 

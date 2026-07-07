@@ -2,7 +2,7 @@ class PortalToken < ApplicationRecord
   belongs_to :customer
   belongs_to :product
 
-  # Product-scoped, single-use, short-lived magic-link token. One live token per
+  # Product-scoped magic-link token, reusable within its 30-minute window. One live token per
   # (customer, product), so requesting a link for product B never invalidates A's.
   def self.issue!(customer:, product:)
     record = where(customer:, product:).first_or_initialize

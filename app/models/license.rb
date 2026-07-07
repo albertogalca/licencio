@@ -27,6 +27,17 @@ class License < ApplicationRecord
   # product ever needs its own window.
   TOKEN_LEASE = 7.days
 
+  # How early the portal offers renewal. A freshly renewed license (far from expiry) hides the
+  # renew form; an expired or soon-to-expire one shows it.
+  # ponytail: constant window; make it per-product only if a product ever needs its own.
+  RENEWAL_WINDOW = 30.days
+
+  # Renew makes sense only for a time_limited license on a Stripe product that's expired or nearly so.
+  def renewable?
+    effective_update_policy == "time_limited" && product.stripe_product_id.present? &&
+      status.in?(%w[active expired]) && expires_at.present? && expires_at < RENEWAL_WINDOW.from_now
+  end
+
   before_validation :assign_license_key, on: :create
 
   validates :license_key, presence: true, uniqueness: true
@@ -46,7 +57,12 @@ class License < ApplicationRecord
       stripe_payment_id: session.payment_intent || session.id,
       update_policy: session.metadata[:update_policy],
       renew_key: session.metadata[:renew_license_key])
-    license&.deliver_later
+    # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
+    # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
+    if license
+      customer.send_purchase_email_later(license:, amount: session.amount_total, currency: session.currency)
+    end
+    customer.subscribe_to_loops_later(product:)
     license
   end
 
@@ -54,7 +70,21 @@ class License < ApplicationRecord
   # via the `session.id` fallback (async payment methods only — not used today) wouldn't
   # be matched here; revisit if async payment methods are enabled.
   def self.refund!(stripe_payment_id:)
-    find_by(stripe_payment_id:)&.update!(status: "refunded")
+    license = find_by(stripe_payment_id:)
+    return unless license
+    license.update!(status: "refunded")
+    license.customer&.unsubscribe_from_loops_later(product: license.product)
+    license.customer&.send_refund_email_later(product: license.product)
+  end
+
+  # time_limited licenses only (lifetime = nil expires_at, excluded). Daily run + 1-day window = one
+  # send per license as it crosses the N-days-out mark.
+  # ponytail: no reminded_at flag — a missed daily run skips that day's cohort; add a column if
+  # guaranteed delivery ever matters.
+  def self.remind_expiring!(days: 7)
+    active.where(expires_at: days.days.from_now.all_day).find_each do |license|
+      license.customer&.send_expiry_reminder_later(license:)
+    end
   end
 
   def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, renew_key: nil, update_policy: nil)

@@ -44,7 +44,9 @@ class Product < ApplicationRecord
   end
 
   def license_expires_at(from: Time.current, policy: update_policy)
-    policy == "time_limited" ? from + update_duration_days.days : nil
+    # ponytail: a time_limited license with no duration gets no expiry instead of crashing
+    # (e.g. a per-license time_limited override on a product that never set update_duration_days).
+    policy == "time_limited" && update_duration_days ? from + update_duration_days.days : nil
   end
 
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil)

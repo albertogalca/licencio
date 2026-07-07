@@ -21,6 +21,12 @@ class ProductTest < ActiveSupport::TestCase
     assert_includes product.errors.attribute_names, :update_duration_days
   end
 
+  test "license_expires_at returns nil for a time_limited policy with no duration (no crash)" do
+    product = products(:cozy) # lifetime, so update_duration_days is nil
+    assert_nil product.update_duration_days
+    assert_nil product.license_expires_at(policy: "time_limited")
+  end
+
   test "create_checkout_session fails loud when the redirect URLs are blank" do
     product = products(:picmal)
     product.update_columns(checkout_success_url: nil) # bypass validation, mimic a pre-migration row

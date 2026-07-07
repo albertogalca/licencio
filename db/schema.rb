@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -87,11 +87,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_140000) do
     t.integer "current_version", default: 1, null: false
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
+    t.string "expiry_reminder_transactional_id"
     t.string "license_prefix", null: false
     t.string "loops_api_key"
     t.string "loops_transactional_id"
     t.integer "max_activations_default"
     t.string "name", null: false
+    t.string "purchase_transactional_id"
+    t.string "refund_transactional_id"
     t.string "sender_email"
     t.string "slug", null: false
     t.string "stripe_product_id"

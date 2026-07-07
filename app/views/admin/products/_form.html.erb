@@ -137,6 +137,21 @@
       <p class="field-hint">License key + portal sign-in link email.</p>
     </div>
     <div>
+      <%= form.label :purchase_transactional_id, "Purchase receipt transactional ID", class: "field-label" %>
+      <%= form.text_field :purchase_transactional_id, class: "field-input" %>
+      <p class="field-hint">Instant purchase receipt: product, license key, amount, portal link.</p>
+    </div>
+    <div>
+      <%= form.label :refund_transactional_id, "Refund confirmation transactional ID", class: "field-label" %>
+      <%= form.text_field :refund_transactional_id, class: "field-input" %>
+      <p class="field-hint">Sent when a purchase is refunded.</p>
+    </div>
+    <div>
+      <%= form.label :expiry_reminder_transactional_id, "Expiry reminder transactional ID", class: "field-label" %>
+      <%= form.text_field :expiry_reminder_transactional_id, class: "field-input" %>
+      <p class="field-hint">Sent ~7 days before a time-limited license expires.</p>
+    </div>
+    <div>
       <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>
       <%= form.password_field :loops_api_key, value: nil, autocomplete: "off", class: "field-input" %>
       <p class="field-hint">Leave blank to use default.</p>

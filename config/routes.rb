@@ -31,6 +31,7 @@ Rails.application.routes.draw do
     get    "session", to: "sessions#create"      # magic-link consume (GET link)
     delete "session", to: "sessions#destroy"     # logout
     resources :activations, only: :destroy       # deactivate a device
+    resources :renewals, only: :create           # renew a license via Stripe checkout
     resources :recoveries, only: [ :new, :create ] # public recovery form
     root to: "dashboard#show"
   end

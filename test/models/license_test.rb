@@ -1,6 +1,8 @@
 require "test_helper"
 
 class LicenseTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   test "fixtures are valid" do
     assert licenses(:cozy_active).valid?
     assert licenses(:cozy_unclaimed).valid?
@@ -228,5 +230,38 @@ class LicenseTest < ActiveSupport::TestCase
     assert license.deactivate!(hardware_id: "HW-X")
     assert_nil license.deactivate!(hardware_id: "HW-X") # already released
     assert license.activate!(hardware_id: "HW-Y") # slot is free again
+  end
+
+  test "renewable? only for a time_limited Stripe license that is expired or expiring soon" do
+    p = products(:picmal) # time_limited, stripe-enabled
+    expired   = p.licenses.create!(status: "expired", customer: customers(:alberto), max_activations: 1, expires_at: 1.day.ago)
+    soon      = p.licenses.create!(status: "active",  customer: customers(:alberto), max_activations: 1, expires_at: 10.days.from_now)
+    far       = p.licenses.create!(status: "active",  customer: customers(:alberto), max_activations: 1, expires_at: 300.days.from_now)
+    no_expiry = p.licenses.create!(status: "active",  customer: customers(:alberto), max_activations: 1, expires_at: nil)
+
+    assert expired.renewable?
+    assert soon.renewable?
+    assert_not far.renewable?, "a freshly renewed license far from expiry should not show renew"
+    assert_not no_expiry.renewable?
+    # Lifetime product never renews.
+    assert_not licenses(:cozy_active).renewable?
+  end
+
+  test "remind_expiring! enqueues a reminder for licenses expiring in the target window" do
+    license = products(:picmal).licenses.create!(status: "active", customer: customers(:alberto),
+      max_activations: 1, expires_at: 7.days.from_now)
+    assert_enqueued_with(job: LicenseEmailJob) do
+      License.remind_expiring!(days: 7)
+    end
+  end
+
+  test "remind_expiring! ignores lifetime, already-expired, and out-of-window licenses" do
+    p = products(:picmal)
+    p.licenses.create!(status: "active", customer: customers(:alberto), max_activations: 1) # lifetime (nil expires_at)
+    p.licenses.create!(status: "expired", customer: customers(:alberto), max_activations: 1, expires_at: 7.days.from_now)
+    p.licenses.create!(status: "active", customer: customers(:alberto), max_activations: 1, expires_at: 30.days.from_now)
+    assert_no_enqueued_jobs only: LicenseEmailJob do
+      License.remind_expiring!(days: 7)
+    end
   end
 end

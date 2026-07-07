@@ -16,3 +16,6 @@ production:
   expire_overdue_licenses:
     command: "License.expire_overdue!"
     schedule: every hour at minute 7
+  remind_expiring_licenses:
+    command: "License.remind_expiring!"
+    schedule: every day at 9am
