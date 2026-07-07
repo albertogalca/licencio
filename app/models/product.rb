@@ -95,9 +95,10 @@ class Product < ApplicationRecord
         licensed_version: (current_version if versioned?)).tap { |l| l.activate!(hardware_id:) }
   end
 
-  # Offline license token: authenticity only. There's no server-enforced `exp` and no
-  # revocation of an already-issued token — a lifetime license's token is valid forever
-  # once minted. The client is trusted to honor `expires_at`/`update_eligible` in the claims.
+  # Offline license token: authenticity only. The server signs but never re-checks a token
+  # (no verification endpoint), so it can't enforce the claims — the client is trusted to
+  # honor `expires_at`/`update_eligible` and the `exp` lease. That `exp` (License::TOKEN_LEASE)
+  # bounds offline validity: a refund takes effect when the client re-activates past the lease.
   def sign_jwt(claims)
     key = Ed25519::SigningKey.new(Base64.strict_decode64(eddsa_private_key))
     input = [ { alg: "EdDSA", typ: "JWT" }, claims ].map { |h| b64url(JSON.generate(h)) }.join(".")

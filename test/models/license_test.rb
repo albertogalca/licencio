@@ -186,6 +186,15 @@ class LicenseTest < ActiveSupport::TestCase
     assert active.activatable?
   end
 
+  test "token_claims carries a 7-day exp lease, even for a lifetime (no-expiry) license" do
+    lifetime = licenses(:cozy_active) # no expires_at
+    claims = lifetime.token_claims(hardware_id: "HW-1", nonce: "n")
+
+    assert_nil claims[:expires_at], "lifetime license has no license-level expiry"
+    assert_in_delta 7.days.from_now.to_i, claims[:exp], 1.hour, "token still gets a lease"
+    assert claims[:exp] > claims[:iat]
+  end
+
   test "deactivate! frees the seat" do
     license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
     license.activate!(hardware_id: "HW-X")

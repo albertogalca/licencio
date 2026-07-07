@@ -305,8 +305,10 @@ occasional manual grant or status change.
   between `active`, `inactive`, `expired`, `refunded`. Only `active` licenses can
   activate new devices. A full Stripe refund (`charge.refunded`) flips a license
   to `refunded` for you; set the others by hand for manual revocations. **Heads
-  up:** changing status only blocks *new* activations — a token a device already
-  holds keeps verifying offline until its `expires_at` (see the README's "Known
+  up:** changing status blocks *new and renewed* activations, but a token a device
+  already holds keeps verifying offline until its lease (`exp`) lapses — up to
+  7 days. An online app re-activates in the background and revokes near-instantly;
+  a fully-offline device lingers until the lease expires (see the README's "Known
   limitations").
 - **Devices (seats)** are managed by your app (via the API) or by the customer
   (in the portal), not from admin. The **Activations** screen is a read-only log.

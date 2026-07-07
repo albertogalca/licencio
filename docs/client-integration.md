@@ -25,6 +25,7 @@ base64url(header) . base64url(payload) . base64url(signature)
   | `update_eligible` | `true` if this device may install updates (per the license's update policy) |
   | `nonce`           | value you sent at activation — anti-replay for this device      |
   | `iat`             | issued-at (Unix seconds)                                       |
+  | `exp`             | token **lease** expiry (Unix seconds) — re-activate to renew before this (see below) |
 
 - **signature** — Ed25519 signature over the ASCII bytes of `base64url(header).base64url(payload)`
   (the first two segments joined by `.`).
@@ -53,6 +54,24 @@ raw 32-byte Ed25519 key) whenever the app launches — offline.
 > **Recommended:** the public key is **static per product** and safe to publish, so
 > embed it in your app at build time rather than trusting the value from the network.
 > The activation response returns it only for convenience/bootstrapping.
+
+## Token lease & revocation
+
+Verification is fully offline, so the server can't reach out to revoke a token it
+already issued. Instead every token carries a short lease: the `exp` claim, set
+7 days from issue. Your app should reject a token past its `exp` and re-activate
+(the same `POST /api/licenses/activate`) to get a fresh one.
+
+Do this quietly in the background while you're online — on launch, or once `exp`
+gets close. Re-activating the same `hardware_id` is idempotent, so it's cheap.
+
+That's what makes revocation work. Once a license is refunded or deactivated, its
+next re-activation returns a `403` (`license_refunded` / `license_inactive`) instead
+of a new token, and your app locks. The catch is the lease window: a device that
+stays fully offline keeps working until `exp`, up to 7 days, while an online app
+re-activates and revokes almost immediately. And `exp` isn't `expires_at` — `exp`
+is the token's freshness lease, `expires_at` is the license's own validity (`null`
+for lifetime).
 
 ## Error responses
 
@@ -104,7 +123,9 @@ Any language with an Ed25519 primitive can do it — no JWT library required:
 4. **base64url-decode** the payload (segment 2) into JSON. Confirm `hardware_id`
    and `nonce` match what *this* device sent at activation.
 5. **Enforce the claims yourself:** reject if `expires_at` is in the past (`null`
-   means lifetime — never expires); gate updates on `update_eligible`.
+   means lifetime — never expires); gate updates on `update_eligible`. Also treat a
+   token past its `exp` lease as stale — re-activate to renew it (see "Token lease &
+   revocation" above).
 
 The Ed25519 primitive by platform: Node `crypto.verify('ed25519', …)`, Python
 `cryptography`'s `Ed25519PublicKey.verify`, Go `ed25519.Verify`, Rust `ed25519-dalek`,
@@ -117,7 +138,7 @@ Swift `Curve25519.Signing` (below). base64url = base64 with `-`→`+`, `_`→`/`
 import CryptoKit
 import Foundation
 
-enum LicenseError: Error { case malformed, badSignature, expired, wrongDevice }
+enum LicenseError: Error { case malformed, badSignature, expired, leaseExpired, wrongDevice }
 
 /// JWT segments are base64url without padding; restore it before decoding.
 private func base64urlDecode(_ s: String) -> Data? {
@@ -134,6 +155,7 @@ struct LicenseClaims: Decodable {
     let update_eligible: Bool
     let nonce: String
     let iat: Int
+    let exp: Int
 }
 
 /// Verifies a Licencio license JWT fully offline.
@@ -167,16 +189,22 @@ func verifyLicense(jwt: String,
         throw LicenseError.wrongDevice
     }
 
-    // Enforce expiry (nil == lifetime).
-    if let exp = claims.expires_at,
-       let date = ISO8601DateFormatter().date(from: exp),
+    // Enforce license expiry (nil == lifetime).
+    if let expiresAt = claims.expires_at,
+       let date = ISO8601DateFormatter().date(from: expiresAt),
        date < Date() {
         throw LicenseError.expired
+    }
+
+    // Enforce the token lease: past exp, re-activate to renew (revocation takes effect here).
+    if Date(timeIntervalSince1970: TimeInterval(claims.exp)) < Date() {
+        throw LicenseError.leaseExpired
     }
 
     return claims
 }
 ```
 
-That's the whole client side: one signature check plus three field checks. If it
-throws, the license is invalid, tampered, expired, or for another device.
+That's the whole client side: one signature check plus a few field checks. If it
+throws, the license is invalid, tampered, expired, past its lease, or for another
+device — on `leaseExpired`, re-activate to renew.

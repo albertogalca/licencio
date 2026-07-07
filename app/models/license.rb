@@ -21,6 +21,12 @@ class License < ApplicationRecord
 
   CapacityExceeded = Class.new(StandardError)
 
+  # Token lease: how long an issued token is trusted offline before the client must
+  # re-activate. Bounds the offline revocation window (a refund only takes effect on the
+  # next re-activation). ponytail: constant; add a per-product token_ttl_days column if a
+  # product ever needs its own window.
+  TOKEN_LEASE = 7.days
+
   before_validation :assign_license_key, on: :create
 
   validates :license_key, presence: true, uniqueness: true
@@ -95,7 +101,8 @@ class License < ApplicationRecord
 
   def token_claims(hardware_id:, nonce:)
     { hardware_id:, license_key:, expires_at: expires_at&.iso8601,
-      update_eligible: update_eligible?, nonce:, iat: Time.current.to_i }
+      update_eligible: update_eligible?, nonce:,
+      iat: Time.current.to_i, exp: TOKEN_LEASE.from_now.to_i }
   end
 
   def effective_update_policy

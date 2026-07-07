@@ -46,6 +46,8 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert claims["update_eligible"]      # lifetime product
     assert_nil claims["expires_at"]       # no expiry set
     assert claims["iat"].is_a?(Integer)
+    assert_in_delta 7.days.from_now.to_i, claims["exp"], 1.hour  # 7-day lease
+    assert claims["exp"] > claims["iat"]
   end
 
   test "capacity limit exceeded returns 409 with seat_limit_reached" do

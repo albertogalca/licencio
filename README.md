@@ -147,11 +147,11 @@ bin/dev                          # Rails server + Tailwind watcher
 
 ## Known limitations
 
-- **Refunds revoke server-side, not offline.** A `charge.refunded` webhook flips
-  the license to `refunded`, which blocks new device activations. But a token a
-  device already holds keeps verifying offline until its `expires_at` (and
-  `lifetime` licenses have none). That's inherent to offline verification — if you
-  need faster revocation, have the client re-activate periodically so the `403`
-  takes effect.
+- **Refunds revoke on a lease, not instantly.** A `charge.refunded` webhook flips
+  the license to `refunded`, which blocks new and renewed activations. Tokens carry
+  a short **lease** (`exp`, 7 days), so a device that stays fully offline keeps
+  verifying until the lease lapses — inherent to offline verification. An online app
+  re-activates in the background before the lease expires and gets the `403` then, so
+  connected users revoke near-instantly. See [client integration](docs/client-integration.md#token-lease--revocation).
 
 PRs welcome.
