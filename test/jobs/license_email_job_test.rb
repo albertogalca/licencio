@@ -10,7 +10,8 @@ class LicenseEmailJobTest < ActiveJob::TestCase
 
     captured = nil
     Loops.stub(:send_transactional, ->(**kwargs) { captured = kwargs }) do
-      LicenseEmailJob.perform_now(token, template: :purchase_transactional_id, data: { amount: "29.99 EUR" })
+      LicenseEmailJob.perform_now(token, template: :purchase_transactional_id,
+        kind: "purchase", reference_id: license.id, data: { amount: "29.99 EUR" })
     end
 
     assert_equal "tx_purchase", captured[:transactional_id]
@@ -30,11 +31,27 @@ class LicenseEmailJobTest < ActiveJob::TestCase
     captured = nil
     Loops.stub(:send_transactional, ->(**kwargs) { captured = kwargs }) do
       LicenseEmailJob.perform_now(token, template: :expiry_reminder_transactional_id,
+        kind: "expiry", reference_id: license.id,
         data: { license_keys: "ONLY-THIS-KEY", expires_at: "2026-12-31" })
     end
 
     assert_equal "ONLY-THIS-KEY", captured[:data][:license_keys]
     assert_equal "2026-12-31", captured[:data][:expires_at]
+  end
+
+  test "a re-run for the same (customer, kind, reference) sends only once" do
+    license = licenses(:cozy_active)
+    license.product.update!(purchase_transactional_id: "tx_purchase")
+    token = PortalToken.issue!(customer: license.customer, product: license.product)
+
+    sends = 0
+    Loops.stub(:send_transactional, ->(**) { sends += 1 }) do
+      2.times do
+        LicenseEmailJob.perform_now(token, template: :purchase_transactional_id,
+          kind: "purchase", reference_id: license.id)
+      end
+    end
+    assert_equal 1, sends, "the second delivery is suppressed by Notification.once"
   end
 
   test "does nothing when the product has no template for that attribute" do
@@ -44,7 +61,8 @@ class LicenseEmailJobTest < ActiveJob::TestCase
 
     called = false
     Loops.stub(:send_transactional, ->(**) { called = true }) do
-      LicenseEmailJob.perform_now(token, template: :refund_transactional_id)
+      LicenseEmailJob.perform_now(token, template: :refund_transactional_id,
+        kind: "refund", reference_id: licenses(:cozy_active).id)
     end
     assert_not called
   end

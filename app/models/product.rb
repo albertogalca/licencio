@@ -49,15 +49,28 @@ class Product < ApplicationRecord
     policy == "time_limited" && update_duration_days ? from + update_duration_days.days : nil
   end
 
-  def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil)
+  def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil,
+                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil)
+    # Ignore an unrecognized policy from price metadata (falls back to the product's) rather than
+    # letting a bad enum string raise ArgumentError and wedge fulfillment on Stripe's retries.
+    update_policy = update_policy.presence_in(UPDATE_POLICIES.values)
     effective = update_policy || self.update_policy
-    licenses.create!(customer:, status: "active", max_activations: quantity, update_policy:,
-      stripe_payment_id:, expires_at: license_expires_at(policy: effective),
+    license = licenses.create!(customer:, status: "active", max_activations: quantity,
+      update_policy:, stripe_payment_id:, stripe_price_id: price_id, stripe_customer_id:,
+      expires_at: license_expires_at(policy: effective),
       licensed_version: (current_version if effective == "versioned"))
+    license.payments.create!(stripe_payment_intent: stripe_payment_id, kind: "purchase",
+      amount_cents:, currency:) if stripe_payment_id
+    license
   end
 
+  # nil = unlimited seats — a deliberate SKU. A price declares it explicitly with seats
+  # "unlimited"/"0"; create_checkout_session refuses a price that declares neither seat metadata
+  # nor a product default, so nil here never leaks from a misconfiguration.
   def seats_for(price)
-    seats = (price.metadata["seats"].presence || max_activations_default)&.to_i
+    raw = price.metadata["seats"].presence
+    return if raw && raw.downcase.in?(%w[unlimited 0])
+    seats = (raw || max_activations_default)&.to_i
     seats if seats&.positive?
   end
 
@@ -79,11 +92,18 @@ class Product < ApplicationRecord
     end
     price = Stripe::Price.retrieve(price_id, stripe_opts)
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
+    # Never silently ship an unlimited-seat license from an unconfigured price: unlimited must be
+    # declared (seats "unlimited"/"0"); anything else needs a seat count from price metadata or the
+    # product default.
+    if price.metadata["seats"].blank? && max_activations_default.blank?
+      raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
+        "(set price metadata `seats`, or the product's max_activations_default)"
+    end
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
-      metadata: { licencio_product_id: id, quantity: seats_for(price),
+      metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)

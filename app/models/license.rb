@@ -2,6 +2,7 @@ class License < ApplicationRecord
   belongs_to :product
   belongs_to :customer, optional: true
   has_many :activations, dependent: :destroy
+  has_many :payments, dependent: :destroy
 
   # status writers: "active" (issue/renew/trial/import), "refunded" (refund!),
   # "expired" (hourly expire_overdue! sweep), "inactive" (polar import: disabled keys).
@@ -49,12 +50,15 @@ class License < ApplicationRecord
     # signed event can't mint a license for a different product.
     return if session.metadata.licencio_product_id.to_s != product.id.to_s
 
-    customer = Customer.upsert!(
-      email: session.customer_details.email, stripe_customer_id: session.customer)
+    customer = Customer.upsert!(email: session.customer_details.email)
     license = fulfill!(
       product:, customer:,
       quantity: session.metadata[:quantity]&.to_i,
       stripe_payment_id: session.payment_intent || session.id,
+      price_id: session.metadata[:price_id],
+      stripe_customer_id: session.customer,
+      amount_cents: session.amount_total,
+      currency: session.currency,
       update_policy: session.metadata[:update_policy],
       renew_key: session.metadata[:renew_license_key])
     # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
@@ -66,53 +70,97 @@ class License < ApplicationRecord
     license
   end
 
-  # Keyed on payment_intent, which card Checkout always populates. A session fulfilled
-  # via the `session.id` fallback (async payment methods only — not used today) wouldn't
-  # be matched here; revisit if async payment methods are enabled.
-  def self.refund!(stripe_payment_id:)
-    license = find_by(stripe_payment_id:)
-    return unless license
+  # Look the license up through its payment history (not licenses.stripe_payment_id, which a
+  # renewal overwrites) so refunding the ORIGINAL purchase after a renewal still finds it.
+  # Scoped to the refunding product's own licenses. Idempotent: a Stripe redelivery of
+  # charge.refunded on an already-refunded license is a no-op (no duplicate refund emails).
+  def self.refund!(product:, stripe_payment_intent:)
+    license = product.licenses.joins(:payments)
+      .find_by(payments: { stripe_payment_intent: })
+    return if license.nil? || license.refunded?
     license.update!(status: "refunded")
     license.customer&.unsubscribe_from_loops_later(product: license.product)
-    license.customer&.send_refund_email_later(product: license.product)
+    license.customer&.send_refund_email_later(license:)
   end
 
-  # time_limited licenses only (lifetime = nil expires_at, excluded). Daily run + 1-day window = one
-  # send per license as it crosses the N-days-out mark.
-  # ponytail: no reminded_at flag — a missed daily run skips that day's cohort; add a column if
-  # guaranteed delivery ever matters.
+  # time_limited licenses only (lifetime = nil expires_at, excluded). Reminds any active,
+  # not-yet-reminded license expiring within `days` — so a missed daily run catches up next run
+  # instead of dropping that cohort. reminded_at makes it one send per license per expiry;
+  # renew! clears it so a renewed license is reminded again as its new expiry approaches.
   def self.remind_expiring!(days: 7)
-    active.where(expires_at: days.days.from_now.all_day).find_each do |license|
+    active.where(reminded_at: nil, expires_at: Time.current..days.days.from_now).find_each do |license|
       license.customer&.send_expiry_reminder_later(license:)
+      license.update_column(:reminded_at, Time.current)
     end
   end
 
-  def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, renew_key: nil, update_policy: nil)
-    return if exists?(stripe_payment_id:)
-    license = renew_key && product.licenses.find_by(license_key: renew_key, customer_id: customer&.id)
-    if license
-      license.renew!(stripe_payment_id:)
-    else
-      product.issue_license!(customer:, quantity:, stripe_payment_id:, update_policy:)
+  def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, price_id: nil,
+                    stripe_customer_id: nil, amount_cents: nil, currency: nil,
+                    renew_key: nil, update_policy: nil)
+    # Idempotency backbone: one Payment per Stripe intent. Catches redelivery of the original
+    # purchase even after a renewal has overwritten the license's own stripe_payment_id.
+    return if Payment.exists?(stripe_payment_intent: stripe_payment_id)
+    transaction do
+      existing = renew_key && product.licenses.find_by(license_key: renew_key)
+      # Renew only a license the payer already owns, or an unclaimed (imported) one the payer now
+      # claims — never let a client-supplied renew_key renew someone else's license.
+      if existing && (existing.customer_id.nil? || existing.customer_id == customer&.id)
+        existing.renew!(stripe_payment_id:, price_id:, buyer: customer)
+      else
+        product.issue_license!(customer:, quantity:, stripe_payment_id:, price_id:,
+          stripe_customer_id:, amount_cents:, currency:, update_policy:)
+      end
     end
   rescue ActiveRecord::RecordNotUnique
     nil
   end
 
-  def renew!(stripe_payment_id:)
+  def renew!(stripe_payment_id:, price_id: nil, buyer: nil)
     with_lock do
       # Idempotent under Stripe's at-least-once retries: a duplicate delivery of the
       # same renewal carries the same payment id and must not extend the window twice.
       next self if self.stripe_payment_id == stripe_payment_id
       from = [ expires_at, Time.current ].compact.max
-      update!(status: "active", stripe_payment_id:,
+      update!(status: "active", stripe_payment_id:, reminded_at: nil,
+        customer: customer || buyer,               # claim an unclaimed imported license on renewal
+        stripe_price_id: price_id || stripe_price_id,
         expires_at: product.license_expires_at(from:, policy: effective_update_policy))
+      payments.create!(stripe_payment_intent: stripe_payment_id, kind: "renewal")
       self
     end
   end
 
   def deliver_later
     customer&.send_portal_access_later(product:)
+  end
+
+  RESENDABLE_EMAILS = %w[portal purchase refund expiry].freeze
+
+  # Which lifecycle emails make sense to (re)send for this license, given its state.
+  def resendable_emails
+    return [] unless customer
+    kinds = [ "portal" ]                                   # access link: always available
+    kinds << "purchase" if payments.kind_purchase.exists? # receipt: only if there was a payment
+    kinds << "refund"   if refunded?
+    kinds << "expiry"   if effective_update_policy == "time_limited" && expires_at
+    kinds
+  end
+
+  # Admin resend: clear the one-shot dedup so the re-enqueued job actually sends again, then
+  # re-trigger the original email from persisted records (purchase amount comes off the Payment,
+  # not a live Stripe session). Portal keys on a fresh token id, so the clear no-ops there — it
+  # re-sends regardless. Returns the enqueued job, or nil when nothing was sent.
+  def redeliver_email_later(kind)
+    return unless customer && resendable_emails.include?(kind)
+    Notification.where(customer_id:, kind:, reference_id: id).delete_all
+    case kind
+    when "portal"   then customer.send_portal_access_later(product:)
+    when "purchase"
+      payment = payments.kind_purchase.order(:created_at).last
+      customer.send_purchase_email_later(license: self, amount: payment&.amount_cents, currency: payment&.currency)
+    when "refund"   then customer.send_refund_email_later(license: self)
+    when "expiry"   then customer.send_expiry_reminder_later(license: self)
+    end
   end
 
   def activate!(hardware_id:, device_name: nil)
@@ -156,7 +204,10 @@ class License < ApplicationRecord
     case effective_update_policy
     when "lifetime"  then true
     when "versioned" then licensed_version.present? && product.current_version <= licensed_version
-    else                  (claimed_at || created_at) + product.update_duration_days.days > Time.current
+    # time_limited: expires_at IS the update window (issued as from+duration, and renew! extends it),
+    # so eligibility tracks it directly. A renewal restores updates; a duration-less override that
+    # never set expires_at grants updates rather than crashing on nil.days.
+    else                  expires_at ? expires_at.future? : true
     end
   end
 

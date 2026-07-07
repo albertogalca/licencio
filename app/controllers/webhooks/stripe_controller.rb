@@ -12,8 +12,11 @@ class Webhooks::StripeController < ActionController::API
       License.fulfill_from_stripe_session(product, event.data.object)
     when "charge.refunded"
       charge = event.data.object
-      # Full refunds only revoke the license; partial refunds leave it active.
-      product.licenses.refund!(stripe_payment_id: charge.payment_intent) if charge.amount_refunded == charge.amount_captured
+      # Full refunds only revoke the license; partial refunds — and uncaptured charges, where
+      # both amounts are 0 — leave it active.
+      if charge.amount_captured.to_i.positive? && charge.amount_refunded == charge.amount_captured
+        License.refund!(product:, stripe_payment_intent: charge.payment_intent)
+      end
     end
     head :ok
   rescue Stripe::SignatureVerificationError

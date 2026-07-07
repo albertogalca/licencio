@@ -2,8 +2,14 @@
 
 <header class="mb-8 flex items-center justify-between gap-4">
   <h1 class="text-2xl font-semibold tracking-tight">Your <%= current_product.name %> licenses</h1>
-  <%= button_to "Sign out", portal_session_path, method: :delete,
-        class: "inline-flex shrink-0 items-center rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>
+  <div class="flex shrink-0 items-center gap-2">
+    <% if current_product.download_url.present? %>
+      <%= link_to "Download app", current_product.download_url,
+            class: "inline-flex shrink-0 items-center rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
+    <% end %>
+    <%= button_to "Sign out", portal_session_path, method: :delete,
+          class: "inline-flex shrink-0 items-center rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>
+  </div>
 </header>
 
 <% if @licenses.empty? %>
@@ -44,8 +50,11 @@
           <% pct = cap.zero? ? 0 : [(used.to_f / cap * 100).round, 100].min %>
           <% bar = used >= cap ? "bg-red-500" : (used >= cap * 0.8 ? "bg-amber-500" : "bg-accent-500") %>
           <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-            <div class="h-full rounded-full <%= bar %> transition-[width] duration-500 ease-out" style="width: <%= pct %>%"></div>
+            <div id="seatbar-<%= license.id %>" class="h-full rounded-full <%= bar %>"></div>
           </div>
+          <%# ponytail: CSP style_src has no 'unsafe-inline', so a style="width:X%" attribute is dropped
+              (nonces whitelist <style> elements, not style attributes) — emit a nonced <style> instead. %>
+          <%= tag.style "#seatbar-#{license.id}{width:#{pct}%}", nonce: content_security_policy_nonce %>
         <% end %>
       </div>
 
@@ -58,23 +67,13 @@
           <% end %>
         </p>
 
-        <% if license.renewable? %>
-          <% variants = current_product.variants %>
-          <% if variants.any? %>
-            <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
-            <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "mb-4 flex items-stretch gap-2" do %>
-              <%= hidden_field_tag :license_id, license.id %>
-              <% if variants.size > 1 %>
-                <% default = (variants.find { |v| v.seats == license.max_activations } || variants.first).price_id %>
-                <%= select_tag :price_id,
-                      options_for_select(variants.map { |v| [ v.name.presence || v.price_id, v.price_id ] }, default),
-                      class: "field-select text-sm" %>
-              <% else %>
-                <%= hidden_field_tag :price_id, variants.first.price_id %>
-              <% end %>
-              <%= submit_tag "Renew license",
-                    class: "inline-flex shrink-0 cursor-pointer items-center rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
-            <% end %>
+        <% if license.renewable? && current_product.variants.any? %>
+          <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
+          <%# Price is chosen server-side from the license's own tier — not submitted by the client. %>
+          <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "mb-4" do %>
+            <%= hidden_field_tag :license_id, license.id %>
+            <%= submit_tag "Renew license",
+                  class: "inline-flex shrink-0 cursor-pointer items-center rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
           <% end %>
         <% end %>
       <% end %>

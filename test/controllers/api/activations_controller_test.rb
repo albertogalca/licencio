@@ -167,6 +167,22 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "unauthorized", response.parsed_body["code"]
   end
 
+  test "activation without a hardware_id is refused before touching the license (M2)" do
+    assert_no_difference "Activation.count" do
+      post "/api/licenses/activate", params: { license_key: @license.license_key, nonce: "n" }, headers: @headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal "missing_hardware_id", response.parsed_body["code"]
+  end
+
+  test "trial activation without a hardware_id creates no orphan trial license (M2)" do
+    @product.update!(trial_days: 14)
+    assert_no_difference "License.count" do
+      post "/api/licenses/activate", params: { nonce: "n" }, headers: @headers, as: :json
+    end
+    assert_response :unprocessable_entity
+  end
+
   private
     def b64url_decode(str) = Base64.urlsafe_decode64(str + "=" * ((4 - str.length % 4) % 4))
 end

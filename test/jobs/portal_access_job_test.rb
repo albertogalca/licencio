@@ -19,6 +19,31 @@ class PortalAccessJobTest < ActiveJob::TestCase
     assert_includes captured[:data][:magic_link_url], token.token
   end
 
+  test "each magic-link request sends, even though the token row is reused" do
+    customer = customers(:alberto)
+    product  = products(:cozy)
+    product.update!(loops_transactional_id: "tx_access")
+
+    sends = 0
+    Loops.stub(:send_transactional, ->(**) { sends += 1 }) do
+      2.times { PortalAccessJob.perform_now(PortalToken.issue!(customer:, product:)) }
+    end
+    assert_equal 2, sends, "a re-issued token (new string, same row id) must not be deduped away"
+  end
+
+  test "a single request's retries are still deduped (same token)" do
+    customer = customers(:alberto)
+    product  = products(:cozy)
+    product.update!(loops_transactional_id: "tx_access")
+    token = PortalToken.issue!(customer:, product:)
+
+    sends = 0
+    Loops.stub(:send_transactional, ->(**) { sends += 1 }) do
+      2.times { PortalAccessJob.perform_now(token) }
+    end
+    assert_equal 1, sends, "the same token (a retry) is deduped"
+  end
+
   test "does nothing when the product has no template" do
     product = products(:cozy)
     product.update!(loops_transactional_id: nil)

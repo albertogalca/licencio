@@ -9,9 +9,9 @@ class Portal::SessionsControllerTest < ActionDispatch::IntegrationTest
 
     follow_redirect!
     assert_response :ok
-    assert PortalToken.find_by(id: token.id), "token is reusable within its 30-minute window"
+    assert PortalToken.find_by(id: token.id), "token survives use — reusable within its window"
 
-    # Reopening the same link (e.g. a fresh browser) still works until it expires.
+    # Reopening the same link (a second click, or a mail-scanner prefetch) still works.
     reset!
     get portal_session_path(token: token.token)
     assert_redirected_to portal_root_path

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -38,10 +38,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "name"
-    t.string "stripe_customer_id"
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_customers_on_email", unique: true
-    t.index ["stripe_customer_id"], name: "index_customers_on_stripe_customer_id", unique: true
   end
 
   create_table "licenses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -54,8 +52,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
     t.integer "max_activations"
     t.string "migration_source"
     t.uuid "product_id", null: false
+    t.datetime "reminded_at"
     t.string "status", null: false
+    t.string "stripe_customer_id"
     t.string "stripe_payment_id"
+    t.string "stripe_price_id"
     t.boolean "trial", default: false, null: false
     t.string "update_policy"
     t.datetime "updated_at", null: false
@@ -63,6 +64,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
     t.index ["product_id", "stripe_payment_id"], name: "index_licenses_on_product_and_stripe_payment", unique: true, where: "(stripe_payment_id IS NOT NULL)"
     t.index ["product_id"], name: "index_licenses_on_product_id"
+  end
+
+  create_table "notifications", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "customer_id", null: false
+    t.string "kind", null: false
+    t.string "reference_id", null: false
+    t.datetime "sent_at"
+    t.datetime "updated_at", null: false
+    t.index ["customer_id", "kind", "reference_id"], name: "index_notifications_dedup", unique: true
+    t.index ["customer_id"], name: "index_notifications_on_customer_id"
+  end
+
+  create_table "payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "amount_cents"
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.string "kind", null: false
+    t.uuid "license_id", null: false
+    t.string "stripe_payment_intent", null: false
+    t.datetime "updated_at", null: false
+    t.index ["license_id"], name: "index_payments_on_license_id"
+    t.index ["stripe_payment_intent"], name: "index_payments_on_stripe_payment_intent", unique: true
   end
 
   create_table "portal_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -85,6 +109,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
     t.string "checkout_success_url"
     t.datetime "created_at", null: false
     t.integer "current_version", default: 1, null: false
+    t.string "download_url"
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
@@ -255,6 +280,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_160000) do
   add_foreign_key "activations", "licenses"
   add_foreign_key "licenses", "customers"
   add_foreign_key "licenses", "products"
+  add_foreign_key "notifications", "customers"
+  add_foreign_key "payments", "licenses"
   add_foreign_key "portal_tokens", "customers"
   add_foreign_key "portal_tokens", "products"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

@@ -21,7 +21,9 @@ Rails.application.routes.draw do
   namespace :admin do
     resource  :session, only: [ :new, :create, :destroy ]
     resources :products, only: [ :index, :new, :create, :edit, :update ]
-    resources :licenses, only: [ :index, :new, :create, :edit, :update ]
+    resources :licenses, only: [ :index, :new, :create, :edit, :update ] do
+      resources :emails, only: :create # resend a lifecycle email (kind param)
+    end
     resources :customers, only: [ :index, :show ]
     resources :activations, only: [ :index, :destroy ]
     root to: "dashboard#show"

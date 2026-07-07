@@ -71,12 +71,23 @@ class LicenseTest < ActiveSupport::TestCase
     assert licenses(:cozy_active).update_eligible?
   end
 
-  test "update_eligible? for time_limited depends on the update window" do
-    license = products(:picmal).licenses.create!(status: "active", max_activations: 5) # 365-day window
-    assert license.update_eligible?, "fresh license is inside the window"
+  test "update_eligible? for time_limited tracks expires_at" do
+    license = products(:picmal).licenses.create!(status: "active", max_activations: 5,
+      expires_at: 30.days.from_now)
+    assert license.update_eligible?, "inside the window"
 
-    license.update!(claimed_at: 400.days.ago)
-    assert_not license.update_eligible?, "past the 365-day window"
+    license.update!(expires_at: 1.day.ago)
+    assert_not license.update_eligible?, "past expiry, updates cut off"
+  end
+
+  test "renewing a time_limited license restores update eligibility (H1)" do
+    license = products(:picmal).licenses.create!(status: "active", max_activations: 5,
+      expires_at: 1.day.ago) # expired: updates cut off
+    assert_not license.update_eligible?
+
+    license.renew!(stripe_payment_id: "pi_renew_1")
+    assert license.expires_at.future?, "renewal pushes expiry out"
+    assert license.update_eligible?, "and updates are restored"
   end
 
   test "per-license policy overrides the product's" do
@@ -148,6 +159,47 @@ class LicenseTest < ActiveSupport::TestCase
     default = prod.issue_license!(customer: nil, quantity: nil, stripe_payment_id: "pi_v")
     assert_nil default.update_policy      # inherits product default
     assert_equal 2, default.licensed_version # pinned to current_version
+  end
+
+  test "resendable_emails reflects the license's state" do
+    license = licenses(:cozy_active) # lifetime, claimed, no payment
+    assert_equal [ "portal" ], license.resendable_emails
+
+    license.payments.create!(stripe_payment_intent: "pi_r", kind: "purchase")
+    assert_includes license.resendable_emails, "purchase"
+
+    assert_includes licenses(:picmal_expired).resendable_emails, "expiry" # time_limited w/ expires_at
+
+    refunded = products(:cozy).licenses.create!(status: "refunded", max_activations: 1, customer: customers(:alberto))
+    assert_includes refunded.resendable_emails, "refund"
+
+    assert_empty licenses(:cozy_unclaimed).resendable_emails, "no customer, nothing to send"
+  end
+
+  test "redeliver_email_later clears the dedup and re-enqueues, reconstructing purchase amount" do
+    license = licenses(:cozy_active)
+    license.payments.create!(stripe_payment_intent: "pi_amt", kind: "purchase", amount_cents: 4999, currency: "eur")
+    # A prior send is recorded — without clearing, Notification.once would suppress the resend.
+    Notification.create!(customer: license.customer, kind: "purchase", reference_id: license.id, sent_at: Time.current)
+
+    assert_enqueued_with(job: LicenseEmailJob) do
+      assert license.redeliver_email_later("purchase")
+    end
+    assert_empty Notification.where(customer_id: license.customer_id, kind: "purchase", reference_id: license.id),
+      "the sent-marker is cleared so the resend actually goes out"
+    data = enqueued_jobs.find { |j| j["job_class"] == "LicenseEmailJob" }["arguments"].last["data"]
+    assert_equal "49.99 EUR", data[:amount] || data["amount"]
+  end
+
+  test "redeliver_email_later portal enqueues a fresh access link" do
+    assert_enqueued_with(job: PortalAccessJob) do
+      assert licenses(:cozy_active).redeliver_email_later("portal")
+    end
+  end
+
+  test "redeliver_email_later refuses an unclaimed license or an inapplicable kind" do
+    assert_nil licenses(:cozy_unclaimed).redeliver_email_later("portal"), "no customer"
+    assert_nil licenses(:cozy_active).redeliver_email_later("refund"), "not refunded → not applicable"
   end
 
   test "activate! is idempotent and enforces capacity" do

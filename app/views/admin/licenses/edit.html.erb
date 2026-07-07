@@ -77,6 +77,25 @@
     <% end %>
   </div>
 
+  <% if @license.resendable_emails.any? %>
+    <div class="card p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Resend email</h2>
+          <p class="field-hint">Re-send a lifecycle email to <%= @license.customer.email %>.</p>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2">
+          <% @license.resendable_emails.each do |kind| %>
+            <%= button_to email_kind_label(kind), admin_license_emails_path(@license),
+              params: { kind: kind },
+              form: { data: { turbo_confirm: "Resend the #{email_kind_label(kind).downcase} email to #{@license.customer.email}?" } },
+              class: "btn-ghost shrink-0" %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <% unless @license.refunded? %>
     <div class="card border-red-200 p-6">
       <div class="flex items-center justify-between gap-4">

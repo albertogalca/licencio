@@ -20,12 +20,12 @@ class CustomerTest < ActiveSupport::TestCase
     assert_includes dup.errors.attribute_names, :email
   end
 
-  test "stripe_customer_id is unique but optional" do
-    assert Customer.new(email: "new@example.com").valid?
-
-    dup = Customer.new(email: "new@example.com", stripe_customer_id: customers(:alberto).stripe_customer_id)
-    assert_not dup.valid?
-    assert_includes dup.errors.attribute_names, :stripe_customer_id
+  test "upsert! reuses the existing customer on a concurrent-insert race" do
+    existing = customers(:alberto)
+    # Simulate the unique-index collision a second concurrent first-time webhook would hit.
+    Customer.stub(:find_or_initialize_by, ->(*) { raise ActiveRecord::RecordNotUnique }) do
+      assert_equal existing, Customer.upsert!(email: existing.email)
+    end
   end
 
   test "has many licenses" do
@@ -74,10 +74,10 @@ class CustomerTest < ActiveSupport::TestCase
   end
 
   test "send_refund_email_later issues a token and enqueues the refund email for a license holder" do
-    customer = customers(:alberto)
+    license = licenses(:cozy_active)
     assert_difference "PortalToken.count", 1 do
       assert_enqueued_with(job: LicenseEmailJob) do
-        customer.send_refund_email_later(product: products(:cozy))
+        license.customer.send_refund_email_later(license:)
       end
     end
   end

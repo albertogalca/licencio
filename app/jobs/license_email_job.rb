@@ -1,5 +1,5 @@
 class LicenseEmailJob < ApplicationJob
-  def perform(portal_token, template:, data: {})
+  def perform(portal_token, template:, kind:, reference_id:, data: {})
     return if portal_token.nil?
     customer = portal_token.customer
     product  = portal_token.product
@@ -9,19 +9,22 @@ class LicenseEmailJob < ApplicationJob
         "skipping email for #{customer.email}")
       return
     end
-    Loops.send_transactional(
-      api_key: product.loops_api_key_or_default,
-      transactional_id:,
-      email: customer.email,
-      # Base variables every template can use; callers override via `data`
-      # (e.g. amount, expires_at, or a single license_key).
-      data: {
-        product_name: product.name,
-        license_keys: product.licenses.where(customer:).pluck(:license_key).join("\n"),
-        magic_link_url: url_helpers.portal_session_url(token: portal_token.token, product: product.slug),
-        sender_email: product.sender_email
-      }.merge(data)
-    )
+    # Dedup so a re-enqueue or an already-delivered retry doesn't re-send this one-shot email.
+    Notification.once(customer:, kind:, reference_id:) do
+      Loops.send_transactional(
+        api_key: product.loops_api_key_or_default,
+        transactional_id:,
+        email: customer.email,
+        # Base variables every template can use; callers override via `data`
+        # (e.g. amount, expires_at, or a single license_key).
+        data: {
+          product_name: product.name,
+          license_keys: product.licenses.where(customer:).pluck(:license_key).join("\n"),
+          magic_link_url: url_helpers.portal_session_url(token: portal_token.token, product: product.slug),
+          sender_email: product.sender_email
+        }.merge(data)
+      )
+    end
   end
 
   private

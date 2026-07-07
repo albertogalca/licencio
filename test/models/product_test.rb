@@ -128,6 +128,40 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  test "seats_for: explicit unlimited, a count, or the product default (H3)" do
+    product = products(:picmal) # max_activations_default: 5
+    assert_nil product.seats_for(fake_price("p", "n", 100, { "seats" => "unlimited" })), "explicit unlimited"
+    assert_nil product.seats_for(fake_price("p", "n", 100, { "seats" => "0" })), "0 = unlimited"
+    assert_equal 4, product.seats_for(fake_price("p", "n", 100, { "seats" => "4" }))
+    assert_equal 5, product.seats_for(fake_price("p", "n", 100, {})), "blank falls back to the default"
+  end
+
+  test "create_checkout_session refuses a price with no seats and no product default (H3)" do
+    product = products(:picmal)
+    product.update!(max_activations_default: nil)
+    price = Struct.new(:id, :product, :metadata).new("price_x", product.stripe_product_id, {})
+    Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_x", email: "a@b.com")
+      end
+    end
+  end
+
+  test "issue_license! ignores an unrecognized update_policy from price metadata (L1)" do
+    license = products(:picmal).issue_license!(customer: customers(:alberto),
+      quantity: 1, stripe_payment_id: "pi_l1", update_policy: "bogus")
+    assert_nil license.update_policy, "bad enum dropped, not persisted"
+    assert_equal "time_limited", license.effective_update_policy, "falls back to the product's policy"
+  end
+
+  test "issue_license! records a purchase payment for the intent" do
+    license = products(:picmal).issue_license!(customer: customers(:alberto),
+      quantity: 1, stripe_payment_id: "pi_pay", amount_cents: 2999, currency: "eur")
+    payment = license.payments.sole
+    assert payment.kind_purchase?
+    assert_equal "pi_pay", payment.stripe_payment_intent
+  end
+
   private
     def fake_price(id, nickname, unit_amount, metadata)
       Struct.new(:id, :nickname, :unit_amount, :metadata).new(id, nickname, unit_amount, metadata)

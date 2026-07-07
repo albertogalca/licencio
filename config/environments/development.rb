@@ -55,6 +55,10 @@ Rails.application.configure do
   # Highlight code that enqueued background job in logs.
   config.active_job.verbose_enqueue_logs = true
 
+  # Process jobs durably via Solid Queue (the `jobs` process in Procfile.dev),
+  # matching production. Bare `bin/rails server` won't drain the queue — use bin/dev.
+  config.active_job.queue_adapter = :solid_queue
+
   # Highlight code that triggered redirect in logs.
   config.action_dispatch.verbose_redirect_logs = true
 

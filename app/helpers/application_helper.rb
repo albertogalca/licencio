@@ -16,4 +16,13 @@ module ApplicationHelper
     variant = STATUS_BADGE_VARIANTS.fetch(status.to_s, "badge-gray")
     tag.span(status, class: "#{variant} capitalize")
   end
+
+  EMAIL_KIND_LABELS = {
+    "portal" => "Access link", "purchase" => "Receipt",
+    "refund" => "Refund notice", "expiry" => "Expiry reminder"
+  }.freeze
+
+  def email_kind_label(kind)
+    EMAIL_KIND_LABELS.fetch(kind.to_s, kind.to_s.humanize)
+  end
 end

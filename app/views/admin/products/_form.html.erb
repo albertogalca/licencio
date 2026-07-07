@@ -19,6 +19,12 @@
       <%= form.text_field :name, class: "field-input" %>
     </div>
 
+    <div>
+      <%= form.label :download_url, "Download URL", class: "field-label" %>
+      <%= form.url_field :download_url, class: "field-input" %>
+      <p class="field-hint">Optional. If set, shows a download button in the customer portal.</p>
+    </div>
+
     <% if product.new_record? %>
       <div><%= form.label :slug, class: "field-label" %><%= form.text_field :slug, class: "field-input" %></div>
       <div><%= form.label :bundle_identifier, class: "field-label" %><%= form.text_field :bundle_identifier, class: "field-input" %></div>

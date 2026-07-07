@@ -141,6 +141,33 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert foreign.reload.active?, "another product's license must not be revoked"
   end
 
+  test "refunding the original purchase revokes a license that was later renewed (H4b)" do
+    post_event completed_event(payment_intent: "pi_orig")
+    license = License.order(:created_at).last
+    post_event completed_event(payment_intent: "pi_renew", renew_license_key: license.license_key)
+    assert_equal "pi_renew", license.reload.stripe_payment_id, "renewal overwrote the latest intent"
+
+    # The original charge is refunded (a chargeback on the first payment) — must still revoke.
+    post_event refunded_event(payment_intent: "pi_orig")
+    assert license.reload.refunded?, "found via payment history, not the license's latest intent"
+  end
+
+  test "a redelivered charge.refunded revokes once and re-enqueues no refund email (H4a)" do
+    post_event completed_event(payment_intent: "pi_ridem")
+    clear_enqueued_jobs
+
+    assert_enqueued_jobs 1, only: LicenseEmailJob do
+      post_event refunded_event(payment_intent: "pi_ridem") # first delivery
+      post_event refunded_event(payment_intent: "pi_ridem") # Stripe redelivery
+    end
+    assert_response :ok
+  end
+
+  test "stores the Stripe customer id on the license, not the shared customer (M3)" do
+    post_event completed_event(payment_intent: "pi_cust", stripe_customer: "cus_xyz")
+    assert_equal "cus_xyz", License.order(:created_at).last.stripe_customer_id
+  end
+
   private
     def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",

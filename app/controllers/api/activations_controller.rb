@@ -1,4 +1,12 @@
 class Api::ActivationsController < Api::BaseController
+  # The product API key ships inside the desktop binary, so cap the licensing endpoint to blunt
+  # trial-token farming and key probing (checkout/products/recoveries are already capped).
+  rate_limit to: 30, within: 1.minute, with: -> { head :too_many_requests }
+
+  # hardware_id backs the seat identity; without it activate!/trial_for commit a license then 500
+  # on the missing activation, orphaning a trial per request. Refuse up front.
+  before_action :require_hardware_id
+
   def create
     license =
       if params[:license_key].present?
@@ -25,6 +33,10 @@ class Api::ActivationsController < Api::BaseController
   end
 
   private
+    def require_hardware_id
+      render_api_error(:missing_hardware_id) if params[:hardware_id].blank?
+    end
+
     # Distinguish why an inactive license was refused, so the client can message it.
     def license_error_code(license)
       return :license_expired if license.expired?
