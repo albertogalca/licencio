@@ -17,7 +17,7 @@ class Api::RecoveriesControllerTest < ActionDispatch::IntegrationTest
       recover(email: customers(:alberto).email)
     end
     assert_response :ok
-    assert customers(:alberto).reload.auth_token.present?
+    assert PortalToken.exists?(customer: customers(:alberto), product: @product)
   end
 
   test "an unknown email still returns 200 but enqueues nothing" do

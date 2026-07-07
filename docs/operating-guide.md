@@ -33,14 +33,17 @@ send email.
 
 ## 2. Create your admin login
 
-There's no signup page — admins are created from the CLI:
+There's no signup page — admins are created from the CLI. The password is read
+from a hidden prompt (never passed as a shell argument, so it stays out of your
+shell history):
 
 ```bash
 # Docker (quote the brackets in zsh):
-docker compose exec web bin/rails "admin:create[you@example.com,a-strong-password]"
+docker compose exec web bin/rails "admin:create[you@example.com]"
 
 # Local dev:
-bin/rails "admin:create[you@example.com,a-strong-password]"
+bin/rails "admin:create[you@example.com]"
+# → Password: (typed hidden)
 ```
 
 Then sign in at **`/admin`** (redirects to the login form). You land on the
@@ -59,7 +62,7 @@ Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes
 | `stripe_product_id` (`prod_…`) | Product catalog → your product | the **Product** in `/admin` |
 | `stripe_secret_key` (`sk_…`) | Developers → API keys | the **Product** in `/admin` (encrypted) |
 | `stripe_webhook_secret` (`whsec_…`) | Developers → Webhooks → your endpoint → *Signing secret* | the **Product** in `/admin` (encrypted) |
-| `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` | your own pages | `.env` |
+| Checkout success / cancel URLs | your own pages | the **Product** in `/admin` (`checkout_success_url` / `checkout_cancel_url`) |
 
 - **One account per Product.** Each Product carries its own `stripe_secret_key`, so
   one deployment can sell different apps through separate Stripe accounts — a variant
@@ -72,7 +75,8 @@ Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes
    one-time amount, and metadata **`seats`** (e.g. `2`). That `seats` value becomes
    the license's device cap; if it's missing, checkout falls back to the product's
    `max_activations_default` — and if that's blank too, the license gets **unlimited
-   seats**. Prices are pure Stripe config — nothing is stored in the app, so you can
+   seats** (the product's variant list flags any uncapped price with a ⚠ so it's
+   never a silent surprise). Prices are pure Stripe config — nothing is stored in the app, so you can
    add, rename, or reprice variants any time. Non-linear pricing works out of the box
    (2 seats need not cost 2×). A single-price product is just one Price. Your
    website's buy button passes the chosen variant's `price_id` to `POST /api/checkout`
@@ -86,9 +90,10 @@ Stripe values live on the **Product** in `/admin` — nothing Stripe-secret goes
    (the Product's edit page shows the exact URL), events
    **`checkout.session.completed`** (turns a payment into a license — idempotent on
    the Stripe payment id, so retries are safe — and emails the buyer their key) and
-   **`charge.refunded`** (flips the matching license to `refunded`, which blocks
-   further device activations). Paste its signing secret into the Product's
-   `stripe_webhook_secret`.
+   **`charge.refunded`** (a **full** refund flips the matching license to `refunded`,
+   which blocks further device activations; partial refunds leave it active). Each
+   endpoint only touches its own product's licenses. Paste its signing secret into
+   the Product's `stripe_webhook_secret`.
 
 > Testing? Use `stripe listen --forward-to localhost:3000/webhooks/stripe/PRODUCT_ID`
 > and paste the `whsec_…` it prints into that Product's `stripe_webhook_secret`.
@@ -155,6 +160,9 @@ Products → **New product** in `/admin`. Fields:
   account. Required to load variants and take payments. Editing is blank-to-keep
   (leave blank to keep the current value). The edit page prints this product's
   webhook URL to register in Stripe.
+- `checkout_success_url`, `checkout_cancel_url` — the pages Stripe sends the buyer
+  to after a completed or cancelled checkout. **Required** once `stripe_product_id`
+  is set — checkout refuses to start (and the form won't save) without them.
 - `sender_email`, `loops_transactional_id`, `loops_api_key` — from §4
   (leave the key blank to keep the current one / use the default).
 
@@ -180,7 +188,9 @@ Licenses screen for manual grants (support, comps, testing) and status changes.
 - **Issue one manually** — Licenses → New. Pick the product, optionally enter a
   `customer_email` (a Customer is created if it doesn't exist), set
   `max_activations` (leave blank for unlimited seats), `status` (`active`), and
-  optional `expires_at`. The license key is generated on save.
+  optional `expires_at`. The license key is generated on save. If you attach a
+  customer (and the product has Loops configured), they're **emailed their key +
+  portal link automatically**, just like a purchase.
 - **Update policy per license** — leave "Update policy" blank to inherit the
   product's, or override it on this one license (`lifetime` / `time_limited` /
   `versioned`). This is how one product sells both kinds at once: e.g. a "lifetime"
@@ -268,13 +278,18 @@ Content-Type: application/json
 
 Always returns `200` (it won't reveal whether the email exists).
 
+> On the built-in form, a customer who reaches it without a product in the URL can
+> type the product's **name or slug** (any case) — e.g. "Cozy" or "cozy" both work.
+
 ### c) "Manage my licenses" link
 
 Same door as recovery — the emailed magic link drops the customer into
 **`/portal`**, **scoped to the product the link came from** (a Cozy link never shows
 another app's licenses), where they see that product's keys and can free a device
 seat (deactivate a machine). Just link them to the recovery form from (b); no
-separate page to build.
+separate page to build. Sign-in links are **per product**, so a customer who owns
+two apps can hold a live link for each at once — requesting one never invalidates
+the other.
 
 ---
 

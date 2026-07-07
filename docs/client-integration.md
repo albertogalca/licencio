@@ -54,6 +54,42 @@ raw 32-byte Ed25519 key) whenever the app launches — offline.
 > embed it in your app at build time rather than trusting the value from the network.
 > The activation response returns it only for convenience/bootstrapping.
 
+## Error responses
+
+Any failed request returns a JSON body with a stable machine `code` and a human
+`error` string — branch on `code`, show `error` (or your own copy) to the user:
+
+```json
+{ "error": "This license has expired.", "code": "license_expired" }
+```
+
+| HTTP | `code` | When |
+|------|--------|------|
+| 401 | `unauthorized` | missing/wrong `X-Api-Key` |
+| 404 | `license_not_found` | no license matches that key **for this product** (wrong key, or a key from another product) |
+| 403 | `license_expired` | license is past its `expires_at` |
+| 403 | `license_refunded` | license was refunded |
+| 403 | `license_inactive` | license was manually deactivated |
+| 403 | `trial_unavailable` | no `license_key` sent and the product offers no trial |
+| 409 | `seat_limit_reached` | all device seats are in use |
+| 404 | `device_not_active` | (deactivate) that `hardware_id` isn't currently active |
+
+A successful activation of a device that's already active is idempotent — it
+returns the same `{ jwt, public_key }`, not an error.
+
+## Freeing a seat
+
+`DELETE /api/licenses/deactivate` with the same `X-Api-Key`, the `license_key`, and
+the `hardware_id` to release. Returns `204 No Content` on success, or
+`device_not_active` (404) if that device wasn't active.
+
+```bash
+curl -X DELETE https://your-host/api/licenses/deactivate \
+  -H "X-Api-Key: prod_xxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"license_key":"demo_ab12...","hardware_id":"<machine-uuid>"}'
+```
+
 ## Swift (macOS / iOS) — CryptoKit, no dependencies
 
 ```swift

@@ -14,6 +14,21 @@ class ProductTest < ActiveSupport::TestCase
     assert_includes product.errors.attribute_names, :update_policy
   end
 
+  test "time_limited policy requires a positive update_duration_days" do
+    product = products(:picmal) # time_limited
+    product.update_duration_days = nil
+    assert_not product.valid?
+    assert_includes product.errors.attribute_names, :update_duration_days
+  end
+
+  test "create_checkout_session fails loud when the redirect URLs are blank" do
+    product = products(:picmal)
+    product.update_columns(checkout_success_url: nil) # bypass validation, mimic a pre-migration row
+    assert_raises(Product::CheckoutNotConfigured) do
+      product.create_checkout_session(price_id: "price_x", email: "a@b.com")
+    end
+  end
+
   test "a Stripe product id requires its secrets, checkout URLs, and a Loops template" do
     product = products(:cozy) # no stripe_product_id → creds optional
     assert product.valid?

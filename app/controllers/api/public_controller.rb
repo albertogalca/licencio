@@ -1,3 +1,23 @@
 class Api::PublicController < ActionController::API
-  rescue_from ActiveRecord::RecordNotFound, with: -> { head :not_found }
+  # Machine-readable error contract for the desktop clients: every failure carries a
+  # stable `code` plus a human `error` string, so a client can tell "expired" from
+  # "refunded" from "seats full" instead of guessing at a bare status.
+  ERRORS = {
+    unauthorized:       [ :unauthorized, "Invalid or missing API key." ],
+    license_not_found:  [ :not_found,    "No license matches that key for this product." ],
+    license_expired:    [ :forbidden,    "This license has expired." ],
+    license_refunded:   [ :forbidden,    "This license was refunded." ],
+    license_inactive:   [ :forbidden,    "This license is not active." ],
+    seat_limit_reached: [ :conflict,     "All seats for this license are in use." ],
+    trial_unavailable:  [ :forbidden,    "No trial is available for this product." ],
+    device_not_active:  [ :not_found,    "That device is not currently active." ]
+  }.freeze
+
+  rescue_from ActiveRecord::RecordNotFound, with: -> { render_api_error(:license_not_found) }
+
+  private
+    def render_api_error(code)
+      status, message = ERRORS.fetch(code)
+      render json: { error: message, code: }, status:
+    end
 end

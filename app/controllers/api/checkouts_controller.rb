@@ -2,6 +2,8 @@ class Api::CheckoutsController < Api::PublicController
   # Unauthenticated and hits Stripe on every call — cap per-IP.
   rate_limit to: 20, within: 1.minute, with: -> { head :too_many_requests }
 
+  rescue_from Product::CheckoutNotConfigured, with: -> { head :service_unavailable }
+
   def create
     product = Product.find_by!(slug: params[:product_slug])
     session = product.create_checkout_session(

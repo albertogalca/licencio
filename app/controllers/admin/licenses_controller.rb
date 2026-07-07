@@ -17,7 +17,10 @@ class Admin::LicensesController < Admin::BaseController
     @license = License.new(license_params)
     @license.customer = find_or_create_customer
     if @license.save
-      redirect_to admin_licenses_path, notice: "License created: #{@license.license_key}"
+      @license.deliver_later # emails the customer their key + portal link (no-op if no customer)
+      notice = @license.customer ? "License created and access email sent: #{@license.license_key}" :
+        "License created: #{@license.license_key}"
+      redirect_to admin_licenses_path, notice:
     else
       render :new, status: :unprocessable_entity
     end

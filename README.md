@@ -124,14 +124,17 @@ See [`env.example`](env.example) for the full, commented list. The essentials:
 | `APP_HOST` | ✅ in prod | host for magic-link / mailer URLs, e.g. `licenses.yourapp.com` |
 | `ADMIN_API_KEY` | for imports | Bearer token for `/api/admin/*` |
 | `LOOPS_API_KEY_DEFAULT` | for email | fallback Loops key (per-Product key overrides it) |
-| `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` | for checkout | Stripe redirect targets |
+
+Everything Stripe — including the checkout success/cancel redirect URLs — lives
+**per-Product** in `/admin`, not in the environment.
 
 ## Creating your first Product
 
-Create an admin login and use the admin UI:
+Create an admin login and use the admin UI (the password is read from a hidden
+prompt, so it never lands in your shell history):
 
 ```bash
-docker compose exec web bin/rails "admin:create[you@example.com,a-strong-password]"
+docker compose exec web bin/rails "admin:create[you@example.com]"
 ```
 
 Sign in at `/admin`, then **Products → New**. `slug`, `bundle_identifier`, and
@@ -156,10 +159,13 @@ walkthrough.
    metadata `update_policy: lifetime` to sell a lifetime variant on a versioned
    product. A single-price product is just one Price. Prices are managed entirely
    in Stripe — no price data is stored locally.
-3. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe/PRODUCT_ID` (the
-   Product's edit page shows the exact URL), event `checkout.session.completed`.
-   Paste its signing secret into the Product's `stripe_webhook_secret`.
-4. Your app calls `POST /api/checkout` with the Product `slug` and the chosen
+3. Set the Product's `checkout_success_url` / `checkout_cancel_url` (where Stripe
+   returns the buyer). Required once `stripe_product_id` is set.
+4. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe/PRODUCT_ID` (the
+   Product's edit page shows the exact URL), events `checkout.session.completed`
+   and `charge.refunded`. Paste its signing secret into the Product's
+   `stripe_webhook_secret`.
+5. Your app calls `POST /api/checkout` with the Product `slug` and the chosen
    variant's `price_id` to get a Checkout URL. On payment, the webhook fulfills
    the license (idempotent on the Stripe payment id).
 
@@ -168,9 +174,9 @@ walkthrough.
 Postgres, Ruby (see `.ruby-version`), then:
 
 ```bash
-bin/setup            # installs gems, prepares the dev database
-bin/rails test       # Minitest suite
-bin/dev              # Rails server + Tailwind watcher
+bin/setup                        # installs gems, prepares the dev database
+PARALLEL_WORKERS=1 bin/rails test # Minitest suite (run single-process)
+bin/dev                          # Rails server + Tailwind watcher
 ```
 
 ## Known limitations

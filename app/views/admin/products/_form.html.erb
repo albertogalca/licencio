@@ -84,6 +84,12 @@
                   </li>
                 <% end %>
               </ul>
+              <% if variants.any? { |v| v.seats.nil? } %>
+                <p class="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+                  <span aria-hidden="true">⚠</span>
+                  <span>A “∞” price issues <strong>uncapped</strong> licenses (unlimited devices). Set a <code class="rounded bg-amber-50 px-1">seats</code> metadata value on the Stripe price to cap it.</span>
+                </p>
+              <% end %>
             <% else %>
               <p class="text-gray-400">No Stripe prices on this product yet.</p>
             <% end %>

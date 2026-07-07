@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_07_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -34,8 +34,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_120000) do
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "auth_token"
-    t.datetime "auth_token_expires_at"
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "name"
@@ -64,6 +62,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_120000) do
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
     t.index ["product_id", "stripe_payment_id"], name: "index_licenses_on_product_and_stripe_payment", unique: true, where: "(stripe_payment_id IS NOT NULL)"
     t.index ["product_id"], name: "index_licenses_on_product_id"
+  end
+
+  create_table "portal_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "customer_id", null: false
+    t.datetime "expires_at", null: false
+    t.uuid "product_id", null: false
+    t.string "token", null: false
+    t.datetime "updated_at", null: false
+    t.index ["customer_id", "product_id"], name: "index_portal_tokens_on_customer_id_and_product_id", unique: true
+    t.index ["customer_id"], name: "index_portal_tokens_on_customer_id"
+    t.index ["product_id"], name: "index_portal_tokens_on_product_id"
+    t.index ["token"], name: "index_portal_tokens_on_token", unique: true
   end
 
   create_table "products", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -240,6 +251,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_120000) do
   add_foreign_key "activations", "licenses"
   add_foreign_key "licenses", "customers"
   add_foreign_key "licenses", "products"
+  add_foreign_key "portal_tokens", "customers"
+  add_foreign_key "portal_tokens", "products"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

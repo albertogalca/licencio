@@ -1,6 +1,7 @@
 class Customer < ApplicationRecord
   has_many :licenses, dependent: :nullify
   has_many :activations, through: :licenses
+  has_many :portal_tokens, dependent: :delete_all
 
   validates :email, presence: true, uniqueness: true
   validates :stripe_customer_id, uniqueness: true, allow_nil: true
@@ -21,24 +22,9 @@ class Customer < ApplicationRecord
     customer
   end
 
-  def self.authenticate_token(token)
-    if token.present?
-      where(auth_token_expires_at: Time.current..).find_by(auth_token: token)
-    end
-  end
-
   def send_portal_access_later(product:)
-    return unless licenses.exists?(product:) # nothing to deliver — don't rotate the token or email
-    regenerate_auth_token
-    PortalAccessJob.perform_later(self, product)
+    return unless licenses.exists?(product:) # nothing to deliver — don't issue a token or email
+    token = PortalToken.issue!(customer: self, product:)
+    PortalAccessJob.perform_later(token)
   end
-
-  def clear_auth_token!
-    update!(auth_token: nil, auth_token_expires_at: nil)
-  end
-
-  private
-    def regenerate_auth_token
-      update!(auth_token: SecureRandom.urlsafe_base64(32), auth_token_expires_at: 30.minutes.from_now)
-    end
 end

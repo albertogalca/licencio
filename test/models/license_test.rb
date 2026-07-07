@@ -155,6 +155,15 @@ class LicenseTest < ActiveSupport::TestCase
     assert_raises(License::CapacityExceeded) { license.activate!(hardware_id: "HW-Y") }
   end
 
+  test "renew! is idempotent — a duplicate payment id does not extend twice" do
+    license = products(:picmal).licenses.create!(status: "active", max_activations: 5) # 365-day window
+    license.renew!(stripe_payment_id: "pi_renew")
+    first_expiry = license.reload.expires_at
+
+    license.renew!(stripe_payment_id: "pi_renew") # same event redelivered
+    assert_equal first_expiry.to_i, license.reload.expires_at.to_i, "second identical renewal is a no-op"
+  end
+
   test "expire_overdue! flips only past-due active licenses to expired" do
     overdue = products(:cozy).licenses.create!(status: "active", max_activations: 1, expires_at: 1.hour.ago)
     future  = products(:cozy).licenses.create!(status: "active", max_activations: 1, expires_at: 1.hour.from_now)

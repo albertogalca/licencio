@@ -7,6 +7,7 @@ class Product < ApplicationRecord
   UPDATE_POLICIES = { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }.freeze
 
   has_many :licenses, dependent: :restrict_with_error
+  has_many :activations, through: :licenses
 
   encrypts :loops_api_key
   encrypts :eddsa_private_key
@@ -21,6 +22,11 @@ class Product < ApplicationRecord
   validates :slug, :bundle_identifier, :license_prefix, :api_key,
     presence: true, uniqueness: true
   validates :eddsa_private_key, :eddsa_public_key, presence: true
+  # time_limited licenses compute expires_at from update_duration_days; without it,
+  # fulfillment hits nil.days and 500s. current_version pins versioned eligibility.
+  validates :update_duration_days, presence: true, numericality: { greater_than: 0 },
+    if: -> { update_policy == "time_limited" }
+  validates :current_version, presence: true, if: -> { update_policy == "versioned" }
   # A Stripe-selling product must carry its full credential set, so it can't validate yet
   # blow up at checkout/webhook. Blank secrets on edit are dropped by the controller, so an
   # already-configured product keeps its stored keys.
@@ -61,7 +67,14 @@ class Product < ApplicationRecord
     end
   end
 
+  CheckoutNotConfigured = Class.new(StandardError)
+
   def create_checkout_session(price_id:, email:, renew_license_key: nil)
+    # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
+    # the checkout-URL columns existed and never re-saved).
+    if checkout_success_url.blank? || checkout_cancel_url.blank?
+      raise CheckoutNotConfigured, "#{slug} is missing its checkout success/cancel URL"
+    end
     price = Stripe::Price.retrieve(price_id, stripe_opts)
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
     Stripe::Checkout::Session.create({
@@ -82,6 +95,9 @@ class Product < ApplicationRecord
         licensed_version: (current_version if versioned?)).tap { |l| l.activate!(hardware_id:) }
   end
 
+  # Offline license token: authenticity only. There's no server-enforced `exp` and no
+  # revocation of an already-issued token — a lifetime license's token is valid forever
+  # once minted. The client is trusted to honor `expires_at`/`update_eligible` in the claims.
   def sign_jwt(claims)
     key = Ed25519::SigningKey.new(Base64.strict_decode64(eddsa_private_key))
     input = [ { alg: "EdDSA", typ: "JWT" }, claims ].map { |h| b64url(JSON.generate(h)) }.join(".")

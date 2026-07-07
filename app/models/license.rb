@@ -27,11 +27,15 @@ class License < ApplicationRecord
   validates :status, presence: true
   validates :licensed_version, presence: true, if: -> { product && effective_update_policy == "versioned" }
 
-  def self.fulfill_from_stripe_session(session)
+  def self.fulfill_from_stripe_session(product, session)
+    # The session must name the same product whose webhook secret signed it — a
+    # signed event can't mint a license for a different product.
+    return if session.metadata.licencio_product_id.to_s != product.id.to_s
+
     customer = Customer.upsert!(
       email: session.customer_details.email, stripe_customer_id: session.customer)
     license = fulfill!(
-      product: Product.find(session.metadata.licencio_product_id), customer:,
+      product:, customer:,
       quantity: session.metadata[:quantity]&.to_i,
       stripe_payment_id: session.payment_intent || session.id,
       update_policy: session.metadata[:update_policy],
@@ -40,6 +44,9 @@ class License < ApplicationRecord
     license
   end
 
+  # Keyed on payment_intent, which card Checkout always populates. A session fulfilled
+  # via the `session.id` fallback (async payment methods only — not used today) wouldn't
+  # be matched here; revisit if async payment methods are enabled.
   def self.refund!(stripe_payment_id:)
     find_by(stripe_payment_id:)&.update!(status: "refunded")
   end
@@ -57,10 +64,15 @@ class License < ApplicationRecord
   end
 
   def renew!(stripe_payment_id:)
-    from = [ expires_at, Time.current ].compact.max
-    update!(status: "active", stripe_payment_id:,
-      expires_at: product.license_expires_at(from:, policy: effective_update_policy))
-    self
+    with_lock do
+      # Idempotent under Stripe's at-least-once retries: a duplicate delivery of the
+      # same renewal carries the same payment id and must not extend the window twice.
+      next self if self.stripe_payment_id == stripe_payment_id
+      from = [ expires_at, Time.current ].compact.max
+      update!(status: "active", stripe_payment_id:,
+        expires_at: product.license_expires_at(from:, policy: effective_update_policy))
+      self
+    end
   end
 
   def deliver_later

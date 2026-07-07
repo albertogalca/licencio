@@ -48,13 +48,14 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert claims["iat"].is_a?(Integer)
   end
 
-  test "capacity limit exceeded returns 409" do
+  test "capacity limit exceeded returns 409 with seat_limit_reached" do
     activate(hardware_id: "HW-1")
     activate(hardware_id: "HW-2")
     assert_no_difference "Activation.count" do
       activate(hardware_id: "HW-3")
     end
     assert_response :conflict
+    assert_equal "seat_limit_reached", response.parsed_body["code"]
   end
 
   test "re-activating the same device is idempotent" do
@@ -98,23 +99,26 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
-  test "unknown license key is 404" do
+  test "unknown license key is 404 with a machine code" do
     activate(hardware_id: "HW-1", license_key: "does-not-exist")
     assert_response :not_found
+    assert_equal "license_not_found", response.parsed_body["code"]
   end
 
-  test "non-active license is forbidden" do
-    @license.update!(status: "expired")
+  test "a refunded license returns the license_refunded code" do
+    @license.update!(status: "refunded")
     activate(hardware_id: "HW-1")
     assert_response :forbidden
+    assert_equal "license_refunded", response.parsed_body["code"]
   end
 
-  test "an active license past its expiry is forbidden (no JWT slips between sweeps)" do
+  test "an active license past its expiry returns license_expired (no JWT between sweeps)" do
     @license.update!(status: "active", expires_at: 1.day.ago)
     assert_no_difference "Activation.count" do
       activate(hardware_id: "HW-1")
     end
     assert_response :forbidden
+    assert_equal "license_expired", response.parsed_body["code"]
   end
 
   test "another product's license is not found" do
@@ -147,11 +151,18 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test "activation without a license key is forbidden when the product has no trial" do
+  test "activation without a license key returns trial_unavailable when the product has no trial" do
     assert_no_difference "License.count" do
       post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json
     end
     assert_response :forbidden
+    assert_equal "trial_unavailable", response.parsed_body["code"]
+  end
+
+  test "missing api key returns unauthorized with a code" do
+    post "/api/licenses/activate", params: { license_key: @license.license_key, hardware_id: "HW-1", nonce: "n" }, as: :json
+    assert_response :unauthorized
+    assert_equal "unauthorized", response.parsed_body["code"]
   end
 
   private

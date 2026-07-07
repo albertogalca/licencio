@@ -16,8 +16,8 @@ class Portal::DashboardControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
-    def sign_in(customer)
-      customer.update!(auth_token: "tok-#{customer.id}", auth_token_expires_at: 10.minutes.from_now)
-      get portal_session_path(token: customer.auth_token, product: "cozy")
+    def sign_in(customer, product: products(:cozy))
+      token = PortalToken.issue!(customer:, product:)
+      get portal_session_path(token: token.token)
     end
 end

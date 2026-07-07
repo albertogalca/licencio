@@ -101,10 +101,31 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "a signed event whose metadata names a different product mints nothing" do
+    # Signed with @product's (picmal) secret but pointing at cozy — must not fulfill.
+    other = products(:cozy)
+    assert_no_difference "License.count" do
+      post_event completed_event(product_id: other.id)
+    end
+    assert_response :ok
+  end
+
+  test "a refund only revokes licenses on the endpoint's own product" do
+    post_event completed_event(payment_intent: "pi_scoped")
+    victim = License.order(:created_at).last
+    # A cozy license sharing the payment id must be untouched by picmal's endpoint.
+    foreign = products(:cozy).licenses.create!(status: "active", max_activations: 1, stripe_payment_id: "pi_scoped")
+
+    post_event refunded_event(payment_intent: "pi_scoped")
+    assert victim.reload.refunded?
+    assert foreign.reload.active?, "another product's license must not be revoked"
+  end
+
   private
-    def refunded_event(payment_intent:, amount: 1000, amount_refunded: 1000)
+    def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",
-        data: { object: { payment_intent:, amount:, amount_refunded: } } }.to_json
+        data: { object: { payment_intent:, amount:, amount_captured: amount_captured || amount,
+                          amount_refunded: } } }.to_json
     end
 
     def completed_event(email: "buyer@example.com", product_id: @product.id,

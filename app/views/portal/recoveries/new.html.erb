@@ -17,8 +17,9 @@
         <div>
           <%= form.label :product, "Product", class: "field-label" %>
           <%= form.text_field :product, value: @product_slug,
-                placeholder: "product name",
+                placeholder: "e.g. Cozy",
                 class: "field-input" %>
+          <p class="field-hint">The product you bought.</p>
         </div>
       <% end %>
       <div>

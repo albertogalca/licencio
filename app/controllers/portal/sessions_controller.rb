@@ -2,15 +2,14 @@ class Portal::SessionsController < Portal::BaseController
   skip_before_action :require_customer
 
   def create
-    product = Product.find_by(slug: params[:product])
-    if product && (customer = Customer.authenticate_token(params[:token]))
+    if token = PortalToken.authenticate(params[:token])
       reset_session
-      session[:customer_id] = customer.id
-      session[:portal_product_id] = product.id
-      customer.clear_auth_token! # single-use link
+      session[:customer_id] = token.customer_id
+      session[:portal_product_id] = token.product_id # product is bound to the token
+      token.destroy! # single-use link
       redirect_to portal_root_path
     else
-      redirect_to new_portal_recovery_path(product: params[:product]), alert: "That link is invalid or has expired. Request a new one."
+      redirect_to new_portal_recovery_path, alert: "That link is invalid or has expired. Request a new one."
     end
   end
 

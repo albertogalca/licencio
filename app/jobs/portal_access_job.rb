@@ -1,6 +1,8 @@
 class PortalAccessJob < ApplicationJob
-  def perform(customer, product)
-    return if customer.nil?
+  def perform(portal_token)
+    return if portal_token.nil?
+    customer = portal_token.customer
+    product  = portal_token.product
     if product.loops_transactional_id.blank?
       Rails.logger.warn("PortalAccessJob: #{product.slug} has no loops_transactional_id; " \
         "skipping portal email for #{customer.email}")
@@ -11,7 +13,7 @@ class PortalAccessJob < ApplicationJob
       transactional_id: product.loops_transactional_id,
       email: customer.email,
       data: {
-        magic_link_url: url_helpers.portal_session_url(token: customer.auth_token, product: product.slug),
+        magic_link_url: url_helpers.portal_session_url(token: portal_token.token),
         license_keys: product.licenses.where(customer:).pluck(:license_key).join("\n"),
         product_name: product.name,
         sender_email: product.sender_email
