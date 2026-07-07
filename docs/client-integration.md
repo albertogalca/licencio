@@ -90,6 +90,27 @@ curl -X DELETE https://your-host/api/licenses/deactivate \
   -d '{"license_key":"demo_ab12...","hardware_id":"<machine-uuid>"}'
 ```
 
+## Verify a token in any language
+
+The whole check is one Ed25519 signature verification plus a few field checks.
+Any language with an Ed25519 primitive can do it — no JWT library required:
+
+1. **Split** the JWT on `.` into three segments: header, payload, signature.
+2. **base64url-decode** the signature (segment 3). The bytes that were signed are
+   the ASCII of `segment1 + "." + segment2` (header and payload, joined by a dot,
+   *before* decoding).
+3. **Verify** that signature over those bytes with the product's public key —
+   standard base64 of the raw 32-byte Ed25519 key. Reject the token if it fails.
+4. **base64url-decode** the payload (segment 2) into JSON. Confirm `hardware_id`
+   and `nonce` match what *this* device sent at activation.
+5. **Enforce the claims yourself:** reject if `expires_at` is in the past (`null`
+   means lifetime — never expires); gate updates on `update_eligible`.
+
+The Ed25519 primitive by platform: Node `crypto.verify('ed25519', …)`, Python
+`cryptography`'s `Ed25519PublicKey.verify`, Go `ed25519.Verify`, Rust `ed25519-dalek`,
+Swift `Curve25519.Signing` (below). base64url = base64 with `-`→`+`, `_`→`/`, and
+`=` padding restored.
+
 ## Swift (macOS / iOS) — CryptoKit, no dependencies
 
 ```swift

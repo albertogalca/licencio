@@ -4,13 +4,14 @@
 
 <h1 align="center">Licencio</h1>
 
-Self-hostable software-licensing backend. Sell licenses for your apps through
-Stripe, and hand every activated device a **cryptographically signed license
-token (EdDSA JWT)** it can verify **offline** — no phone-home, no license server
-in the hot path.
+Self-hostable licensing backend for your apps. Sell license keys through Stripe;
+each activated device gets a signed key it can check **offline** — no license
+server to call every time the app launches.
 
-Built with Rails 8, Postgres, and the Solid stack (Queue/Cache/Cable — all in one
-database). No Redis, no external services required beyond Stripe and (optionally)
+Under the hood that signed key is an EdDSA (Ed25519) JWT the device verifies with
+a public key you ship in the app — so there's no phone-home and no shared secret
+in the client. Built on Rails 8 + Postgres with the Solid stack (Queue/Cache/Cable,
+all in one database): no Redis, nothing external beyond Stripe and (optionally)
 Loops for email.
 
 - **License**: MIT (see [`LICENSE`](LICENSE))
@@ -65,53 +66,44 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 
 ## Self-hosting
 
-### Quick start (Docker)
+### First-time setup (Docker)
 
-Requires Docker with Compose. One physical Postgres, one database, one web
-container (Solid Queue runs inside Puma).
+Requires Docker with Compose. One Postgres, one database, one web container
+(Solid Queue runs inside Puma). Run these once:
 
 ```bash
 git clone <your-fork> licencio && cd licencio
 
-# 1. Generate a master key + credentials if you don't have them yet.
-#    (Keep config/master.key secret and OUT of git — it's already gitignored.)
-#    Skip if you already have config/master.key from a Rails credentials:edit.
-EDITOR=true bin/rails credentials:edit   # creates config/master.key + credentials.yml.enc
+# 1. Create your master key + credentials (skip if you already have config/master.key).
+#    Keep config/master.key secret and OUT of git — it's already gitignored.
+EDITOR=true bin/rails credentials:edit
 
-# 2. Configure the environment.
+# 2. Add the Active Record encryption keys. These encrypt each Product's Stripe,
+#    Loops, and signing secrets at rest. Generate them, then paste them into your
+#    credentials under `active_record_encryption:`.
+bin/rails db:encryption:init          # prints keys to copy
+bin/rails credentials:edit            # paste them under active_record_encryption:
+
+# 3. Set up the environment file.
 cp env.example .env
-#    Put the master key into .env so the container can decrypt credentials:
 echo "RAILS_MASTER_KEY=$(cat config/master.key)" >> .env
-#    ...then edit .env and fill in Stripe / Loops / admin keys.
+#    ...then edit .env and fill in the rest (see Environment variables below).
 
-# 3. Boot it. The container runs db:prepare (create + migrate) on start.
+# 4. Boot it. The container runs db:prepare (create + migrate) on start.
 docker compose up --build
 ```
 
-The app comes up on `http://localhost` (health check at `/up`). Behind a
-TLS-terminating proxy (Coolify, Render, Caddy, Kamal proxy) it enforces HTTPS
-automatically (`config.assume_ssl` + `config.force_ssl`).
+The app comes up on `http://localhost` (health check at `/up`). `RAILS_MASTER_KEY`
+is the one thing that unlocks everything in production — without it the app can't
+decrypt credentials or take payments.
+
+Behind a TLS-terminating proxy (Coolify, Render, Caddy, Kamal proxy) it enforces
+HTTPS automatically.
 
 > **One-click platforms** (Coolify / Render / Hetzner / DigitalOcean App Platform)
-> read this repo's `docker-compose.yml` or `Dockerfile` directly. Provide the same
-> environment variables through their dashboard and point `DATABASE_URL` at your
-> managed Postgres. Because it's a **single database**, any managed Postgres works
-> as-is.
-
-### Active Record encryption
-
-`Product#eddsa_private_key`, `Product#loops_api_key`, `Product#stripe_secret_key`,
-and `Product#stripe_webhook_secret` are encrypted at rest.
-The keys live in Rails credentials under `active_record_encryption`. If you
-generated fresh credentials in step 1, add them once:
-
-```bash
-bin/rails db:encryption:init          # prints keys
-bin/rails credentials:edit            # paste them under `active_record_encryption:`
-```
-
-`RAILS_MASTER_KEY` is what unlocks all of this in production — without it the app
-can't decrypt credentials or encrypted columns.
+> read this repo's `docker-compose.yml` or `Dockerfile` directly. Set the same
+> environment variables in their dashboard and point `DATABASE_URL` at your managed
+> Postgres — any managed Postgres works, since it's a **single database**.
 
 ## Environment variables
 
@@ -130,44 +122,18 @@ Everything Stripe — including the checkout success/cancel redirect URLs — li
 
 ## Creating your first Product
 
-Create an admin login and use the admin UI (the password is read from a hidden
-prompt, so it never lands in your shell history):
+Create an admin login (the password is read from a hidden prompt, so it never
+lands in your shell history), then use the admin UI:
 
 ```bash
 docker compose exec web bin/rails "admin:create[you@example.com]"
 ```
 
-Sign in at `/admin`, then **Products → New**. `slug`, `bundle_identifier`, and
-`license_prefix` are set once (baked into license keys); the `api_key` and EdDSA
-keypair are generated for you and shown on the product's edit page.
-
-Ship `eddsa_public_key` inside your client app; it's static per Product and safe
-to publish. See [`docs/client-integration.md`](docs/client-integration.md) for the
-offline verification code (Swift/CryptoKit), and
-[`docs/operating-guide.md`](docs/operating-guide.md) for the full field-by-field
-walkthrough.
-
-## Connecting Stripe
-
-1. Create a Stripe **Product** and, on the Licencio Product in `/admin`, set its
-   `prod_…` id and its `stripe_secret_key` (`sk_…`). Different Licencio Products can
-   use different Stripe accounts — the key is stored (encrypted) per Product.
-2. Add one **Price** per variant (seat option) on that Stripe Product — e.g.
-   `nickname` "3 seats", a one-time amount, and metadata **`seats: 3`**. The
-   `seats` value becomes the license's device cap; missing metadata falls back to
-   the product's `max_activations_default` (blank there = unlimited seats). Add
-   metadata `update_policy: lifetime` to sell a lifetime variant on a versioned
-   product. A single-price product is just one Price. Prices are managed entirely
-   in Stripe — no price data is stored locally.
-3. Set the Product's `checkout_success_url` / `checkout_cancel_url` (where Stripe
-   returns the buyer). Required once `stripe_product_id` is set.
-4. Add a webhook endpoint → `https://APP_HOST/webhooks/stripe/PRODUCT_ID` (the
-   Product's edit page shows the exact URL), events `checkout.session.completed`
-   and `charge.refunded`. Paste its signing secret into the Product's
-   `stripe_webhook_secret`.
-5. Your app calls `POST /api/checkout` with the Product `slug` and the chosen
-   variant's `price_id` to get a Checkout URL. On payment, the webhook fulfills
-   the license (idempotent on the Stripe payment id).
+Sign in at `/admin` and go to **Products → New**. The full field-by-field
+walkthrough — connecting Stripe, adding variants, wiring email, and putting
+buy/recover links on your website — is the
+**[operating guide](docs/operating-guide.md)**. To build the app that verifies
+license tokens, see **[client integration](docs/client-integration.md)**.
 
 ## Development
 
