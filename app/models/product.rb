@@ -8,6 +8,7 @@ class Product < ApplicationRecord
 
   has_many :licenses, dependent: :restrict_with_error
   has_many :activations, through: :licenses
+  has_many :customers, through: :licenses
 
   encrypts :loops_api_key
   encrypts :eddsa_private_key
@@ -90,6 +91,10 @@ class Product < ApplicationRecord
       end.sort_by(&:amount_cents)
     end
   end
+
+  # Distinct buyers of this product (Lemon Squeezy imports + Stripe), for the
+  # storefront's "trusted by N" social proof.
+  def customer_count = customers.distinct.count
 
   CheckoutNotConfigured = Class.new(StandardError)
 
