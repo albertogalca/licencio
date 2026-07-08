@@ -55,7 +55,9 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | Route | Auth | Purpose |
 |-------|------|---------|
 | `GET /api/products/:slug/variants` | none | list a product's variants (Stripe prices) for a pricing page |
-| `POST /api/checkout` | product `slug` + Stripe `price_id` in body | create a Stripe Checkout session for the chosen variant |
+| `GET /api/products/:slug/stats` | none | product's distinct customer count (for "trusted by N" social proof) |
+| `GET /api/checkout?product_slug=…&price_id=…` | none | 302-redirect a plain buy link straight to Stripe Checkout |
+| `POST /api/checkout` | product `slug` + Stripe `price_id` in body | create a Stripe Checkout session (Managed Payments) → `{ url }` |
 | `POST /api/licenses/activate` | `X-Api-Key` | activate a device → `{ jwt, public_key }` |
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |

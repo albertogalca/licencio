@@ -77,13 +77,13 @@ Two more steps in Stripe:
 
 1. **Add a Price for each option you sell.** On the Stripe product, add one Price
    per seat option — give it a nickname ("2 seats"), a one-time amount, and a
-   metadata field **`seats`** (e.g. `2`). These Prices are your **variants**
-   (more on selling them in §4). The `seats` value becomes the license's device
-   cap. If you leave `seats` off, checkout falls back to the product's
-   `max_activations_default`; if that's blank too, the license gets **unlimited
-   seats** (the variant list marks any uncapped price with a ⚠, so it's never a
-   silent surprise). Prices live entirely in Stripe — add, rename, or reprice
-   them any time, and non-linear pricing is fine (2 seats needn't cost 2×).
+   metadata field **`seats`**: a number (e.g. `2`) for a device cap, or
+   **`unlimited`** (or `0`) for a license that covers every device. These Prices
+   are your **variants** (more on selling them in §4). Unlimited must be declared
+   explicitly — if a Price has no `seats` **and** the product has no
+   `max_activations_default`, checkout is **refused** (a `503`), so you never ship
+   an uncapped license by accident. Prices live entirely in Stripe — add, rename,
+   or reprice them any time, and non-linear pricing is fine (2 seats needn't cost 2×).
 
 2. **Register the webhook.** In Stripe, add an endpoint at
    `https://YOUR_APP_HOST/webhooks/stripe/PRODUCT_ID` (the product's edit page
@@ -107,7 +107,7 @@ without them.
 | `name` | display name |
 | `update_policy` | the product's default policy — see [Update policies](#update-policies-read-this-once) |
 | `current_version` | for `versioned` products, the latest major version (starts at 1) |
-| `max_activations_default` | fallback seats when a Price has no `seats` metadata; **blank = unlimited** (∞) |
+| `max_activations_default` | fallback device cap when a Price has no `seats` metadata. A Price with neither is rejected at checkout — set `seats = unlimited` on the Price for an uncapped license |
 | `trial_days` | optional free-trial length |
 
 Once you save with Stripe keys set, the edit page shows a **live, read-only list
@@ -251,8 +251,24 @@ GET https://YOUR_APP_HOST/api/products/my-app/variants
 </script>
 ```
 
+**Simplest option — a plain link.** `GET /api/checkout` builds the same session
+but **302-redirects straight to Stripe**, so a static site needs no JavaScript at
+all — just an `<a>`:
+
+```html
+<a href="https://YOUR_APP_HOST/api/checkout?product_slug=my-app&price_id=price_123">
+  Buy My App
+</a>
+```
+
+Both routes run Checkout through **Stripe Managed Payments** — Stripe is the
+merchant of record, so it calculates, collects, and remits tax (no registrations
+on your end) — and the Checkout page shows a coupon field. Enable Managed Payments
+on your Stripe account first, or session creation errors.
+
 `product_slug` and `price_id` are required (the price must belong to the
-product's Stripe product, or you get a 404). Optional body fields:
+product's Stripe product, or you get a 404). Optional fields (body for POST,
+query string for GET):
 
 - `email` — prefills the Checkout form.
 - `renew_license_key` — renews an existing license instead of issuing a new one
