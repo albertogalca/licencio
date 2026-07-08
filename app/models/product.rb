@@ -74,6 +74,15 @@ class Product < ApplicationRecord
     seats if seats&.positive?
   end
 
+  # First line-item price of a completed Checkout Session (nil if none). A Stripe Payment
+  # Link carries no session metadata, so fulfillment identifies and sizes the sale from the
+  # purchased price (product ownership + `price.metadata["seats"]`). Uses stripe_opts, so
+  # the product's stripe_secret_key must be set.
+  def session_price(session)
+    Stripe::Checkout::Session
+      .list_line_items(session.id, { limit: 1 }, stripe_opts).data.first&.price
+  end
+
   def variants
     Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
       Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data.map do |p|

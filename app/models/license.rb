@@ -46,21 +46,37 @@ class License < ApplicationRecord
   validates :licensed_version, presence: true, if: -> { product && effective_update_policy == "versioned" }
 
   def self.fulfill_from_stripe_session(product, session)
-    # The session must name the same product whose webhook secret signed it — a
-    # signed event can't mint a license for a different product.
-    return if session.metadata.licencio_product_id.to_s != product.id.to_s
+    meta = session.metadata
+    # The dynamic /api/checkout tags the session with licencio_product_id — honor it, and
+    # never mint for a session explicitly tagged for a different product. A Stripe Payment
+    # Link carries no such tag, so fall through and confirm the purchased price is one of this
+    # product's Stripe prices instead (the webhook is already per-product and signature-verified,
+    # so the price check is the belt to that signature's suspenders — and it's what lets a
+    # Dashboard-created Payment Link with no metadata fulfill).
+    tag = meta.licencio_product_id.presence
+    return if tag && tag.to_s != product.id.to_s
+    quantity = meta[:quantity].presence&.to_i
+    price = product.session_price(session) unless tag && quantity
+    return unless tag || price&.product == product.stripe_product_id
+
+    if quantity.nil?
+      # Payment Link: seats live on the price. Refuse rather than mint an unlimited-seat
+      # license (nil max_activations) from a price that declares no seat count anywhere.
+      raise Product::CheckoutNotConfigured, "session #{session.id} has no seat count" if
+        price.nil? || (price.metadata["seats"].blank? && product.max_activations_default.blank?)
+      quantity = product.seats_for(price)
+    end
 
     customer = Customer.upsert!(email: session.customer_details.email)
     license = fulfill!(
-      product:, customer:,
-      quantity: session.metadata[:quantity]&.to_i,
+      product:, customer:, quantity:,
       stripe_payment_id: session.payment_intent || session.id,
-      price_id: session.metadata[:price_id],
+      price_id: meta[:price_id].presence || price&.id,
       stripe_customer_id: session.customer,
       amount_cents: session.amount_total,
       currency: session.currency,
-      update_policy: session.metadata[:update_policy],
-      renew_key: session.metadata[:renew_license_key])
+      update_policy: meta[:update_policy].presence || (price.metadata["update_policy"] if price),
+      renew_key: meta[:renew_license_key])
     # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
     # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
     if license

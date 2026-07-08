@@ -316,4 +316,66 @@ class LicenseTest < ActiveSupport::TestCase
       License.remind_expiring!(days: 7)
     end
   end
+
+  test "fulfill_from_stripe_session (Payment Link): no metadata — derives seats + product from the price" do
+    product = products(:picmal)
+    price = fake_stripe_price("price_pl", product.stripe_product_id, { "seats" => "3" })
+    session = fake_session(metadata: {}, id: "cs_pl")
+    stub_line_item(price) do
+      assert_difference "License.count", 1 do
+        license = License.fulfill_from_stripe_session(product, session)
+        assert_equal 3, license.max_activations
+        assert_equal product, license.product
+        assert_equal "price_pl", license.stripe_price_id
+      end
+    end
+  end
+
+  test "fulfill_from_stripe_session (dynamic): trusts session metadata without calling Stripe" do
+    product = products(:picmal)
+    # No list_line_items stub — a Stripe call here would raise and fail the test.
+    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "2", price_id: "price_dyn" }, id: "cs_dyn")
+    license = License.fulfill_from_stripe_session(product, session)
+    assert_equal 2, license.max_activations
+    assert_equal "price_dyn", license.stripe_price_id
+  end
+
+  test "fulfill_from_stripe_session ignores a sale whose price belongs to another Stripe product" do
+    product = products(:picmal)
+    price = fake_stripe_price("price_x", "prod_SOMEONE_ELSE", { "seats" => "1" })
+    session = fake_session(metadata: {}, id: "cs_other")
+    stub_line_item(price) do
+      assert_no_difference "License.count" do
+        assert_nil License.fulfill_from_stripe_session(product, session)
+      end
+    end
+  end
+
+  test "fulfill_from_stripe_session refuses to mint when no seat count is declared anywhere" do
+    product = products(:picmal)
+    product.update!(max_activations_default: nil)
+    price = fake_stripe_price("price_noseat", product.stripe_product_id, {})
+    session = fake_session(metadata: {}, id: "cs_noseat")
+    stub_line_item(price) do
+      assert_raises(Product::CheckoutNotConfigured) { License.fulfill_from_stripe_session(product, session) }
+    end
+  end
+
+  private
+    def fake_session(metadata:, id:)
+      meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
+        keyword_init: true).new(**metadata)
+      Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total, :currency,
+        keyword_init: true).new(metadata: meta, id:, customer_details: Struct.new(:email).new("buyer-#{id}@example.com"),
+        payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, currency: "usd")
+    end
+
+    def fake_stripe_price(id, product, metadata)
+      Struct.new(:id, :product, :metadata).new(id, product, metadata)
+    end
+
+    def stub_line_item(price, &blk)
+      list = Struct.new(:data).new([ Struct.new(:price).new(price) ])
+      Stripe::Checkout::Session.stub(:list_line_items, ->(*_) { list }, &blk)
+    end
 end
