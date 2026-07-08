@@ -21,7 +21,7 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ { price: "price_3", quantity: 1 } ], captured[:line_items]
     assert_equal 3, captured[:metadata][:quantity]
     assert_equal @product.id, captured[:metadata][:licencio_product_id]
-    assert_equal({ enabled: true }, captured[:automatic_tax])
+    assert_equal({ enabled: true }, captured[:managed_payments])
     assert_equal true, captured[:allow_promotion_codes]
   end
 

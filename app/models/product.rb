@@ -110,8 +110,10 @@ class Product < ApplicationRecord
     end
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
-      automatic_tax: { enabled: true },   # Stripe Tax adds tax on top of the tax-exclusive price
-      allow_promotion_codes: true,        # show the coupon field at checkout
+      managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
+                                            # remits global VAT/sales tax (no registrations on our end).
+                                            # MoR owns tax config, so do NOT set automatic_tax here.
+      allow_promotion_codes: true,          # show the coupon field at checkout
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # PostHog distinct_id → closed-loop attribution
