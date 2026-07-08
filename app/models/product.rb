@@ -74,6 +74,15 @@ class Product < ApplicationRecord
     seats if seats&.positive?
   end
 
+  # First line-item price of a completed Checkout Session (nil if none). A Stripe Payment
+  # Link carries no session metadata, so fulfillment identifies and sizes the sale from the
+  # purchased price (product ownership + `price.metadata["seats"]`). Uses stripe_opts, so
+  # the product's stripe_secret_key must be set.
+  def session_price(session)
+    Stripe::Checkout::Session
+      .list_line_items(session.id, { limit: 1 }, stripe_opts).data.first&.price
+  end
+
   def variants
     Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
       Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data.map do |p|
@@ -84,7 +93,7 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
-  def create_checkout_session(price_id:, email:, renew_license_key: nil)
+  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -101,8 +110,13 @@ class Product < ApplicationRecord
     end
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
+      managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
+                                            # remits global VAT/sales tax (no registrations on our end).
+                                            # MoR owns tax config, so do NOT set automatic_tax here.
+      allow_promotion_codes: true,          # show the coupon field at checkout
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
+      client_reference_id: client_reference_id.presence, # PostHog distinct_id → closed-loop attribution
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,

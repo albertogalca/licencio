@@ -21,6 +21,21 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ { price: "price_3", quantity: 1 } ], captured[:line_items]
     assert_equal 3, captured[:metadata][:quantity]
     assert_equal @product.id, captured[:metadata][:licencio_product_id]
+    assert_equal({ enabled: true }, captured[:managed_payments])
+    assert_equal true, captured[:allow_promotion_codes]
+  end
+
+  test "GET redirects the buyer straight to Stripe Checkout and forwards client_reference_id" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", client_reference_id: "ph_abc" }
+      end
+    end
+
+    assert_redirected_to "https://stripe.test/session"
+    assert_equal "ph_abc", captured[:client_reference_id]
   end
 
   test "rejects a price that belongs to a different Stripe product" do
