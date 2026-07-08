@@ -8,7 +8,8 @@ Rails.application.routes.draw do
 
   namespace :api do
     get    "products/:product_slug/variants" => "products#variants"
-    post   "checkout"            => "checkouts#create"
+    get    "checkout"            => "checkouts#new"    # buy button → 302 to Stripe Checkout
+    post   "checkout"            => "checkouts#create" # same session as JSON { url }
     post   "licenses/activate"   => "activations#create"
     delete "licenses/deactivate" => "activations#destroy"
     post   "licenses/recover"    => "recoveries#create"

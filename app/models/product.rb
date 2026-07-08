@@ -93,7 +93,7 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
-  def create_checkout_session(price_id:, email:, renew_license_key: nil)
+  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -112,6 +112,7 @@ class Product < ApplicationRecord
       mode: "payment", customer_creation: "always",
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
+      client_reference_id: client_reference_id.presence, # PostHog distinct_id → closed-loop attribution
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence }.compact,
