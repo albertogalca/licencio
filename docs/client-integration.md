@@ -39,7 +39,7 @@ base64url(header) . base64url(payload) . base64url(signature)
 curl -X POST https://your-host/api/licenses/activate \
   -H "X-Api-Key: prod_xxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"license_key":"demo_ab12...","hardware_id":"<machine-uuid>","nonce":"<random>"}'
+  -d '{"license_key":"MYAPP-2C295B41-135C-4C2B-AFA6-5DEB9C05A733","hardware_id":"<machine-uuid>","nonce":"<random>"}'
 ```
 
 Response:
@@ -106,7 +106,7 @@ the `hardware_id` to release. Returns `204 No Content` on success, or
 curl -X DELETE https://your-host/api/licenses/deactivate \
   -H "X-Api-Key: prod_xxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"license_key":"demo_ab12...","hardware_id":"<machine-uuid>"}'
+  -d '{"license_key":"MYAPP-2C295B41-135C-4C2B-AFA6-5DEB9C05A733","hardware_id":"<machine-uuid>"}'
 ```
 
 ## Verify a token in any language
