@@ -50,15 +50,15 @@ class LicenseTest < ActiveSupport::TestCase
     end
   end
 
-  test "generate_key uses a downcased prefix and is unique" do
-    key = License.generate_key(products(:picmal))
-    assert_match(/\Apicm_[a-z0-9]+\z/, key) # license_prefix PICM -> picm_
+  test "generate_key uppercases the prefix and appends a UUID, unique each time" do
+    key = License.generate_key(products(:picmal)) # license_prefix PICM -> PICM-<UUID>
+    assert_match(/\APICM-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\z/, key)
     assert_not_equal key, License.generate_key(products(:picmal))
   end
 
   test "assigns a native license_key on create" do
     license = products(:cozy).licenses.create!(status: "active", max_activations: 3)
-    assert_match(/\Acozy_[a-z0-9]+\z/, license.license_key)
+    assert_match(/\ACOZY-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\z/, license.license_key)
   end
 
   test "find_by_key looks up by exact string" do

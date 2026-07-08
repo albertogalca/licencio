@@ -228,7 +228,7 @@ class License < ApplicationRecord
   end
 
   def self.generate_key(product)
-    "#{product.license_prefix.downcase}_#{SecureRandom.alphanumeric(24).downcase}"
+    "#{product.license_prefix.upcase}-#{SecureRandom.uuid.upcase}"
   end
 
   def self.find_by_key(key) = find_by(license_key: key)
