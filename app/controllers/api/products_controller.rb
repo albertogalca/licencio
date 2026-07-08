@@ -7,4 +7,10 @@ class Api::ProductsController < Api::PublicController
     product = Product.find_by!(slug: params[:product_slug])
     render json: { variants: product.variants.map(&:to_h) }
   end
+
+  # Social-proof counter for the storefront ("trusted by N customers").
+  def stats
+    product = Product.find_by!(slug: params[:product_slug])
+    render json: { customers: product.customer_count }
+  end
 end

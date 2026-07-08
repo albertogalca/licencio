@@ -23,6 +23,17 @@ class Api::ProductsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "reports the product's distinct customer count" do
+    get "/api/products/#{@product.slug}/stats"
+    assert_response :ok
+    assert_equal 1, response.parsed_body["customers"]
+  end
+
+  test "stats for an unknown slug is not found" do
+    get "/api/products/nope/stats"
+    assert_response :not_found
+  end
+
   private
     def fake_price(id, nickname, unit_amount, metadata)
       Struct.new(:id, :nickname, :unit_amount, :metadata).new(id, nickname, unit_amount, metadata)

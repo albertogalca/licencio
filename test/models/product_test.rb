@@ -6,6 +6,11 @@ class ProductTest < ActiveSupport::TestCase
     assert products(:picmal).valid?
   end
 
+  test "customer_count counts distinct buyers, ignoring unclaimed licenses" do
+    # cozy has two licenses (one claimed by alberto, one unclaimed/nil customer)
+    assert_equal 1, products(:cozy).customer_count
+  end
+
   test "requires name, slug, and update_policy" do
     product = Product.new
     assert_not product.valid?
