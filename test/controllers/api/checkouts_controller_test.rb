@@ -21,6 +21,8 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ { price: "price_3", quantity: 1 } ], captured[:line_items]
     assert_equal 3, captured[:metadata][:quantity]
     assert_equal @product.id, captured[:metadata][:licencio_product_id]
+    assert_equal({ enabled: true }, captured[:automatic_tax])
+    assert_equal true, captured[:allow_promotion_codes]
   end
 
   test "GET redirects the buyer straight to Stripe Checkout and forwards client_reference_id" do
