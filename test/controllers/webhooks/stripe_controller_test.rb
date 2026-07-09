@@ -70,6 +70,14 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a completed purchase stores the name Stripe collected, and tolerates its absence" do
+    post_event completed_event(email: "named@example.com", name: "Ada Lovelace", payment_intent: "pi_named")
+    assert_equal "Ada Lovelace", Customer.find_by(email: "named@example.com").name
+
+    post_event completed_event(email: "anon@example.com", payment_intent: "pi_anon")
+    assert_nil Customer.find_by(email: "anon@example.com").name
+  end
+
   test "a refund enqueues an unsubscribe contact sync and a refund email" do
     post_event completed_event(payment_intent: "pi_unsub")
     assert_enqueued_with(job: LicenseEmailJob) do
@@ -175,16 +183,20 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
                           amount_refunded: } } }.to_json
     end
 
+    # name: nil omits the key, exactly as Stripe does when the Checkout Session
+    # doesn't collect a name — the default here so most tests cover that path.
     def completed_event(email: "buyer@example.com", product_id: @product.id,
                         quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
-                        stripe_customer: "cus_buyer", amount_total: 2999, currency: "eur")
+                        stripe_customer: "cus_buyer", amount_total: 2999, currency: "eur", name: nil)
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
+      customer_details = { email: }
+      customer_details[:name] = name if name
       {
         type: "checkout.session.completed",
         data: { object: {
           customer: stripe_customer,
-          customer_details: { email: },
+          customer_details:,
           metadata:,
           payment_intent:,
           amount_total:,

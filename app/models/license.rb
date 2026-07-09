@@ -67,7 +67,8 @@ class License < ApplicationRecord
       quantity = product.seats_for(price)
     end
 
-    customer = Customer.upsert!(email: session.customer_details.email)
+    # []-access, not .name: Stripe omits the key entirely when name collection is off.
+    customer = Customer.upsert!(email: session.customer_details.email, name: session.customer_details[:name])
     license = fulfill!(
       product:, customer:, quantity:,
       stripe_payment_id: session.payment_intent || session.id,

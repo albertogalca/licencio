@@ -338,6 +338,8 @@ class LicenseTest < ActiveSupport::TestCase
     license = License.fulfill_from_stripe_session(product, session)
     assert_equal 2, license.max_activations
     assert_equal "price_dyn", license.stripe_price_id
+    # Stripe's collected name reaches the Customer, so LoopsContactJob can split it.
+    assert_equal "Ada Lovelace", license.customer.name
   end
 
   test "fulfill_from_stripe_session ignores a sale whose price belongs to another Stripe product" do
@@ -366,7 +368,8 @@ class LicenseTest < ActiveSupport::TestCase
       meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
         keyword_init: true).new(**metadata)
       Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total, :currency,
-        keyword_init: true).new(metadata: meta, id:, customer_details: Struct.new(:email).new("buyer-#{id}@example.com"),
+        keyword_init: true).new(metadata: meta, id:,
+        customer_details: Struct.new(:email, :name).new("buyer-#{id}@example.com", "Ada Lovelace"),
         payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, currency: "usd")
     end
 
