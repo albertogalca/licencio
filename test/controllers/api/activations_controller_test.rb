@@ -27,6 +27,28 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @product.eddsa_public_key, body["public_key"]
   end
 
+  # The desktop client shows "Licensed to <email>" once activated, so the buyer's
+  # own address comes back with the token.
+  test "successful activation returns the license's customer" do
+    customer = Customer.upsert!(email: "ada@example.com", name: "Ada")
+    @license.update!(customer:)
+
+    activate(hardware_id: "HW-1")
+
+    assert_response :ok
+    assert_equal({ "name" => "Ada", "email" => "ada@example.com" }, response.parsed_body["customer"])
+  end
+
+  test "activation of an unclaimed license returns a nil customer, not an error" do
+    assert_nil @license.customer
+
+    activate(hardware_id: "HW-1")
+
+    assert_response :ok
+    assert_nil response.parsed_body["customer"]
+    assert response.parsed_body["jwt"].present?
+  end
+
   test "jwt is verifiable with the returned public key and echoes claims" do
     activate(hardware_id: "HW-1", nonce: "abc-nonce")
     jwt = response.parsed_body["jwt"]

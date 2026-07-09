@@ -17,7 +17,8 @@ class Api::ActivationsController < Api::BaseController
     if license.activatable?
       license.activate!(hardware_id: params[:hardware_id], device_name: params[:device_name])
       claims = license.token_claims(hardware_id: params[:hardware_id], nonce: params[:nonce])
-      render json: { jwt: @product.sign_jwt(claims), public_key: @product.eddsa_public_key }
+      render json: { jwt: @product.sign_jwt(claims), public_key: @product.eddsa_public_key,
+                     customer: customer_json(license.customer) }
     else
       render_api_error(license_error_code(license))
     end
@@ -35,6 +36,15 @@ class Api::ActivationsController < Api::BaseController
   private
     def require_hardware_id
       render_api_error(:missing_hardware_id) if params[:hardware_id].blank?
+    end
+
+    # Lets the client show "Licensed to ada@example.com" after activating. Only the
+    # holder of both the license key and the product's API key can reach this, so it
+    # discloses the buyer's own address back to them and nothing more. Nil for a
+    # trial, or for a license bought but not yet claimed by an email.
+    def customer_json(customer)
+      return nil unless customer
+      { name: customer.name, email: customer.email }
     end
 
     # Distinguish why an inactive license was refused, so the client can message it.
