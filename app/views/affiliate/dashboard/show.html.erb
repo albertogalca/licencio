@@ -31,20 +31,22 @@
   <div class="mb-4 space-y-3">
     <% @products.each do |product| %>
       <% url = @affiliate.referral_url(product) %>
-      <div data-controller="clipboard" class="relative">
+      <div>
         <p class="field-label"><%= product.name %></p>
-        <input type="text" readonly value="<%= url %>"
-               data-clipboard-target="source" data-action="focus->clipboard#select"
-               class="field-input w-full pr-11 font-mono text-xs">
-        <button type="button" data-action="clipboard#copy" aria-label="Copy link"
-                class="absolute inset-y-0 bottom-0 right-0 flex cursor-pointer items-center rounded-r-md px-3 text-gray-400 transition-colors hover:text-gray-700">
+        <div data-controller="clipboard" class="relative">
+          <input type="text" readonly value="<%= url %>"
+                 data-clipboard-target="source" data-action="focus->clipboard#select"
+                 class="field-input w-full pr-11 font-mono text-xs">
+          <button type="button" data-action="clipboard#copy" aria-label="Copy link"
+                  class="absolute inset-y-0 right-0 flex cursor-pointer items-center rounded-r-md px-3 text-gray-400 transition-colors hover:text-gray-700">
           <svg data-clipboard-target="copyIcon" class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="7" y="7" width="9" height="9" rx="2" /><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
           </svg>
           <svg data-clipboard-target="checkIcon" class="hidden h-4 w-4 text-accent-600" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M5 10.5l3.5 3.5L15 6.5" />
           </svg>
-        </button>
+          </button>
+        </div>
       </div>
     <% end %>
   </div>
