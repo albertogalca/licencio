@@ -94,7 +94,7 @@
             <% active.each do |activation| %>
               <tr class="border-t border-gray-100">
                 <td class="py-2.5"><%= activation.device_name.presence || "—" %></td>
-                <td class="py-2.5 font-mono text-xs text-gray-500"><%= activation.hardware_id %></td>
+                <td class="max-w-[12rem] break-all py-2.5 font-mono text-xs text-gray-500"><%= activation.hardware_id %></td>
                 <td class="py-2.5 text-gray-500 tabular-nums"><%= activation.activated_at.to_date.to_fs(:long) %></td>
                 <td class="py-2.5 text-right">
                   <%= button_to "Deactivate", portal_activation_path(activation), method: :delete,
