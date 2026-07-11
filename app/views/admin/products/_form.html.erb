@@ -133,6 +133,11 @@
       <%= form.url_field :affiliate_landing_url, class: "field-input" %>
       <p class="field-hint">Suggested referral link for this product (affiliates append <code>?ref=code</code>). Any page works.</p>
     </div>
+    <div>
+      <%= form.label :affiliate_commission_percent, "Affiliate commission % (this product)", class: "field-label" %>
+      <%= form.number_field :affiliate_commission_percent, in: 0..100, class: "field-input w-32" %>
+      <p class="field-hint">Overrides the affiliate's own rate for sales of this product. Leave blank to use the affiliate's rate (default 20%).</p>
+    </div>
   </section>
 
   <section class="card space-y-4 p-6">

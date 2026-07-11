@@ -72,7 +72,7 @@ class License < ApplicationRecord
     # never receive — and stored on the Payment, never recomputed from the affiliate's current rate.
     affiliate = Affiliate.find_by(id: meta[:affiliate_id]) if meta[:affiliate_id].present?
     subtotal = session.amount_subtotal || session.amount_total
-    commission_cents = affiliate&.commission_for(subtotal)
+    commission_cents = affiliate&.commission_for(subtotal, percent: product.affiliate_commission_percent)
 
     # []-access, not .name: Stripe omits the key entirely when name collection is off.
     customer = Customer.upsert!(email: session.customer_details.email, name: session.customer_details[:name])

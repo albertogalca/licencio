@@ -16,7 +16,8 @@ class Affiliate < ApplicationRecord
 
   # Commission is frozen at sale time (stored on the Payment), so it's computed off the amount then,
   # never recomputed from commission_percent later — changing the rate never rewrites past sales.
-  def commission_for(subtotal_cents) = subtotal_cents.to_i * commission_percent / 100
+  # percent: overrides the affiliate's own rate (per-product override); nil → the affiliate's rate.
+  def commission_for(subtotal_cents, percent: nil) = subtotal_cents.to_i * (percent || commission_percent) / 100
 
   # A code works on any product's checkout; the dashboard shows one suggested link per product.
   def referral_url(product) = "#{product.affiliate_landing_url}?ref=#{code}"
