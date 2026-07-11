@@ -366,11 +366,11 @@ class LicenseTest < ActiveSupport::TestCase
   private
     def fake_session(metadata:, id:)
       meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
-        keyword_init: true).new(**metadata)
-      Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total, :currency,
-        keyword_init: true).new(metadata: meta, id:,
+        :affiliate_id, keyword_init: true).new(**metadata)
+      Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total,
+        :amount_subtotal, :currency, keyword_init: true).new(metadata: meta, id:,
         customer_details: Struct.new(:email, :name).new("buyer-#{id}@example.com", "Ada Lovelace"),
-        payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, currency: "usd")
+        payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, amount_subtotal: 1599, currency: "usd")
     end
 
     def fake_stripe_price(id, product, metadata)

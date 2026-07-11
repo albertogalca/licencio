@@ -38,6 +38,30 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "ph_abc", captured[:client_reference_id]
   end
 
+  test "an approved ref code rides into the session metadata as affiliate_id" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", ref: "ALBERTO" }
+      end
+    end
+    assert_redirected_to "https://stripe.test/session"
+    assert_equal affiliates(:approved).id, captured[:metadata][:affiliate_id]
+  end
+
+  test "an unknown or unapproved ref is ignored and checkout still proceeds" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", ref: "newbie" } # pending
+      end
+    end
+    assert_redirected_to "https://stripe.test/session"
+    assert_nil captured[:metadata][:affiliate_id]
+  end
+
   test "rejects a price that belongs to a different Stripe product" do
     price = fake_price("price_x", "prod_someone_else", { "seats" => "1" })
     Stripe::Price.stub(:retrieve, price) do

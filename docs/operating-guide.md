@@ -16,6 +16,7 @@ separate job — see [`client-integration.md`](client-integration.md).
 |-----|-------|------------------|
 | **You (operator)** | `/admin` | email + password |
 | **Your customers** | `/portal` (via your website) | magic link by email |
+| **Your affiliates** (optional) | `/affiliate` (self-signup) | magic link by email |
 | **Your app, on a device** | `/api/licenses/*` | product `X-Api-Key` |
 
 Before you start, make sure the app is running and `RAILS_MASTER_KEY` is set (see
@@ -310,6 +311,13 @@ Always returns `200` — it won't reveal whether the email exists.
 Same door as recovery: the emailed magic link is what drops them into the portal
 (§3). Just reuse the recover link from (b) — there's no separate page to build.
 
+### d) Referral tracking (optional)
+
+Running the affiliate program (§8)? Add the one cookie snippet from
+[§8](#8-affiliate-program-optional) to your marketing site so a `?ref=CODE` visit
+is remembered for 60 days and appended to the buy links above. Nothing else on the
+buy/recover links changes.
+
 ---
 
 ## 5. Device activation (in your app, not the website)
@@ -374,3 +382,90 @@ they already have.
 - **Old "unlimited" sentinels** — a prior Lemon Squeezy import used `999` to mean
   unlimited; `bin/rails licenses:normalize_unlimited` converts those to real
   unlimited (nil) seats.
+
+---
+
+## 8. Affiliate program (optional)
+
+Let partners earn commission for sales they refer. An affiliate shares a link with
+`?ref=THEIR_CODE`, a 60-day cookie on your marketing site remembers it, and any
+purchase that follows credits them. Affiliates are **global** — one code, one rate,
+one dashboard works across every product you sell. It's off until you configure the
+two settings below; nothing changes for products that don't.
+
+**How commission is counted.** It's frozen at sale time on the pre-tax amount
+(`amount_subtotal`), so a later rate change never rewrites what you already owe, and
+you never pay a cut of the VAT Stripe collected but you never received. Renewals
+don't pay commission. A refund removes that sale from what's owed.
+
+**Payouts are manual.** Stripe Managed Payments (merchant of record) can't also run
+Stripe Connect, so Licencio can't auto-transfer commission. Instead you get an
+honest ledger: the affiliate's dashboard and their admin page show exactly what's
+owed; you pay by hand (PayPal / Wise / bank) and click **Mark paid** to record it.
+
+### Turn it on
+
+1. **Email template.** Add one Loops template — the affiliate dashboard magic link —
+   and paste its id into **one** product's `affiliate_transactional_id` field
+   (Products → edit → Email). A global affiliate isn't tied to a product, so the
+   first product with this set becomes the sender for all affiliate emails; it reuses
+   that product's `loops_api_key` and `sender_email`. The template receives
+   `magic_link_url`, `affiliate_name`, `sender_email`.
+2. **Suggested links.** On each product you want affiliates to promote, set
+   **`affiliate_landing_url`** (Products → edit → Stripe section) to that product's
+   marketing URL, e.g. `https://my-app.com`. The affiliate dashboard shows a ready
+   `…?ref=CODE` link per product — but any page works (see the snippet below).
+
+### Marketing-site snippet
+
+Put this on your marketing site (once, site-wide). It stores a `?ref=` code for 60
+days and appends it to every Licencio buy link on the page. **Call `attributeRef()`
+from your cookie-consent "accept" handler** — the attribution cookie isn't strictly
+necessary, so gate it on consent (a visitor who declines simply isn't attributed):
+
+```html
+<script>
+  function attributeRef() {
+    const p = new URLSearchParams(location.search).get("ref");
+    if (p) document.cookie = `ref=${encodeURIComponent(p)}; max-age=5184000; path=/; samesite=lax`;
+    const ref = document.cookie.match(/(?:^|;\s*)ref=([^;]*)/)?.[1];
+    if (ref) document.querySelectorAll("a[href*='/api/checkout']").forEach((a) => {
+      const u = new URL(a.href); u.searchParams.set("ref", decodeURIComponent(ref)); a.href = u;
+    });
+  }
+  // e.g. onConsentAccepted(attributeRef)
+</script>
+```
+
+That's the whole integration. The buy links themselves are unchanged (§4a) — an
+unknown or unapproved code is simply ignored and checkout proceeds as normal.
+
+### Approving affiliates
+
+1. An applicant fills in the public form at **`/affiliate/signup`** (name, email,
+   preferred code, payout email). Link to it from your site or share it directly.
+2. They land as **pending** and are emailed **nothing** yet.
+3. In **`/admin` → Affiliates**, open the applicant and click **Approve**. That
+   activates their code and emails them their dashboard magic link. (Edit sets their
+   commission rate — the default is 20%.)
+
+An affiliate signs into **`/affiliate`** the same passwordless way customers use the
+portal: a 30-minute, reusable magic link, re-requested any time at
+`/affiliate/recoveries/new`.
+
+### Paying and reconciling
+
+Open an affiliate in **`/admin` → Affiliates**:
+
+- **Payable** — commission that's cleared a 30-day refund hold and wasn't refunded.
+- **Paid out** — the sum of payouts you've recorded.
+- **Owed now** — Payable − Paid out. This is what to send.
+
+Pay them however you agreed, then use **Record a payout** (amount in **cents**,
+currency, an optional note like a Wise transaction id) to log it. The affiliate sees
+the same numbers and their payout history on their own dashboard — no email needed.
+
+> **Refund after you've paid?** The 30-day hold exists to avoid paying on a sale
+> that gets refunded. If a refund lands *after* you already paid out, that
+> commission is simply money you've eaten — record the next payout for less to
+> settle it, or absorb it. There's no automatic clawback.

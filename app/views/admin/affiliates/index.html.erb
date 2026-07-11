@@ -1,0 +1,52 @@
+<% content_for :title, "Affiliates — Licencio" %>
+
+<h1 class="mb-6 text-xl font-semibold tracking-tight">Affiliates</h1>
+
+<%= form_with url: admin_affiliates_path, method: :get, class: "mb-5 flex flex-wrap items-center gap-3" do |form| %>
+  <%= form.text_field :q, value: params[:q], placeholder: "Search code, name, email…",
+    class: "field-input min-w-64 flex-1" %>
+  <%= form.select :status, Affiliate.statuses.keys.map { |s| [s.capitalize, s] }, { include_blank: "All statuses", selected: params[:status] },
+    class: "field-select w-auto", onchange: "this.form.requestSubmit()" %>
+  <%= form.submit "Search", class: "btn-primary" %>
+  <% if params[:q].present? || params[:status].present? %>
+    <%= link_to "Clear", admin_affiliates_path, class: "link-muted px-1" %>
+  <% end %>
+<% end %>
+
+<% if @affiliates.any? %>
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Rate</th>
+          <th>Sales</th>
+          <th>Earned</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @affiliates.each do |affiliate| %>
+          <tr>
+            <td class="font-mono font-medium">
+              <%= link_to affiliate.code, admin_affiliate_path(affiliate), class: "hover:text-gray-900" %>
+            </td>
+            <td class="text-gray-600"><%= affiliate.name %></td>
+            <td><%= status_badge(affiliate.status) %></td>
+            <td class="tabular-nums"><%= affiliate.commission_percent %>%</td>
+            <td class="tabular-nums"><%= @sales[affiliate.id] || 0 %></td>
+            <td class="tabular-nums"><%= money_cents(@earned[affiliate.id]) %></td>
+            <td class="text-right">
+              <%= link_to "View", admin_affiliate_path(affiliate), class: "link-muted" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <%= render "admin/pagination" %>
+<% else %>
+  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No affiliates yet.</p>
+<% end %>

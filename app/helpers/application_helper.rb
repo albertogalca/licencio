@@ -9,8 +9,16 @@ module ApplicationHelper
     "active" => "badge-emerald",
     "expired" => "badge-amber",
     "refunded" => "badge-red",
-    "inactive" => "badge-gray"
+    "inactive" => "badge-gray",
+    "approved" => "badge-emerald",
+    "pending" => "badge-amber",
+    "rejected" => "badge-red"
   }.freeze
+
+  # ponytail: string format, no symbols. Swap for number_to_currency if a $/€ glyph is ever needed.
+  def money_cents(cents, currency = "EUR")
+    "#{"%.2f" % (cents.to_i / 100.0)} #{currency.to_s.upcase.presence || "EUR"}"
+  end
 
   def status_badge(status)
     variant = STATUS_BADGE_VARIANTS.fetch(status.to_s, "badge-gray")

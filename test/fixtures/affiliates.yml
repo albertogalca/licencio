@@ -1,0 +1,14 @@
+approved:
+  code: alberto
+  name: Alberto
+  email: aff-alberto@example.com
+  payout_email: alberto@wise.example
+  commission_percent: 20
+  status: approved
+
+pending:
+  code: newbie
+  name: Newbie
+  email: aff-newbie@example.com
+  commission_percent: 20
+  status: pending

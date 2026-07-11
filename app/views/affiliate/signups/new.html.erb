@@ -1,0 +1,41 @@
+<% content_for :title, "Become an affiliate — Licencio" %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-2xl font-semibold tracking-tight">Become an affiliate</h1>
+  <p class="mb-6 text-sm text-gray-500">
+    Apply to earn commission for every sale you refer. We'll review and email you a dashboard link if you're approved.
+  </p>
+
+  <div class="card p-6">
+    <%= form_with model: @affiliate, url: affiliate_signup_path, method: :post, class: "space-y-4" do |form| %>
+      <% if @affiliate.errors.any? %>
+        <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <%= @affiliate.errors.full_messages.to_sentence %>
+        </div>
+      <% end %>
+      <div>
+        <%= form.label :name, "Your name", class: "field-label" %>
+        <%= form.text_field :name, required: true, autofocus: true, class: "field-input" %>
+      </div>
+      <div>
+        <%= form.label :email, "Email", class: "field-label" %>
+        <%= form.email_field :email, required: true, placeholder: "you@example.com", class: "field-input" %>
+      </div>
+      <div>
+        <%= form.label :code, "Preferred referral code", class: "field-label" %>
+        <%= form.text_field :code, required: true, placeholder: "yourname", class: "field-input" %>
+        <p class="field-hint">Lowercase letters, numbers and hyphens. Appears in your link as <code>?ref=code</code>.</p>
+      </div>
+      <div>
+        <%= form.label :payout_email, "Payout email (PayPal / Wise)", class: "field-label" %>
+        <%= form.email_field :payout_email, placeholder: "where we send commission", class: "field-input" %>
+      </div>
+      <%= form.submit "Apply", class: "btn-primary w-full" %>
+    <% end %>
+  </div>
+
+  <p class="mt-4 text-center text-xs text-gray-400">
+    Already approved? <%= link_to "Get your dashboard link", new_affiliate_recovery_path, class: "link-accent" %>
+  </p>
+</div>

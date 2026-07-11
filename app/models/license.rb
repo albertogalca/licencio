@@ -67,6 +67,13 @@ class License < ApplicationRecord
       quantity = product.seats_for(price)
     end
 
+    # An affiliate is credited only on a new purchase (renewals pass nothing). Commission is frozen
+    # here off amount_subtotal — pre-VAT, because under Managed Payments amount_total includes tax we
+    # never receive — and stored on the Payment, never recomputed from the affiliate's current rate.
+    affiliate = Affiliate.find_by(id: meta[:affiliate_id]) if meta[:affiliate_id].present?
+    subtotal = session.amount_subtotal || session.amount_total
+    commission_cents = affiliate&.commission_for(subtotal)
+
     # []-access, not .name: Stripe omits the key entirely when name collection is off.
     customer = Customer.upsert!(email: session.customer_details.email, name: session.customer_details[:name])
     license = fulfill!(
@@ -77,7 +84,8 @@ class License < ApplicationRecord
       amount_cents: session.amount_total,
       currency: session.currency,
       update_policy: meta[:update_policy].presence || (price.metadata["update_policy"] if price),
-      renew_key: meta[:renew_license_key])
+      renew_key: meta[:renew_license_key],
+      affiliate_id: affiliate&.id, commission_cents:)
     # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
     # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
     if license
@@ -113,7 +121,7 @@ class License < ApplicationRecord
 
   def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, price_id: nil,
                     stripe_customer_id: nil, amount_cents: nil, currency: nil,
-                    renew_key: nil, update_policy: nil)
+                    renew_key: nil, update_policy: nil, affiliate_id: nil, commission_cents: nil)
     # Idempotency backbone: one Payment per Stripe intent. Catches redelivery of the original
     # purchase even after a renewal has overwritten the license's own stripe_payment_id.
     return if Payment.exists?(stripe_payment_intent: stripe_payment_id)
@@ -122,10 +130,11 @@ class License < ApplicationRecord
       # Renew only a license the payer already owns, or an unclaimed (imported) one the payer now
       # claims — never let a client-supplied renew_key renew someone else's license.
       if existing && (existing.customer_id.nil? || existing.customer_id == customer&.id)
+        # Renewals never credit an affiliate — affiliate_id/commission_cents intentionally dropped.
         existing.renew!(stripe_payment_id:, price_id:, buyer: customer)
       else
         product.issue_license!(customer:, quantity:, stripe_payment_id:, price_id:,
-          stripe_customer_id:, amount_cents:, currency:, update_policy:)
+          stripe_customer_id:, amount_cents:, currency:, update_policy:, affiliate_id:, commission_cents:)
       end
     end
   rescue ActiveRecord::RecordNotUnique

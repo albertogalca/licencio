@@ -1,0 +1,24 @@
+<% content_for :title, "Affiliate sign-in — Licencio" %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-2xl font-semibold tracking-tight">Affiliate sign-in</h1>
+  <p class="mb-6 text-sm text-gray-500">
+    Enter your email and we'll send you a link to your affiliate dashboard.
+  </p>
+
+  <div class="card p-6">
+    <%= form_with url: affiliate_recoveries_path, method: :post, class: "space-y-4" do |form| %>
+      <div>
+        <%= form.label :email, "Email", class: "field-label" %>
+        <%= form.email_field :email, required: true, autofocus: true,
+              placeholder: "you@example.com", class: "field-input" %>
+      </div>
+      <%= form.submit "Send sign-in link", class: "btn-primary w-full" %>
+    <% end %>
+  </div>
+
+  <p class="mt-4 text-center text-xs text-gray-400">
+    Not an affiliate yet? <%= link_to "Apply here", new_affiliate_signup_path, class: "link-accent" %>
+  </p>
+</div>

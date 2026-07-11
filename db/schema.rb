@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_11_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -32,6 +32,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
     t.string "password_digest", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admin_users_on_email", unique: true
+  end
+
+  create_table "affiliate_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "affiliate_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "token", null: false
+    t.datetime "updated_at", null: false
+    t.index ["affiliate_id"], name: "index_affiliate_tokens_on_affiliate_id", unique: true
+    t.index ["token"], name: "index_affiliate_tokens_on_token", unique: true
+  end
+
+  create_table "affiliates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "code", null: false
+    t.integer "commission_percent", default: 20, null: false
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "name", null: false
+    t.string "payout_email"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_affiliates_on_code", unique: true
+    t.index ["email"], name: "index_affiliates_on_email", unique: true
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -78,15 +101,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
   end
 
   create_table "payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "affiliate_id"
     t.integer "amount_cents"
+    t.integer "commission_cents"
     t.datetime "created_at", null: false
     t.string "currency"
     t.string "kind", null: false
     t.uuid "license_id", null: false
     t.string "stripe_payment_intent", null: false
     t.datetime "updated_at", null: false
+    t.index ["affiliate_id"], name: "index_payments_on_affiliate_id"
     t.index ["license_id"], name: "index_payments_on_license_id"
     t.index ["stripe_payment_intent"], name: "index_payments_on_stripe_payment_intent", unique: true
+  end
+
+  create_table "payouts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "affiliate_id", null: false
+    t.integer "amount_cents", null: false
+    t.datetime "created_at", null: false
+    t.string "currency", null: false
+    t.string "note"
+    t.datetime "paid_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["affiliate_id"], name: "index_payouts_on_affiliate_id"
   end
 
   create_table "portal_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -103,6 +140,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
   end
 
   create_table "products", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "affiliate_landing_url"
+    t.string "affiliate_transactional_id"
     t.string "api_key", null: false
     t.string "bundle_identifier", null: false
     t.string "checkout_cancel_url"
@@ -278,10 +317,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_07_170000) do
   end
 
   add_foreign_key "activations", "licenses"
+  add_foreign_key "affiliate_tokens", "affiliates"
   add_foreign_key "licenses", "customers"
   add_foreign_key "licenses", "products"
   add_foreign_key "notifications", "customers"
+  add_foreign_key "payments", "affiliates"
   add_foreign_key "payments", "licenses"
+  add_foreign_key "payouts", "affiliates"
   add_foreign_key "portal_tokens", "customers"
   add_foreign_key "portal_tokens", "products"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

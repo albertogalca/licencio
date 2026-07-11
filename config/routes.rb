@@ -28,6 +28,18 @@ Rails.application.routes.draw do
     end
     resources :customers, only: [ :index, :show ]
     resources :activations, only: [ :index, :destroy ]
+    resources :affiliates, only: [ :index, :show, :edit, :update ] do
+      resource  :approval, only: :create # approving = creating an approval (mints the magic link)
+      resources :payouts,  only: :create # "Mark paid"
+    end
+    root to: "dashboard#show"
+  end
+
+  namespace :affiliate do
+    resource  :signup,     only: [ :new, :create ]  # public self-signup
+    resources :recoveries, only: [ :new, :create ]  # "email me my dashboard link"
+    get    "session", to: "sessions#create"         # magic-link consume (GET)
+    delete "session", to: "sessions#destroy"        # logout
     root to: "dashboard#show"
   end
 

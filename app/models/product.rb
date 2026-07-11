@@ -51,7 +51,8 @@ class Product < ApplicationRecord
   end
 
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil,
-                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil)
+                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil,
+                     affiliate_id: nil, commission_cents: nil)
     # Ignore an unrecognized policy from price metadata (falls back to the product's) rather than
     # letting a bad enum string raise ArgumentError and wedge fulfillment on Stripe's retries.
     update_policy = update_policy.presence_in(UPDATE_POLICIES.values)
@@ -61,9 +62,15 @@ class Product < ApplicationRecord
       expires_at: license_expires_at(policy: effective),
       licensed_version: (current_version if effective == "versioned"))
     license.payments.create!(stripe_payment_intent: stripe_payment_id, kind: "purchase",
-      amount_cents:, currency:) if stripe_payment_id
+      amount_cents:, currency:, affiliate_id:, commission_cents:) if stripe_payment_id
     license
   end
+
+  # A global affiliate isn't tied to any one product, but its magic-link email still ships through
+  # some product's Loops config. The studio configures affiliate_transactional_id on one product;
+  # that product is the sender. ponytail: first configured product; add a dedicated setting only if
+  # a second sender is ever needed.
+  def self.affiliate_mailer = where.not(affiliate_transactional_id: nil).order(:created_at).first
 
   # nil = unlimited seats — a deliberate SKU. A price declares it explicitly with seats
   # "unlimited"/"0"; create_checkout_session refuses a price that declares neither seat metadata
@@ -98,7 +105,7 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
-  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil)
+  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil, ref: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -113,6 +120,8 @@ class Product < ApplicationRecord
       raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
         "(set price metadata `seats`, or the product's max_activations_default)"
     end
+    # An unknown or unapproved ref just drops out (nil) — checkout always proceeds.
+    affiliate = Affiliate.approved.find_by(code: ref.to_s.downcase) if ref.present?
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
@@ -124,7 +133,8 @@ class Product < ApplicationRecord
       client_reference_id: client_reference_id.presence, # PostHog distinct_id → closed-loop attribution
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
-                  renew_license_key: renew_license_key.presence }.compact,
+                  renew_license_key: renew_license_key.presence,
+                  affiliate_id: affiliate&.id }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
   end
 

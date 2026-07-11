@@ -176,6 +176,25 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_equal "cus_xyz", License.order(:created_at).last.stripe_customer_id
   end
 
+  test "an affiliate-tagged purchase freezes commission off amount_subtotal, not amount_total" do
+    affiliate = affiliates(:approved) # 20%
+    post_event completed_event(payment_intent: "pi_aff", amount_total: 3630, amount_subtotal: 3000,
+      affiliate_id: affiliate.id)
+    payment = License.order(:created_at).last.payments.kind_purchase.first
+    assert_equal affiliate.id, payment.affiliate_id
+    assert_equal 600, payment.commission_cents # 20% of the 3000 subtotal, not the 3630 total
+  end
+
+  test "a renewal does not credit an affiliate" do
+    post_event completed_event(payment_intent: "pi_orig2", affiliate_id: affiliates(:approved).id)
+    license = License.order(:created_at).last
+    post_event completed_event(payment_intent: "pi_renew2", renew_license_key: license.license_key,
+      affiliate_id: affiliates(:approved).id)
+    renewal = license.reload.payments.kind_renewal.first
+    assert_nil renewal.affiliate_id
+    assert_nil renewal.commission_cents
+  end
+
   private
     def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",
@@ -187,9 +206,11 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     # doesn't collect a name — the default here so most tests cover that path.
     def completed_event(email: "buyer@example.com", product_id: @product.id,
                         quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
-                        stripe_customer: "cus_buyer", amount_total: 2999, currency: "eur", name: nil)
+                        stripe_customer: "cus_buyer", amount_total: 2999, amount_subtotal: nil,
+                        currency: "eur", name: nil, affiliate_id: nil)
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
+      metadata[:affiliate_id] = affiliate_id if affiliate_id
       customer_details = { email: }
       customer_details[:name] = name if name
       {
@@ -200,6 +221,7 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
           metadata:,
           payment_intent:,
           amount_total:,
+          amount_subtotal: amount_subtotal || amount_total,
           currency:
         } }
       }.to_json
