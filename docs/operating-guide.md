@@ -379,6 +379,10 @@ they already have.
   `license_key` already exists are skipped.
 - **Polar** exposes keys only through its API (no CSV export), so pull them with
   an Organization Access Token — `lib/tasks/polar.rake` has a worked example.
+- **Lemon Squeezy** can be imported the same API-driven way instead of by CSV:
+  `lib/tasks/lemon_squeezy.rake` pulls keys with an LS API token
+  (`LS_TOKEN=… bin/rails lemon_squeezy:import`, re-runnable — only new keys import).
+  `lemon_squeezy:verify_seats` backfills seat caps against LS's own `activation_limit`.
 - **Old "unlimited" sentinels** — a prior Lemon Squeezy import used `999` to mean
   unlimited; `bin/rails licenses:normalize_unlimited` converts those to real
   unlimited (nil) seats.

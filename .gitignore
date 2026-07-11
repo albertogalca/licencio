@@ -42,3 +42,6 @@
 
 # Local env (dotenv)
 /.env
+
+# Claude Code session scratchpad.
+/scratchpad
