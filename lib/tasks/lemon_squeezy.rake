@@ -8,6 +8,39 @@ require "json"
 #   LS_TOKEN=…            bin/rails lemon_squeezy:verify_seats   # report + backfill mismatches
 # LS_PRODUCT_ID=… scopes the LS pull to one product (also flags LS keys never imported).
 namespace :lemon_squeezy do
+  # LS license_key.status → Licencio status. LS only emits these four; unknown → active.
+  LS_STATUS_MAP = { "active" => "active", "inactive" => "inactive",
+                    "expired" => "expired", "disabled" => "refunded" }.freeze
+
+  # API-driven Lemon Squeezy → Licencio license import (preserving LS key strings). Mirrors
+  # polar:import_cozy. Re-runnable: License::Importer skips keys already present, so a re-run
+  # imports only the license keys sold since the last run.
+  #   LS_TOKEN=… LS_PRODUCT_ID=651693 PRODUCT_SLUG=picmal DRY_RUN=1 bin/rails lemon_squeezy:import
+  # Drop DRY_RUN to import. LS_PRODUCT_ID scopes the pull; PRODUCT_SLUG picks the local product.
+  desc "Import Lemon Squeezy license keys (preserving keys); imports only new ones"
+  task import: :environment do
+    token = ENV.fetch("LS_TOKEN")
+    slug  = ENV.fetch("PRODUCT_SLUG", "picmal")
+
+    rows = LemonSqueezyApi.each_license_key(token, ENV["LS_PRODUCT_ID"]).map do |k|
+      limit = k["activation_limit"].to_i  # LS 0/nil = unlimited → nil (product default)
+      { product_slug: slug, license_key: k["key"],
+        email: k["user_email"], name: k["user_name"],
+        status: LS_STATUS_MAP.fetch(k["status"], "active"),
+        max_activations: (limit.positive? ? limit : nil),
+        expires_at: k["expires_at"] }
+    end
+
+    if ENV["DRY_RUN"].present?
+      have = License.where(license_key: rows.map { |r| r[:license_key] }).pluck(:license_key).to_set
+      new_rows = rows.reject { |r| have.include?(r[:license_key]) }
+      new_rows.each { |r| puts "  NEW  #{r[:license_key]}  #{r[:status]}  seats=#{r[:max_activations] || '∞'}  #{r[:email]}" }
+      puts "#{rows.size} LS keys, #{new_rows.size} new (dry run — nothing imported)"
+    else
+      puts License.import(rows, source: "lemon_squeezy").inspect
+    end
+  end
+
   desc "Compare/backfill max_activations against Lemon Squeezy activation_limit"
   task verify_seats: :environment do
     token = ENV.fetch("LS_TOKEN")
