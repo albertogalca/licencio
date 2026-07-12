@@ -7,7 +7,10 @@ class LoopsContactJob < ApplicationJob
       return
     end
     first, last = customer.name.to_s.split(/\s+/, 2)
+    # Add buyers to the product's newsletter list on purchase only. Not on refund
+    # (subscribed: false) — Loops rejects list adds for unsubscribed contacts anyway.
+    mailing_lists = { product.loops_mailing_list_id => true } if subscribed && product.loops_mailing_list_id.present?
     Loops.upsert_contact(api_key:, email: customer.email, source: "Stripe",
-      subscribed:, first_name: first, last_name: last)
+      subscribed:, first_name: first, last_name: last, mailing_lists:)
   end
 end

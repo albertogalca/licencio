@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_11_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_12_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -155,6 +155,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_120000) do
     t.string "expiry_reminder_transactional_id"
     t.string "license_prefix", null: false
     t.string "loops_api_key"
+    t.string "loops_mailing_list_id"
     t.string "loops_transactional_id"
     t.integer "max_activations_default"
     t.string "name", null: false

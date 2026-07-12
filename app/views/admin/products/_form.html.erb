@@ -177,6 +177,11 @@
       <%= form.password_field :loops_api_key, value: nil, autocomplete: "off", class: "field-input" %>
       <p class="field-hint">Leave blank to use default.</p>
     </div>
+    <div>
+      <%= form.label :loops_mailing_list_id, "Loops newsletter list ID", class: "field-label" %>
+      <%= form.text_field :loops_mailing_list_id, class: "field-input" %>
+      <p class="field-hint">Buyers are added to this mailing list on purchase. Leave blank to not add buyers to any list.</p>
+    </div>
   </section>
 
   <% unless product.new_record? %>

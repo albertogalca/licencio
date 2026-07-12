@@ -40,7 +40,7 @@ class Admin::ProductsController < Admin::BaseController
       permitted = %i[name update_policy current_version max_activations_default trial_days
         update_duration_days sender_email stripe_product_id stripe_secret_key stripe_webhook_secret
         checkout_success_url checkout_cancel_url download_url loops_transactional_id purchase_transactional_id
-        refund_transactional_id expiry_reminder_transactional_id loops_api_key
+        refund_transactional_id expiry_reminder_transactional_id loops_api_key loops_mailing_list_id
         affiliate_landing_url affiliate_transactional_id affiliate_commission_percent]
       permitted += %i[slug bundle_identifier license_prefix] if @product.nil? || @product.new_record?
       attrs = params.require(:product).permit(*permitted)
