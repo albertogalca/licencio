@@ -26,9 +26,18 @@ namespace :posthog do
       .where(created_at: since..until_).order(:created_at)
 
     puts "#{payments.count} payment(s) for #{slug} between #{since.to_date} and #{until_.to_date}"
-    sent = attributed = 0
+    sent = attributed = eligible = 0
 
     payments.each do |payment|
+      # $0 payments are BundleHunt rows, press comps, and admin-issued licenses, never web
+      # checkouts, which is why none of them carry a client_reference_id. Emitting them would
+      # leave revenue right and inflate purchase count and visit-to-purchase rate several times
+      # over. INCLUDE_ZERO=1 to send them anyway.
+      if payment.amount_cents.to_i.zero? && ENV["INCLUDE_ZERO"].blank?
+        puts "  #{payment.created_at.to_date} skip $0 (comp/bundle/manual): #{payment.license.customer&.email}"
+        next
+      end
+
       # client_reference_id is the browser's PostHog distinct_id and lives only on the Stripe
       # session, never copied into our ledger. Without it the sale still counts as revenue,
       # it just can't join the pageview funnel.
@@ -41,6 +50,7 @@ namespace :posthog do
         next
       end
 
+      eligible += 1
       attributed += 1 if distinct_id.present?
       puts "  #{payment.created_at.to_date} #{email} #{payment.amount_cents.to_i / 100.0} #{payment.currency} " \
            "#{distinct_id.present? ? "-> #{distinct_id}" : '(unattributed)'}"
@@ -52,7 +62,8 @@ namespace :posthog do
       sent += 1
     end
 
-    puts dry_run ? "DRY RUN: nothing sent. #{attributed} of #{payments.count} would be attributed." :
-                   "Sent #{sent} event(s), #{attributed} attributed to a web session."
+    skipped = payments.count - eligible
+    puts dry_run ? "DRY RUN: nothing sent. #{eligible} would be sent (#{attributed} attributed), #{skipped} skipped." :
+                   "Sent #{sent} event(s), #{attributed} attributed to a web session, #{skipped} skipped."
   end
 end
