@@ -182,6 +182,11 @@
       <%= form.text_field :loops_mailing_list_id, class: "field-input" %>
       <p class="field-hint">Buyers are added to this mailing list on purchase. Leave blank to not add buyers to any list.</p>
     </div>
+    <div>
+      <%= form.label :posthog_api_key, "PostHog project API key", class: "field-label" %>
+      <%= form.password_field :posthog_api_key, value: nil, autocomplete: "off", class: "field-input" %>
+      <p class="field-hint">Project write key (phc_...). Sends purchase_completed on every sale. Leave blank to use default.</p>
+    </div>
   </section>
 
   <% unless product.new_record? %>

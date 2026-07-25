@@ -40,6 +40,10 @@ class Product < ApplicationRecord
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
   end
 
+  def posthog_api_key_or_default
+    posthog_api_key.presence || ENV["POSTHOG_API_KEY_DEFAULT"]
+  end
+
   def verify_webhook(payload, signature)
     Stripe::Webhook.construct_event(payload, signature, stripe_webhook_secret)
   end

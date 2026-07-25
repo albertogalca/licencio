@@ -342,6 +342,31 @@ class LicenseTest < ActiveSupport::TestCase
     assert_equal "Ada Lovelace", license.customer.name
   end
 
+  # Revenue reporting went dark on 2026-07-09 when payments moved from Lemon Squeezy to Stripe
+  # and nothing replaced the emitter. These pin the replacement down.
+  test "fulfill_from_stripe_session reports the purchase to PostHog under the visitor's distinct_id" do
+    product = products(:picmal)
+    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "1" },
+      id: "cs_ph", client_reference_id: "visitor_abc")
+    assert_enqueued_with(job: PosthogPurchaseJob) do
+      License.fulfill_from_stripe_session(product, session)
+    end
+    args = enqueued_jobs.find { |j| j["job_class"] == "PosthogPurchaseJob" }["arguments"].last
+    assert_equal "visitor_abc", args["distinct_id"]
+    assert_equal 1599, args["amount_cents"]
+  end
+
+  test "fulfill_from_stripe_session does not double-report PostHog on a redelivered webhook" do
+    product = products(:picmal)
+    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "1" },
+      id: "cs_dupe", client_reference_id: "visitor_abc")
+    License.fulfill_from_stripe_session(product, session)
+    # fulfill! returns nil the second time, so no second purchase_completed inflates revenue.
+    assert_no_enqueued_jobs only: PosthogPurchaseJob do
+      License.fulfill_from_stripe_session(product, session)
+    end
+  end
+
   test "fulfill_from_stripe_session ignores a sale whose price belongs to another Stripe product" do
     product = products(:picmal)
     price = fake_stripe_price("price_x", "prod_SOMEONE_ELSE", { "seats" => "1" })
@@ -364,13 +389,14 @@ class LicenseTest < ActiveSupport::TestCase
   end
 
   private
-    def fake_session(metadata:, id:)
+    def fake_session(metadata:, id:, client_reference_id: nil)
       meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
         :affiliate_id, keyword_init: true).new(**metadata)
       Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total,
-        :amount_subtotal, :currency, keyword_init: true).new(metadata: meta, id:,
+        :amount_subtotal, :currency, :client_reference_id, keyword_init: true).new(metadata: meta, id:,
         customer_details: Struct.new(:email, :name).new("buyer-#{id}@example.com", "Ada Lovelace"),
-        payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, amount_subtotal: 1599, currency: "usd")
+        payment_intent: "pi_#{id}", customer: "cus_#{id}", amount_total: 1599, amount_subtotal: 1599,
+        currency: "usd", client_reference_id:)
     end
 
     def fake_stripe_price(id, product, metadata)

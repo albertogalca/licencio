@@ -90,6 +90,13 @@ class License < ApplicationRecord
     # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
     if license
       customer.send_purchase_email_later(license:, amount: session.amount_total, currency: session.currency)
+      # Guarded by `license` for the same reason as the email: Stripe redelivers webhooks, and
+      # a duplicate purchase_completed would double-count revenue in PostHog.
+      # []-access, not .client_reference_id: Stripe omits the key entirely when the checkout
+      # wasn't tagged with one (Payment Links), and StripeObject raises on a missing method.
+      PosthogPurchaseJob.perform_later(product,
+        distinct_id: session[:client_reference_id], email: customer.email,
+        amount_cents: session.amount_total, currency: session.currency)
     end
     customer.subscribe_to_loops_later(product:)
     license
