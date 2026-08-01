@@ -111,6 +111,27 @@ without them.
 | `max_activations_default` | fallback device cap when a Price has no `seats` metadata. A Price with neither is rejected at checkout — set `seats = unlimited` on the Price for an uncapped license |
 | `trial_days` | optional free-trial length |
 
+### Branding (optional)
+
+The pages your customers see — license recovery, sign-in and their license
+dashboard — can carry your product's look instead of Licencio's defaults.
+
+| Field | What it does |
+|-------|--------------|
+| `logo_url` | shown above the form, rendered 32px tall (SVG or a 2x PNG) |
+| `accent_color` | hex, e.g. `#2563eb`. Buttons, links, focus rings and highlights |
+| `background_color` | hex. The page background behind the card |
+
+Leave any of them blank to keep the default. Only the accent needs setting — the
+lighter and darker shades are mixed from it. Colours must be hex and the logo
+must be an `http(s)` URL; anything else is rejected on save, because both are
+rendered into the page.
+
+Branding follows the product the visitor arrived for: the recovery page reads
+`?product=<slug>`, and once someone is signed in the portal is already scoped to
+the product their magic link came from. Affiliate pages stay unbranded — one
+affiliate spans every product.
+
 Once you save with Stripe keys set, the edit page shows a **live, read-only list
 of your variants** (each Stripe Price · nickname · seats · amount) and this
 product's webhook URL.

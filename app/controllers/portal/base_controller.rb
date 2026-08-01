@@ -15,6 +15,12 @@ class Portal::BaseController < ApplicationController
       @current_product ||= Product.find_by(id: session[:portal_product_id])
     end
 
+    # What the layout brands itself off. Recoveries sets @product from the ?product param
+    # before anyone is signed in; everywhere else it's the product the magic link scoped us to.
+    def branded_product
+      @product || current_product
+    end
+
     def require_customer
       unless current_customer && current_product
         redirect_to new_portal_recovery_path(product: current_product&.slug || params[:product])

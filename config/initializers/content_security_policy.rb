@@ -19,6 +19,9 @@ Rails.application.configure do
 
   # Nonce the inline importmap + inline scripts/styles so we don't need 'unsafe-inline'.
   # Tied to the session id so Turbo-cached pages keep a matching nonce across restores.
-  config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
+  # Random per request, not request.session.id: a visitor with no session yet (the recovery
+  # page) has no id, and an empty nonce silently drops every <style> block we emit. Nothing
+  # here caches HTML, which is the only reason to want a stable nonce.
+  config.content_security_policy_nonce_generator = ->(request) { SecureRandom.base64(16) }
   config.content_security_policy_nonce_directives = %w[script-src style-src]
 end

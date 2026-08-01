@@ -167,6 +167,51 @@ class ProductTest < ActiveSupport::TestCase
     assert_equal "pi_pay", payment.stripe_payment_intent
   end
 
+  # Branding is interpolated into an inline style attribute and an <img src> on the portal,
+  # so a malformed value has to be rejected at the model rather than reach the page.
+  test "branding accepts blank, hex colours and http urls, and rejects anything else" do
+    product = create_product
+    assert product.valid?, "blank branding should be allowed"
+
+    product.assign_attributes(accent_color: "#2563eb", background_color: "#fff",
+      logo_url: "https://example.com/logo.svg")
+    assert product.valid?, product.errors.full_messages.to_sentence
+
+    product.accent_color = "red; background: url(evil)"
+    assert_not product.valid?
+    assert_includes product.errors[:accent_color].to_sentence, "hex colour"
+
+    product.accent_color = "#2563eb"
+    product.logo_url = "javascript:alert(1)"
+    assert_not product.valid?
+    assert_includes product.errors[:logo_url].to_sentence, "http"
+  end
+
+  test "brand_style emits only validated colours and nothing for an unbranded product" do
+    assert_equal "", create_product.brand_style, "an unbranded product must not override anything"
+
+    branded = create_product
+    branded.update!(accent_color: "#2563eb", background_color: "#f9fafb")
+    style = branded.brand_style
+    assert_includes style, "--color-accent-600: #2563eb"
+    assert_includes style, "--color-accent-50: color-mix(in oklab, #2563eb 10%, white)"
+    assert_includes style, "--color-accent-800: color-mix(in oklab, #2563eb 68%, black)"
+    assert_includes style, "--brand-btn: var(--color-accent-600)"
+    assert_includes style, "--brand-bg: #f9fafb"
+
+    # Bypasses validation the way a bad backfill or console edit would.
+    branded.update_column(:accent_color, "red;}html{display:none")
+    assert_equal "--brand-bg: #f9fafb", branded.brand_style
+  end
+
+  test "matching finds a product by slug or display name, any case" do
+    product = products(:cozy)
+    assert_equal product, Product.matching("cozy").first
+    assert_equal product, Product.matching(" Cozy ").first
+    assert_equal product, Product.matching(product.name.upcase).first
+    assert_nil Product.matching("nobody").first
+  end
+
   private
     def fake_price(id, nickname, unit_amount, metadata)
       Struct.new(:id, :nickname, :unit_amount, :metadata).new(id, nickname, unit_amount, metadata)

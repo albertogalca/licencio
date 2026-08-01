@@ -182,10 +182,27 @@
       <%= form.text_field :loops_mailing_list_id, class: "field-input" %>
       <p class="field-hint">Buyers are added to this mailing list on purchase. Leave blank to not add buyers to any list.</p>
     </div>
+  </section>
+
+  <section class="card space-y-4 p-6">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branding</h2>
+    <p class="text-sm text-gray-500">Applied to the pages customers see — recovery, sign-in and their license dashboard. Leave blank for the Licencio defaults.</p>
     <div>
-      <%= form.label :posthog_api_key, "PostHog project API key", class: "field-label" %>
-      <%= form.password_field :posthog_api_key, value: nil, autocomplete: "off", class: "field-input" %>
-      <p class="field-hint">Project write key (phc_...). Sends purchase_completed on every sale. Leave blank to use default.</p>
+      <%= form.label :logo_url, "Logo URL", class: "field-label" %>
+      <%= form.url_field :logo_url, placeholder: "https://example.com/logo.svg", class: "field-input" %>
+      <p class="field-hint">Shown above the form. Rendered at 32px tall, so SVG or a 2x PNG works best.</p>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <%= form.label :accent_color, "Accent colour", class: "field-label" %>
+        <%= form.text_field :accent_color, placeholder: "#2563eb", class: "field-input" %>
+        <p class="field-hint">Hex. Used for buttons, links, focus rings and highlights.</p>
+      </div>
+      <div>
+        <%= form.label :background_color, "Background colour", class: "field-label" %>
+        <%= form.text_field :background_color, placeholder: "#f9fafb", class: "field-input" %>
+        <p class="field-hint">Hex. The page background behind the card.</p>
+      </div>
     </div>
   </section>
 

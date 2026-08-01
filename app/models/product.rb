@@ -6,6 +6,18 @@ class Product < ApplicationRecord
   # Shared with License, which can override a product's policy per license.
   UPDATE_POLICIES = { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }.freeze
 
+  # Branding lands in an inline style attribute and an <img src> on the customer-facing
+  # portal, so both are validated here rather than trusted from the admin form.
+  HEX_COLOR = /\A#(?:\h{3}|\h{6})\z/
+  HTTP_URL = %r{\Ahttps?://\S+\z}
+
+  # How each accent shade is mixed from the product's one accent colour. 600 is the colour
+  # itself; the rest are tints toward white and shades toward black, matching the spacing of
+  # Tailwind's own scales closely enough for badges, links and focus rings.
+  ACCENT_MIX = { 50 => [ 10, "white" ], 100 => [ 20, "white" ], 200 => [ 35, "white" ],
+                 500 => [ 80, "white" ], 600 => nil,
+                 700 => [ 82, "black" ], 800 => [ 68, "black" ] }.freeze
+
   has_many :licenses, dependent: :restrict_with_error
   has_many :activations, through: :licenses
   has_many :customers, through: :licenses
@@ -28,6 +40,10 @@ class Product < ApplicationRecord
   validates :update_duration_days, presence: true, numericality: { greater_than: 0 },
     if: -> { update_policy == "time_limited" }
   validates :current_version, presence: true, if: -> { update_policy == "versioned" }
+  validates :accent_color, :background_color, format: { with: HEX_COLOR,
+    message: "must be a hex colour, like #2563eb" }, allow_blank: true
+  validates :logo_url, format: { with: HTTP_URL,
+    message: "must start with http:// or https://" }, allow_blank: true
   # A Stripe-selling product must carry its full credential set, so it can't validate yet
   # blow up at checkout/webhook. Blank secrets on edit are dropped by the controller, so an
   # already-configured product keeps its stored keys.
@@ -36,12 +52,37 @@ class Product < ApplicationRecord
       :checkout_success_url, :checkout_cancel_url, presence: true
   end
 
+  # Customers type whatever they remember on the recovery page — accept the slug or the
+  # display name, any case.
+  scope :matching, ->(value) {
+    where("lower(slug) = :v OR lower(name) = :v", v: value.to_s.strip.downcase)
+  }
+
   def loops_api_key_or_default
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
   end
 
-  def posthog_api_key_or_default
-    posthog_api_key.presence || ENV["POSTHOG_API_KEY_DEFAULT"]
+  # Per-product theming for the customer-facing portal, emitted inline on <html> so it
+  # overrides the defaults in application.css and leaves every unbranded page untouched.
+  # Values are re-checked against the format here as well, because they're interpolated
+  # straight into a style attribute — anything that doesn't match is dropped and that part
+  # simply falls back to the default.
+  def brand_style
+    declarations = []
+
+    if accent_color.to_s.match?(HEX_COLOR)
+      declarations += ACCENT_MIX.map do |shade, mix|
+        value = mix ? "color-mix(in oklab, #{accent_color} #{mix.first}%, #{mix.last})" : accent_color
+        "--color-accent-#{shade}: #{value}"
+      end
+      # Primary buttons follow the accent too, reusing the shades just emitted above.
+      declarations += [ "--brand-btn: var(--color-accent-600)",
+                        "--brand-btn-hover: var(--color-accent-700)",
+                        "--brand-btn-active: var(--color-accent-800)" ]
+    end
+
+    declarations << "--brand-bg: #{background_color}" if background_color.to_s.match?(HEX_COLOR)
+    declarations.join("; ")
   end
 
   def verify_webhook(payload, signature)
@@ -134,7 +175,7 @@ class Product < ApplicationRecord
       allow_promotion_codes: true,          # show the coupon field at checkout
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
-      client_reference_id: client_reference_id.presence, # PostHog distinct_id → closed-loop attribution
+      client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence,

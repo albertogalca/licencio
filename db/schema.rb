@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -140,10 +140,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_170000) do
   end
 
   create_table "products", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "accent_color"
     t.integer "affiliate_commission_percent"
     t.string "affiliate_landing_url"
     t.string "affiliate_transactional_id"
     t.string "api_key", null: false
+    t.string "background_color"
     t.string "bundle_identifier", null: false
     t.string "checkout_cancel_url"
     t.string "checkout_success_url"
@@ -154,12 +156,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_170000) do
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
     t.string "license_prefix", null: false
+    t.string "logo_url"
     t.string "loops_api_key"
     t.string "loops_mailing_list_id"
     t.string "loops_transactional_id"
     t.integer "max_activations_default"
     t.string "name", null: false
-    t.string "posthog_api_key"
     t.string "purchase_transactional_id"
     t.string "refund_transactional_id"
     t.string "sender_email"

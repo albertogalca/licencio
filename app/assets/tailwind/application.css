@@ -6,6 +6,9 @@
   --font-mono:
     "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* A branded product overrides this whole scale inline on <html> (see brand_style),
+     mixing every shade from its one accent colour. Unbranded pages — admin, affiliate —
+     keep this blue and are unaffected. */
   --color-accent-50: var(--color-blue-50);
   --color-accent-100: var(--color-blue-100);
   --color-accent-200: var(--color-blue-200);
@@ -35,6 +38,14 @@
 
 /* ---- Base --------------------------------------------------------------- */
 @layer base {
+  :root {
+    --brand-bg: var(--color-gray-50);
+    /* Primary buttons are near-black everywhere; a branded portal points these at its
+       accent instead (see brand_style), so admin and affiliate pages stay as they were. */
+    --brand-btn: var(--color-gray-900);
+    --brand-btn-hover: var(--color-gray-800);
+    --brand-btn-active: var(--color-gray-950);
+  }
   body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -61,7 +72,14 @@
     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-[color,background-color,border-color,transform] duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
   .btn-primary {
-    @apply bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-950;
+    @apply text-white;
+    background-color: var(--brand-btn);
+  }
+  .btn-primary:hover {
+    background-color: var(--brand-btn-hover);
+  }
+  .btn-primary:active {
+    background-color: var(--brand-btn-active);
   }
   .btn-ghost {
     @apply border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900;

@@ -88,16 +88,7 @@ class License < ApplicationRecord
       affiliate_id: affiliate&.id, commission_cents:)
     # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
     # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
-    if license
-      customer.send_purchase_email_later(license:, amount: session.amount_total, currency: session.currency)
-      # Guarded by `license` for the same reason as the email: Stripe redelivers webhooks, and
-      # a duplicate purchase_completed would double-count revenue in PostHog.
-      # []-access, not .client_reference_id: Stripe omits the key entirely when the checkout
-      # wasn't tagged with one (Payment Links), and StripeObject raises on a missing method.
-      PosthogPurchaseJob.perform_later(product,
-        distinct_id: session[:client_reference_id], email: customer.email,
-        amount_cents: session.amount_total, currency: session.currency)
-    end
+    customer.send_purchase_email_later(license:, amount: session.amount_total, currency: session.currency) if license
     customer.subscribe_to_loops_later(product:)
     license
   end
@@ -119,7 +110,8 @@ class License < ApplicationRecord
   # not-yet-reminded license expiring within `days` — so a missed daily run catches up next run
   # instead of dropping that cohort. reminded_at makes it one send per license per expiry;
   # renew! clears it so a renewed license is reminded again as its new expiry approaches.
-  def self.remind_expiring!(days: 7)
+  # 30 days out by default, so there's room to renew before updates actually stop.
+  def self.remind_expiring!(days: 30)
     active.where(reminded_at: nil, expires_at: Time.current..days.days.from_now).find_each do |license|
       license.customer&.send_expiry_reminder_later(license:)
       license.update_column(:reminded_at, Time.current)

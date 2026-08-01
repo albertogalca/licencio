@@ -7,7 +7,7 @@ class Portal::RecoveriesController < Portal::BaseController
 
   def new
     @product_slug = params[:product]
-    @product = Product.find_by(slug: @product_slug) if @product_slug.present?
+    @product = find_product(@product_slug)
   end
 
   def create
@@ -18,9 +18,7 @@ class Portal::RecoveriesController < Portal::BaseController
   end
 
   private
-    # Customers type whatever they remember — accept the slug or the display name, any case.
     def find_product(value)
-      v = value.to_s.strip.downcase
-      Product.where("lower(slug) = :v OR lower(name) = :v", v:).first if v.present?
+      Product.matching(value).first if value.present?
     end
 end

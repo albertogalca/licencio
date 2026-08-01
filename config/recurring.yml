@@ -17,5 +17,6 @@ production:
     command: "License.expire_overdue!"
     schedule: every hour at minute 7
   remind_expiring_licenses:
+    # One send per license per expiry (reminded_at), cleared by renew!.
     command: "License.remind_expiring!"
     schedule: every day at 9am

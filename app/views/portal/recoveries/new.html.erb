@@ -2,10 +2,10 @@
 <% content_for :centered, "1" %>
 
 <div class="w-full max-w-sm">
-  <h1 class="mb-2 text-2xl font-semibold tracking-tight">
-    Recover your <%= @product&.name || "licenses" %><%= " licenses" if @product %>
+  <h1 class="mb-2 text-center text-2xl font-semibold tracking-tight">
+    Recover your <%= @product&.name || "license" %><%= " license" if @product %>
   </h1>
-  <p class="mb-6 text-sm text-gray-500">
+  <p class="mb-6 text-center text-sm text-gray-500 max-w-xs mx-auto">
     Enter your email and we'll send you a sign-in link along with your license keys.
   </p>
 

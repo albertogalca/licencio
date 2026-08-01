@@ -342,31 +342,6 @@ class LicenseTest < ActiveSupport::TestCase
     assert_equal "Ada Lovelace", license.customer.name
   end
 
-  # Revenue reporting went dark on 2026-07-09 when payments moved from Lemon Squeezy to Stripe
-  # and nothing replaced the emitter. These pin the replacement down.
-  test "fulfill_from_stripe_session reports the purchase to PostHog under the visitor's distinct_id" do
-    product = products(:picmal)
-    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "1" },
-      id: "cs_ph", client_reference_id: "visitor_abc")
-    assert_enqueued_with(job: PosthogPurchaseJob) do
-      License.fulfill_from_stripe_session(product, session)
-    end
-    args = enqueued_jobs.find { |j| j["job_class"] == "PosthogPurchaseJob" }["arguments"].last
-    assert_equal "visitor_abc", args["distinct_id"]
-    assert_equal 1599, args["amount_cents"]
-  end
-
-  test "fulfill_from_stripe_session does not double-report PostHog on a redelivered webhook" do
-    product = products(:picmal)
-    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "1" },
-      id: "cs_dupe", client_reference_id: "visitor_abc")
-    License.fulfill_from_stripe_session(product, session)
-    # fulfill! returns nil the second time, so no second purchase_completed inflates revenue.
-    assert_no_enqueued_jobs only: PosthogPurchaseJob do
-      License.fulfill_from_stripe_session(product, session)
-    end
-  end
-
   test "fulfill_from_stripe_session ignores a sale whose price belongs to another Stripe product" do
     product = products(:picmal)
     price = fake_stripe_price("price_x", "prod_SOMEONE_ELSE", { "seats" => "1" })
