@@ -26,7 +26,7 @@
             <td class="text-gray-600 tabular-nums"><%= a.activated_at&.to_date %></td>
             <td class="text-right">
               <% if a.deactivated_at %>
-                <span class="text-xs text-gray-400">deactivated</span>
+                <span class="text-xs text-gray-600">deactivated</span>
               <% else %>
                 <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
                   form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },

@@ -31,7 +31,7 @@
             <%= link_to label, path,
                   class: "flex items-center border-b-2 py-3.5 transition-colors #{active ? "border-accent-500 font-medium text-gray-900" : "border-transparent text-gray-600 hover:text-gray-900"}" %>
           <% end %>
-          <span class="ml-auto flex items-center text-xs text-gray-400"><%= current_admin.email %></span>
+          <span class="ml-auto flex items-center text-xs text-gray-600"><%= current_admin.email %></span>
           <div class="flex items-center">
             <%= button_to "Sign out", admin_session_path, method: :delete,
                   class: "inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>

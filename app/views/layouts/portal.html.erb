@@ -23,7 +23,7 @@
         <%= image_tag branded_product.logo_url, alt: branded_product.name, class: "mb-2 h-8 w-auto self-center" %>
       <% end %>
       <%= yield %>
-      <p class="flex items-center gap-1.5 self-center text-xs text-gray-400 <%= "mt-auto pt-10" unless content_for?(:centered) %>">
+      <p class="flex items-center gap-1.5 self-center text-xs text-gray-600 <%= "mt-auto pt-10" unless content_for?(:centered) %>">
         <%= image_tag "/icon.svg", alt: "", class: "h-4 w-4", aria: { hidden: true } %>
         Powered by Licencio
       </p>

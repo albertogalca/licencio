@@ -35,7 +35,7 @@
             <% license.activations.each do |a| %>
               <li class="flex items-center gap-2">
                 <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" title="<%= a.deactivated_at ? "deactivated" : "active" %>"></span>
-                <span class="truncate <%= "text-gray-400 line-through" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
+                <span class="truncate <%= "text-gray-600 line-through" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
               </li>
             <% end %>
           </ul>

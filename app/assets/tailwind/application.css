@@ -128,7 +128,7 @@
   }
   .field-input,
   .field-select {
-    @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs transition-shadow placeholder:text-gray-400 focus:border-accent-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40;
+    @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs transition-shadow placeholder:text-gray-600 focus:border-accent-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/40;
   }
   .field-select {
     -webkit-appearance: none;

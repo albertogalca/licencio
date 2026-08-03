@@ -7,7 +7,7 @@
   </h1>
   <p class="mb-6 text-center text-sm text-gray-500 max-w-xs mx-auto">
     <% if @license&.renewable? %>
-      Another year of updates. Your app keeps working either way — only new versions stop.
+      Another year of updates. Your app keeps working either way. Only new versions stop.
     <% else %>
       Enter the license key you'd like to renew.
     <% end %>
@@ -15,8 +15,6 @@
 
   <div class="card p-6">
     <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "space-y-4" do |form| %>
-      <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
-      <%# The price is chosen server-side from the license — never submitted by the client. %>
       <div>
         <%= form.label :license_key, "License key", class: "field-label" %>
         <%= form.text_field :license_key, value: params[:license_key], required: true,
@@ -43,7 +41,7 @@
     <% end %>
   </div>
 
-  <p class="mt-6 text-center text-xs text-gray-400">
+  <p class="mt-6 text-center text-xs text-gray-600">
     Lost your key? <%= link_to "Email it to me", new_portal_recovery_path(product: @product&.slug),
       class: "text-accent-600 hover:underline" %>
   </p>

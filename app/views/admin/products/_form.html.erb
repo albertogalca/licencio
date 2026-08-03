@@ -91,7 +91,7 @@
                     <%= v.name.presence || "(no nickname)" %> ·
                     <%= v.seats || "∞" %> seat<%= "s" unless v.seats == 1 %> ·
                     $<%= "%.2f" % (v.amount_cents.to_i / 100.0) %>
-                    <span class="font-mono text-xs text-gray-400"><%= v.price_id %></span>
+                    <span class="font-mono text-xs text-gray-600"><%= v.price_id %></span>
                   </li>
                 <% end %>
               </ul>
@@ -102,10 +102,10 @@
                 </p>
               <% end %>
             <% else %>
-              <p class="text-gray-400">No Stripe prices on this product yet.</p>
+              <p class="text-gray-600">No Stripe prices on this product yet.</p>
             <% end %>
           <% rescue => e %>
-            <p class="text-gray-400">Couldn't load variants from Stripe (<%= e.class %>).</p>
+            <p class="text-gray-600">Couldn't load variants from Stripe (<%= e.class %>).</p>
           <% end %>
         </div>
       <% end %>

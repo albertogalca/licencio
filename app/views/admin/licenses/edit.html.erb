@@ -58,11 +58,11 @@
         <% activations.each do |a| %>
           <div class="flex items-center gap-3 px-2 py-2.5 text-sm">
             <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" aria-hidden="true"></span>
-            <span class="flex-1 truncate <%= "text-gray-400" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
-            <span class="shrink-0 text-xs text-gray-400 tabular-nums"><%= a.activated_at&.to_date %></span>
+            <span class="flex-1 truncate <%= "text-gray-600" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
+            <span class="shrink-0 text-xs text-gray-600 tabular-nums"><%= a.activated_at&.to_date %></span>
             <div class="w-24 shrink-0 text-right">
               <% if a.deactivated_at %>
-                <span class="text-xs text-gray-400">deactivated</span>
+                <span class="text-xs text-gray-600">deactivated</span>
               <% else %>
                 <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
                   form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
