@@ -156,7 +156,7 @@ flow). Each is a separate field on the product.
 | **Purchase / renewal** — receipt with the bought key | `purchase_transactional_id` | `product_name`, `license_keys` (just the purchased key), `amount`, `magic_link_url`, `sender_email` |
 | **Recover / manual grant** — portal access, all of the customer's keys | `loops_transactional_id` | `product_name`, `license_keys` (all, newline-separated), `magic_link_url`, `sender_email` |
 | **Full refund** — cancellation notice | `refund_transactional_id` | `product_name`, `license_keys`, `magic_link_url`, `sender_email` |
-| **~7 days before a `time_limited` license expires** (daily sweep) | `expiry_reminder_transactional_id` | `product_name`, `license_keys` (that key), `expires_at`, `magic_link_url`, `sender_email` |
+| **~7 days before a `time_limited` license expires** (daily sweep) | `expiry_reminder_transactional_id` | `product_name`, `license_keys` (that key), `expires_at` (pre-formatted, "August 3, 2026"), `renew_url`, `magic_link_url`, `sender_email` |
 
 Ready-to-paste HTML for the receipt, refund, and expiry emails lives in
 [`docs/email-templates/`](email-templates/) — upload each in Loops and copy its id
@@ -346,6 +346,11 @@ buy/recover links changes.
 When your installed app needs a signed token, it calls `POST /api/licenses/activate`
 with the product `X-Api-Key`. That whole flow — request, response, and offline
 verification — lives in [`client-integration.md`](client-integration.md).
+
+A client that can't safely hold the API key (an App Store binary is a zip file) uses
+the public `POST /api/licenses/validate` instead: key in, entitlement out, no signed
+token and no seat consumed. Same doc, "Entitlement check for clients that can't hold
+the API key".
 
 ---
 

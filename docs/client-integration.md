@@ -55,6 +55,47 @@ raw 32-byte Ed25519 key) whenever the app launches — offline.
 > embed it in your app at build time rather than trusting the value from the network.
 > The activation response returns it only for convenience/bootstrapping.
 
+## Entitlement check for clients that can't hold the API key
+
+`POST /api/licenses/activate` needs the product's device API key, and that key mints
+licenses and trials. Some clients can't keep it: an App Store `.ipa` is a zip file, so
+anything you ship inside one is public. For those, there's a read-only endpoint that
+takes a key and answers one question — does this entitle you?
+
+```bash
+curl -X POST https://your-host/api/licenses/validate \
+  -H "Content-Type: application/json" \
+  -d '{"license_key":"MYAPP-2C295B41-...","product_slug":"myapp"}'
+```
+
+```json
+{ "valid": true, "tier": "lifetime", "expires_at": "2027-07-31T00:00:00Z", "update_eligible": false }
+```
+
+**No API key, no signed token, no activation.** Nothing is created and no seat is
+consumed, so this is not a replacement for `activate` — it can't be verified offline
+and it can't be revoked mid-lease. Use it when the client's job is "let this person in",
+not "prove this device is licensed". Cache the answer yourself; the mobile client that
+prompted this endpoint keeps it in the platform keychain.
+
+It is deliberately **looser than activation**: a license past its `expires_at` still
+returns `valid: true` with `update_eligible: false`, because a lapsed update window
+doesn't take the app away. Trials are refused (`license_not_eligible`) — seven days
+must not buy a permanent unlock. Refunded and deactivated licenses are refused as usual.
+
+Because it's public, it's rate limited to **5 requests per minute** per client, the same
+ceiling as the recovery form.
+
+### CORS
+
+This is the one endpoint a browser origin calls, so it answers preflights and sends
+`Access-Control-Allow-Origin: *`. `Content-Type: application/json` is not CORS-safelisted,
+which means any browser-based client (an iOS WKWebView posting from `capacitor://localhost`,
+for instance) sends an `OPTIONS` request first and fails the real POST if it 404s.
+
+The wildcard is honest rather than lazy: the endpoint is public, read-only, and carries
+no cookie or API key, so there is no credential for another origin to borrow.
+
 ## Token lease & revocation
 
 Verification is fully offline, so the server can't reach out to revoke a token it
@@ -90,8 +131,13 @@ Any failed request returns a JSON body with a stable machine `code` and a human
 | 403 | `license_refunded` | license was refunded |
 | 403 | `license_inactive` | license was manually deactivated |
 | 403 | `trial_unavailable` | no `license_key` sent and the product offers no trial |
+| 403 | `license_not_eligible` | (validate) the key is a trial, which doesn't unlock |
 | 409 | `seat_limit_reached` | all device seats are in use |
 | 404 | `device_not_active` | (deactivate) that `hardware_id` isn't currently active |
+| 429 | — | (validate) rate limit exceeded; empty body |
+
+`license_expired` is an activation-only refusal. `POST /api/licenses/validate` reports a
+lapsed license as `valid: true` with `update_eligible: false` instead.
 
 A successful activation of a device that's already active is idempotent — it
 returns the same `{ jwt, public_key }`, not an error.
