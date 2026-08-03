@@ -81,4 +81,33 @@ class Api::ValidationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal true, response.parsed_body["valid"]
   end
+
+  # Cozy for iOS posts from capacitor://localhost. JSON isn't a CORS-safelisted content type,
+  # so WKWebView sends OPTIONS first and refuses to hand the app a response that doesn't
+  # allow the origin. Without these the unlock screen only ever says "Couldn't connect".
+  test "the preflight is answered and allows the origin" do
+    process :options, "/api/licenses/validate",
+      headers: { "Origin" => "capacitor://localhost",
+                 "Access-Control-Request-Method" => "POST",
+                 "Access-Control-Request-Headers" => "content-type" }
+
+    assert_response :no_content
+    assert_equal "*", response.headers["Access-Control-Allow-Origin"]
+    assert_includes response.headers["Access-Control-Allow-Headers"], "Content-Type"
+  end
+
+  # The preflight is only half of it — the browser also checks the real response.
+  test "the POST response allows the origin too, success or failure" do
+    validate
+    assert_response :ok
+    assert_equal "*", response.headers["Access-Control-Allow-Origin"]
+
+    validate(license_key: "NOPE-0000")
+    assert_response :not_found
+    assert_equal "*", response.headers["Access-Control-Allow-Origin"]
+  end
+
+  # No test covers `only: :create` on the rate limit — the test env runs :null_store, and
+  # rate_limit binds ActionController::Base.cache_store when the class body loads, so it
+  # can't be armed from in here. Nothing else in this repo tests rate limiting either.
 end

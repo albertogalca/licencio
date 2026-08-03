@@ -52,7 +52,8 @@ class Customer < ApplicationRecord
     token = PortalToken.issue!(customer: self, product: license.product)
     LicenseEmailJob.perform_later(token, template: :expiry_reminder_transactional_id,
       kind: "expiry", reference_id: license.expiry_reference,
-      data: { license_keys: license.license_key, expires_at: license.expires_at.to_date.to_s,
+      data: { license_keys: license.license_key,
+              expires_at: license.expires_at.to_date.strftime("%B %-d, %Y"),
               renew_url: renew_url_for(license) })
   end
 

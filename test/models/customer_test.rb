@@ -89,6 +89,18 @@ class CustomerTest < ActiveSupport::TestCase
     end
   end
 
+  # Loops can't format a date, so whatever goes in is what the customer reads mid-sentence.
+  # An ISO string there makes a warm email read like a receipt.
+  test "send_expiry_reminder_later sends a date a human can read" do
+    license = licenses(:picmal_expired)
+    license.update!(expires_at: Time.utc(2027, 8, 3, 12))
+    license.customer.send_expiry_reminder_later(license:)
+
+    job  = enqueued_jobs.find { |j| j["job_class"] == "LicenseEmailJob" }
+    data = job["arguments"].last["data"].symbolize_keys
+    assert_equal "August 3, 2027", data[:expires_at]
+  end
+
   # The reminder's whole point is the renew link, and it has to outlive the 30-minute magic
   # link sitting next to it in the same email.
   test "send_expiry_reminder_later carries a public renew_url keyed on the license" do

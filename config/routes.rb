@@ -17,6 +17,7 @@ Rails.application.routes.draw do
     # Public (no API key): lets an App Store binary check a desktop key without shipping
     # the credential that mints licenses. Read-only — no activation, no seat.
     post   "licenses/validate"   => "validations#create"
+    match  "licenses/validate"   => "validations#preflight", via: :options
 
     namespace :admin do
       post "migrations/import" => "migrations#import"
