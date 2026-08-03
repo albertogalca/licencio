@@ -246,6 +246,14 @@ class License < ApplicationRecord
     update_policy || product.update_policy
   end
 
+  # How the marketing side names these cohorts. Renewal emails filter on it, so it has to be
+  # on the contact from the first sale — backfilling a year of buyers who never carried it is
+  # the thing this avoids.
+  LOOPS_TIERS = { "time_limited" => "annual", "lifetime" => "lifetime",
+                  "versioned" => "legacyV2" }.freeze
+
+  def loops_tier = LOOPS_TIERS[effective_update_policy]
+
   def update_eligible?
     case effective_update_policy
     when "lifetime"  then true

@@ -14,8 +14,13 @@ module Loops
   # contact already exists (409) update it with the same payload. Used to subscribe buyers
   # on purchase (subscribed: true) and unsubscribe them on refund (subscribed: false).
   # mailing_lists (optional) is a { "listId" => true } hash — adds the contact to those lists.
-  def self.upsert_contact(api_key:, email:, source:, subscribed: true, first_name: nil, last_name: nil, mailing_lists: nil)
-    body = { email:, firstName: first_name, lastName: last_name, source:, subscribed:, mailingLists: mailing_lists }.compact
+  # properties (optional) are Loops custom fields, which ride along as top-level keys and are
+  # created on first send (e.g. updatesUntil, licenseTier). Blank values are dropped rather
+  # than sent as null, so a lifetime contact simply has no updatesUntil.
+  def self.upsert_contact(api_key:, email:, source:, subscribed: true, first_name: nil, last_name: nil,
+                          mailing_lists: nil, properties: {})
+    body = { email:, firstName: first_name, lastName: last_name, source:, subscribed:,
+             mailingLists: mailing_lists }.compact.merge(properties.compact)
     response = request(Net::HTTP::Post, CONTACTS_CREATE, api_key:, body:, allow: [ "409" ])
     return response unless response.code == "409"
     request(Net::HTTP::Put, CONTACTS_UPDATE, api_key:, body:)

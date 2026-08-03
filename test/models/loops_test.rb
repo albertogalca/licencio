@@ -19,6 +19,20 @@ class LoopsTest < ActiveSupport::TestCase
     Net::HTTP.stub(:start, ->(*_a, **_k, &blk) { blk.call(fake) }, &block)
   end
 
+  test "custom properties ride along as top-level fields, blanks dropped" do
+    fake = FakeHTTP.new([ Net::HTTPOK.new("1.1", "200", "OK") ])
+    stubbing(fake) do
+      Loops.upsert_contact(api_key: "k", email: "a@b.com", source: "Stripe",
+        properties: { licenseTier: "annual", updatesUntil: "2027-03-01T12:00:00Z",
+                      somethingBlank: nil })
+    end
+
+    body = JSON.parse(fake.requests[0].body)
+    assert_equal "annual", body["licenseTier"]
+    assert_equal "2027-03-01T12:00:00Z", body["updatesUntil"]
+    assert_not body.key?("somethingBlank"), "a nil property is omitted, not sent as null"
+  end
+
   test "upsert_contact creates, then updates with the same payload on 409" do
     fake = FakeHTTP.new([
       Net::HTTPConflict.new("1.1", "409", "Conflict"),

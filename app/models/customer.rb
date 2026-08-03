@@ -60,6 +60,15 @@ class Customer < ApplicationRecord
     LoopsContactJob.perform_later(self, product, subscribed: true)
   end
 
+  # The license that decides what this customer is entitled to for a product, when they hold
+  # more than one: a lifetime license outranks any dated one, otherwise the longest window
+  # wins. That's the pair of facts the renewal emails filter on.
+  def primary_license(product)
+    licenses.active.where(product:).max_by do |license|
+      [ license.effective_update_policy == "lifetime" ? 1 : 0, license.expires_at&.to_i || 0 ]
+    end
+  end
+
   def unsubscribe_from_loops_later(product:)
     return if licenses.active.exists?(product:) # still an active customer of this product
     LoopsContactJob.perform_later(self, product, subscribed: false)
