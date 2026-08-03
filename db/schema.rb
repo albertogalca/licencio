@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -164,6 +164,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_170001) do
     t.string "name", null: false
     t.string "purchase_transactional_id"
     t.string "refund_transactional_id"
+    t.string "renewal_stripe_price_id"
     t.string "sender_email"
     t.string "slug", null: false
     t.string "stripe_product_id"

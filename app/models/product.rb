@@ -136,11 +136,17 @@ class Product < ApplicationRecord
       .list_line_items(session.id, { limit: 1 }, stripe_opts).data.first&.price
   end
 
+  # What the storefront may sell. The renewal price is deliberately excluded: it's a discounted
+  # "another year of updates" SKU that only means anything attached to an existing license, and
+  # it's the cheapest price on the product — left in, it would headline the buy button and win
+  # License#fallback_variant_price_id's cheapest-variant tiebreak.
   def variants
-    Rails.cache.fetch([ "product-variants", stripe_product_id ], expires_in: 5.minutes) do
-      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data.map do |p|
-        Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
-      end.sort_by(&:amount_cents)
+    Rails.cache.fetch([ "product-variants", stripe_product_id, renewal_stripe_price_id ], expires_in: 5.minutes) do
+      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data
+        .reject { |p| p.id == renewal_stripe_price_id }
+        .map do |p|
+          Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
+        end.sort_by(&:amount_cents)
     end
   end
 
@@ -158,6 +164,12 @@ class Product < ApplicationRecord
     end
     price = Stripe::Price.retrieve(price_id, stripe_opts)
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
+    # The renewal price is a discount for people who already bought — /api/checkout takes any
+    # price_id belonging to this product, so without this guard anyone could buy a brand-new
+    # license at the renewal rate.
+    if renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id && renew_license_key.blank?
+      raise CheckoutNotConfigured, "#{slug} renewal price is not for sale on its own"
+    end
     # Never silently ship an unlimited-seat license from an unconfigured price: unlimited must be
     # declared (seats "unlimited"/"0"); anything else needs a seat count from price metadata or the
     # product default.
@@ -170,8 +182,8 @@ class Product < ApplicationRecord
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
-                                            # remits global VAT/sales tax (no registrations on our end).
-                                            # MoR owns tax config, so do NOT set automatic_tax here.
+      # remits global VAT/sales tax (no registrations on our end).
+      # MoR owns tax config, so do NOT set automatic_tax here.
       allow_promotion_codes: true,          # show the coupon field at checkout
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,

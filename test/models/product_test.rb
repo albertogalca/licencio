@@ -126,6 +126,39 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # The renewal SKU is a discount for existing owners and the cheapest price on the product —
+  # left in, it would headline the storefront and win the cheapest-variant fallback.
+  test "variants hides the renewal price from the storefront" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew")
+    list = Struct.new(:data).new([
+      fake_price("price_renew", "Renew", 1700, { "seats" => "1" }),
+      fake_price("price_full",  "Full",  3500, { "seats" => "1" })
+    ])
+
+    Stripe::Price.stub(:list, list) do
+      assert_equal [ "price_full" ], product.variants.map(&:price_id)
+    end
+  end
+
+  test "create_checkout_session refuses the renewal price outside a renewal" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew")
+    price = Struct.new(:id, :product, :metadata)
+      .new("price_renew", product.stripe_product_id, { "seats" => "1" })
+
+    Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_renew", email: "a@b.com")
+      end
+
+      Stripe::Checkout::Session.stub(:create, ->(*_) { :session }) do
+        assert_equal :session, product.create_checkout_session(price_id: "price_renew",
+          email: "a@b.com", renew_license_key: "PICM-1")
+      end
+    end
+  end
+
   test "variants falls back to max_activations_default when seats metadata is absent" do
     list = Struct.new(:data).new([ fake_price("price_x", "Studio", 12000, {}) ])
     Stripe::Price.stub(:list, list) do

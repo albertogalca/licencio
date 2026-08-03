@@ -47,9 +47,15 @@ class Api::ActivationsController < Api::BaseController
       { name: customer.name, email: customer.email }
     end
 
-    # Distinguish why an inactive license was refused, so the client can message it.
+    # Distinguish why a license was refused, so the client can message it. Status wins over
+    # expiry: a refunded license reads as refunded even if it also lapsed. Reaching
+    # :license_expired now means an expired trial or a revoked (non-time_limited) import —
+    # a lapsed annual license activates instead of erroring.
     def license_error_code(license)
-      return :license_expired if license.expired?
-      { "expired" => :license_expired, "refunded" => :license_refunded }.fetch(license.status, :license_inactive)
+      case license.status
+      when "refunded" then :license_refunded
+      when "inactive" then :license_inactive
+      else                 license.expired? ? :license_expired : :license_inactive
+      end
     end
 end

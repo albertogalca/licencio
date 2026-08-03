@@ -1,0 +1,50 @@
+<% content_for :title, "Renew your license — Licencio" %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-center text-2xl font-semibold tracking-tight">
+    Renew your <%= @product&.name || "license" %><%= " license" if @product %>
+  </h1>
+  <p class="mb-6 text-center text-sm text-gray-500 max-w-xs mx-auto">
+    <% if @license&.renewable? %>
+      Another year of updates. Your app keeps working either way — only new versions stop.
+    <% else %>
+      Enter the license key you'd like to renew.
+    <% end %>
+  </p>
+
+  <div class="card p-6">
+    <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "space-y-4" do |form| %>
+      <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
+      <%# The price is chosen server-side from the license — never submitted by the client. %>
+      <div>
+        <%= form.label :license_key, "License key", class: "field-label" %>
+        <%= form.text_field :license_key, value: params[:license_key], required: true,
+              autofocus: params[:license_key].blank?, autocomplete: "off", spellcheck: false,
+              placeholder: "COZY-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+              class: "field-input font-mono text-sm" %>
+      </div>
+
+      <% if @license&.expires_at %>
+        <p class="text-xs text-gray-500">
+          <% if @license.expires_at.past? %>
+            Updates ended <span class="font-medium text-red-600"><%= @license.expires_at.to_date.to_fs(:long) %></span>
+          <% else %>
+            Updates run until <span class="font-medium text-gray-700"><%= @license.expires_at.to_date.to_fs(:long) %></span>
+          <% end %>
+        </p>
+      <% elsif @license %>
+        <p class="text-xs text-gray-500">This license doesn't expire — there's nothing to renew.</p>
+      <% elsif params[:license_key].present? %>
+        <p class="text-xs text-red-600">We couldn't find that license key.</p>
+      <% end %>
+
+      <%= form.submit "Renew license", class: "btn-primary w-full" %>
+    <% end %>
+  </div>
+
+  <p class="mt-6 text-center text-xs text-gray-400">
+    Lost your key? <%= link_to "Email it to me", new_portal_recovery_path(product: @product&.slug),
+      class: "text-accent-600 hover:underline" %>
+  </p>
+</div>

@@ -136,10 +136,49 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "license_refunded", response.parsed_body["code"]
   end
 
-  test "an active license past its expiry returns license_expired (no JWT between sweeps)" do
+  # An expires_at on a lifetime product isn't an update window, it's a revocation
+  # (Lemon Squeezy imports) — those stay refused.
+  test "an expired license on a non-time_limited product returns license_expired" do
     @license.update!(status: "active", expires_at: 1.day.ago)
     assert_no_difference "Activation.count" do
       activate(hardware_id: "HW-1")
+    end
+    assert_response :forbidden
+    assert_equal "license_expired", response.parsed_body["code"]
+  end
+
+  # The annual promise: the app keeps working, only updates stop.
+  test "a lapsed time_limited license still activates, with update_eligible false" do
+    @license.update!(update_policy: "time_limited", expires_at: 1.day.ago, status: "expired")
+
+    assert_difference "Activation.count", 1 do
+      activate(hardware_id: "HW-1")
+    end
+
+    assert_response :ok
+    claims = decode_claims(response.parsed_body["jwt"])
+    assert_equal false, claims["update_eligible"]
+    assert_equal @license.expires_at.iso8601, claims["expires_at"]
+  end
+
+  test "a renewal restores update_eligible on the next activation" do
+    @license.update!(update_policy: "time_limited", expires_at: 1.day.ago, status: "expired")
+    activate(hardware_id: "HW-1")
+    assert_equal false, decode_claims(response.parsed_body["jwt"])["update_eligible"]
+
+    @license.update!(expires_at: 1.year.from_now, status: "active")
+    activate(hardware_id: "HW-1")
+
+    assert_response :ok
+    assert_equal true, decode_claims(response.parsed_body["jwt"])["update_eligible"]
+  end
+
+  test "an expired trial stays refused — its expiry IS the entitlement" do
+    trial = @product.licenses.create!(status: "active", trial: true, max_activations: 1,
+      expires_at: 1.day.ago)
+
+    assert_no_difference "Activation.count" do
+      activate(hardware_id: "HW-2", license_key: trial.license_key)
     end
     assert_response :forbidden
     assert_equal "license_expired", response.parsed_body["code"]
@@ -207,4 +246,6 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
 
   private
     def b64url_decode(str) = Base64.urlsafe_decode64(str + "=" * ((4 - str.length % 4) % 4))
+
+    def decode_claims(jwt) = JSON.parse(b64url_decode(jwt.split(".")[1]))
 end

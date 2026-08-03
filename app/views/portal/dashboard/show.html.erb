@@ -71,7 +71,7 @@
           <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
           <%# Price is chosen server-side from the license's own tier — not submitted by the client. %>
           <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "mb-4" do %>
-            <%= hidden_field_tag :license_id, license.id %>
+            <%= hidden_field_tag :license_key, license.license_key %>
             <%= submit_tag "Renew license",
                   class: "inline-flex shrink-0 cursor-pointer items-center rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
           <% end %>

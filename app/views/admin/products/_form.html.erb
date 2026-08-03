@@ -63,6 +63,11 @@
       <p class="field-hint">For time_limited policy.</p>
     </div>
     <div>
+      <%= form.label :renewal_stripe_price_id, "Renewal price ID", class: "field-label" %>
+      <%= form.text_field :renewal_stripe_price_id, class: "field-input" %>
+      <p class="field-hint">Optional. A cheaper "another year of updates" Stripe price, charged on renewal instead of what they originally paid. Hidden from the storefront and refused outside a renewal.</p>
+    </div>
+    <div>
       <%= form.label :trial_days, class: "field-label" %>
       <%= form.number_field :trial_days, class: "field-input" %>
     </div>

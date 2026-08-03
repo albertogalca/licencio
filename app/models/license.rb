@@ -39,6 +39,23 @@ class License < ApplicationRecord
       status.in?(%w[active expired]) && expires_at.present? && expires_at < RENEWAL_WINDOW.from_now
   end
 
+  # Renew at the product's dedicated renewal price when it has one (a cheaper "another year of
+  # updates" SKU), otherwise at the license's OWN purchased price. Always chosen server-side —
+  # never a client-supplied price_id, so nobody renews a paid tier through a cheaper checkout.
+  # Imported licenses (no stored price) fall back to the variant matching their seat count.
+  def renewal_price_id
+    product.renewal_stripe_price_id.presence || stripe_price_id.presence || fallback_variant_price_id
+  end
+
+  # The renewal checkout. Prefilling the buyer's own email is load-bearing: Stripe locks the
+  # field, so fulfillment matches this customer and renew! extends this license instead of
+  # minting a second one. An unclaimed (imported) license has no email and gets claimed by
+  # whoever pays — fulfill! already allows exactly that.
+  def renewal_checkout
+    product.create_checkout_session(price_id: renewal_price_id, email: customer&.email,
+      renew_license_key: license_key)
+  end
+
   before_validation :assign_license_key, on: :create
 
   validates :license_key, presence: true, uniqueness: true
@@ -159,6 +176,10 @@ class License < ApplicationRecord
     customer&.send_portal_access_later(product:)
   end
 
+  # One expiry reminder per expiry, not per license — renew! moves expires_at, which starts a
+  # fresh one-shot for next year's window.
+  def expiry_reference = "#{id}:#{expires_at&.to_i}"
+
   RESENDABLE_EMAILS = %w[portal purchase refund expiry].freeze
 
   # Which lifecycle emails make sense to (re)send for this license, given its state.
@@ -177,7 +198,7 @@ class License < ApplicationRecord
   # re-sends regardless. Returns the enqueued job, or nil when nothing was sent.
   def redeliver_email_later(kind)
     return unless customer && resendable_emails.include?(kind)
-    Notification.where(customer_id:, kind:, reference_id: id).delete_all
+    Notification.where(customer_id:, kind:, reference_id: notification_reference(kind)).delete_all
     case kind
     when "portal"   then customer.send_portal_access_later(product:)
     when "purchase"
@@ -245,19 +266,46 @@ class License < ApplicationRecord
   def self.import(rows, source:) = Importer.import(rows, source:)
 
   # Hourly sweep (config/recurring.yml) so status matches reality — an expired
-  # time_limited license stops reading as "active" in admin, dashboards, and the
-  # activation gate below.
+  # time_limited license stops reading as "active" in admin and dashboards. It does
+  # NOT gate activation: see activatable? below.
   def self.expire_overdue! = active.where("expires_at < ?", Time.current).update_all(status: "expired", updated_at: Time.current)
 
   def expired? = expires_at&.past? || false
 
-  # The activation gate: active status AND not past its expiry. The sweep keeps
-  # status honest, but check expires_at here too so a just-expired license can't
-  # slip a signed JWT between sweeps.
-  def activatable? = active? && !expired?
+  # The activation gate. Expiry ends the update window, not the app: a lapsed annual
+  # license keeps activating and simply carries update_eligible: false in its token, so
+  # the client stops offering updates while everything already installed keeps working.
+  #
+  # Two expiries still mean "no": a trial, whose expiry IS the entitlement, and an
+  # expires_at on a license that isn't time_limited (Lemon Squeezy imports on a lifetime
+  # product), where it records a revocation rather than an update window.
+  def activatable?
+    if refunded? || inactive?
+      false
+    elsif expired?
+      !trial? && effective_update_policy == "time_limited"
+    else
+      true
+    end
+  end
 
   private
     def assign_license_key
       self.license_key ||= self.class.generate_key(product) if product
+    end
+
+    # Mirrors what Customer's send_*_later methods key their one-shots on, so an admin resend
+    # clears the row that would otherwise suppress it.
+    def notification_reference(kind)
+      case kind
+      when "purchase" then stripe_payment_id || id
+      when "expiry"   then expiry_reference
+      else                 id
+      end
+    end
+
+    def fallback_variant_price_id
+      variants = product.variants
+      (variants.find { |v| v.seats == max_activations } || variants.min_by(&:amount_cents))&.price_id
     end
 end

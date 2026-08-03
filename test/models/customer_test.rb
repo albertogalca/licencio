@@ -89,6 +89,36 @@ class CustomerTest < ActiveSupport::TestCase
     end
   end
 
+  # The reminder's whole point is the renew link, and it has to outlive the 30-minute magic
+  # link sitting next to it in the same email.
+  test "send_expiry_reminder_later carries a public renew_url keyed on the license" do
+    license = licenses(:picmal_expired)
+    license.customer.send_expiry_reminder_later(license:)
+
+    job  = enqueued_jobs.find { |j| j["job_class"] == "LicenseEmailJob" }
+    data = job["arguments"].last["data"].symbolize_keys
+    assert_includes data[:renew_url], "/portal/renewals/new"
+    assert_includes data[:renew_url], CGI.escape(license.license_key)
+  end
+
+  # Both one-shots used to key on the license id, so year two of an annual license sent
+  # neither the renewal receipt nor the next reminder.
+  test "a renewal's receipt and the next reminder are fresh one-shots, not spent ones" do
+    license  = licenses(:picmal_expired)
+    customer = license.customer
+
+    Notification.once(customer:, kind: "purchase", reference_id: license.stripe_payment_id || license.id) { }
+    Notification.once(customer:, kind: "expiry", reference_id: license.expiry_reference) { }
+
+    license.renew!(stripe_payment_id: "pi_renewal_1")
+    license.reload
+
+    assert_not Notification.exists?(customer:, kind: "purchase", reference_id: license.stripe_payment_id),
+      "the renewal payment is a receipt nobody has sent yet"
+    assert_not Notification.exists?(customer:, kind: "expiry", reference_id: license.expiry_reference),
+      "the new expiry window is a reminder nobody has sent yet"
+  end
+
   test "unsubscribe_from_loops_later enqueues an unsubscribe when no active license remains" do
     customer = customers(:nameless) # picmal_expired is not active
     assert_enqueued_with(job: LoopsContactJob,

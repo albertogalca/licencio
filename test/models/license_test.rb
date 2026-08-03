@@ -256,15 +256,40 @@ class LicenseTest < ActiveSupport::TestCase
     assert lifetime.reload.active?
   end
 
-  test "activatable? requires active status and a live (or absent) expiry" do
-    active = products(:cozy).licenses.create!(status: "active", max_activations: 1)
-    assert active.activatable?
+  test "activatable? refuses refunded and inactive licenses" do
+    license = products(:cozy).licenses.create!(status: "active", max_activations: 1)
+    assert license.activatable?
 
-    active.update!(expires_at: 1.day.ago)
-    assert_not active.activatable?, "expired-but-active must not be activatable"
+    license.update!(status: "refunded")
+    assert_not license.activatable?
 
-    active.update!(expires_at: 1.day.from_now)
-    assert active.activatable?
+    license.update!(status: "inactive")
+    assert_not license.activatable?
+  end
+
+  # The annual promise: expiry ends the update window, not the app.
+  test "activatable? keeps a lapsed time_limited license usable, without updates" do
+    lapsed = products(:picmal).licenses.create!(status: "expired", max_activations: 1,
+      expires_at: 1.day.ago) # picmal fixture is time_limited/365
+
+    assert lapsed.activatable?, "a lapsed annual license must still activate"
+    assert_not lapsed.update_eligible?, "…but it must not be offered updates"
+  end
+
+  # An expires_at on a lifetime product records a revocation (Lemon Squeezy imports),
+  # not an update window, so it still bites.
+  test "activatable? refuses an expired license that isn't time_limited" do
+    revoked = products(:cozy).licenses.create!(status: "active", max_activations: 1,
+      expires_at: 1.day.ago) # cozy fixture is lifetime
+
+    assert_not revoked.activatable?
+  end
+
+  test "activatable? refuses an expired trial — its expiry IS the entitlement" do
+    trial = products(:picmal).licenses.create!(status: "active", trial: true,
+      max_activations: 1, expires_at: 1.day.ago)
+
+    assert_not trial.activatable?
   end
 
   test "token_claims carries a 7-day exp lease, even for a lifetime (no-expiry) license" do
