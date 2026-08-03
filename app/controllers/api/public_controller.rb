@@ -8,6 +8,9 @@ class Api::PublicController < ActionController::API
     license_expired:    [ :forbidden,    "This license has expired." ],
     license_refunded:   [ :forbidden,    "This license was refunded." ],
     license_inactive:   [ :forbidden,    "This license is not active." ],
+    # A real, live license that still doesn't grant what was asked for — a trial key
+    # against the unlock endpoint, where "not active" would be an outright lie.
+    license_not_eligible: [ :forbidden,  "That license doesn't unlock this app." ],
     seat_limit_reached: [ :conflict,     "All seats for this license are in use." ],
     trial_unavailable:  [ :forbidden,    "No trial is available for this product." ],
     device_not_active:  [ :not_found,    "That device is not currently active." ],

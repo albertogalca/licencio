@@ -14,6 +14,9 @@ Rails.application.routes.draw do
     post   "licenses/activate"   => "activations#create"
     delete "licenses/deactivate" => "activations#destroy"
     post   "licenses/recover"    => "recoveries#create"
+    # Public (no API key): lets an App Store binary check a desktop key without shipping
+    # the credential that mints licenses. Read-only — no activation, no seat.
+    post   "licenses/validate"   => "validations#create"
 
     namespace :admin do
       post "migrations/import" => "migrations#import"
