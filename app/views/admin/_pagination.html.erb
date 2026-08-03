@@ -6,13 +6,13 @@
         <%= link_to "← Prev", "#{request.path}?#{request.query_parameters.merge(page: @page - 1).to_query}",
           class: "inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50" %>
       <% else %>
-        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-300">← Prev</span>
+        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-400">← Prev</span>
       <% end %>
       <% if @page < @total_pages %>
         <%= link_to "Next →", "#{request.path}?#{request.query_parameters.merge(page: @page + 1).to_query}",
           class: "inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50" %>
       <% else %>
-        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-300">Next →</span>
+        <span class="inline-flex items-center rounded-md border border-gray-100 px-3 py-1.5 font-medium text-gray-400">Next →</span>
       <% end %>
     </span>
   </nav>
