@@ -13,6 +13,7 @@ class Api::PublicController < ActionController::API
     license_not_eligible: [ :forbidden,  "That license doesn't unlock this app." ],
     seat_limit_reached: [ :conflict,     "All seats for this license are in use." ],
     trial_unavailable:  [ :forbidden,    "No trial is available for this product." ],
+    price_not_found:    [ :not_found,    "That price is no longer available." ],
     device_not_active:  [ :not_found,    "That device is not currently active." ],
     missing_hardware_id: [ :unprocessable_entity, "A hardware_id is required." ]
   }.freeze

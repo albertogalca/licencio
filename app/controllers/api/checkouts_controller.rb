@@ -4,6 +4,12 @@ class Api::CheckoutsController < Api::PublicController
 
   rescue_from Product::CheckoutNotConfigured, with: -> { head :service_unavailable }
 
+  # price_id comes straight off a public URL, so a stale bookmark, a retired price,
+  # or a crawler that lowercased the link (Stripe ids are case-sensitive) is a client
+  # error, not a 500 that pages us. Genuinely broken config still raises
+  # CheckoutNotConfigured above.
+  rescue_from Stripe::InvalidRequestError, with: -> { render_api_error(:price_not_found) }
+
   # GET — a storefront buy button lands here and is 302'd straight to Stripe
   # Checkout. Keeps the marketing site a plain static page (a bare <a href>, no
   # CORS, no JS) while the session (seats/metadata/success URLs) is built here.

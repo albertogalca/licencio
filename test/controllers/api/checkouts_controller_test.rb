@@ -70,6 +70,16 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # A crawler lowercased a cached checkout link (Stripe ids are case-sensitive) and
+  # the unrescued Stripe 404 came back as a 500 on a public endpoint.
+  test "a price_id Stripe does not know is not found, not a 500" do
+    raiser = ->(*) { raise Stripe::InvalidRequestError.new("No such price", "price") }
+    Stripe::Price.stub(:retrieve, raiser) do
+      get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_1tqpce4rpfcaqytyx4bgl8h9" }
+    end
+    assert_response :not_found
+  end
+
   test "missing price_id is a bad request" do
     post "/api/checkout", params: { product_slug: @product.slug }
     assert_response :bad_request
