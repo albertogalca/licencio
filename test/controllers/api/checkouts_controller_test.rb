@@ -72,12 +72,24 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
 
   # A crawler lowercased a cached checkout link (Stripe ids are case-sensitive) and
   # the unrescued Stripe 404 came back as a 500 on a public endpoint.
-  test "a price_id Stripe does not know is not found, not a 500" do
-    raiser = ->(*) { raise Stripe::InvalidRequestError.new("No such price", "price") }
-    Stripe::Price.stub(:retrieve, raiser) do
-      get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_1tqpce4rpfcaqytyx4bgl8h9" }
+  test "POST with a price_id Stripe does not know is not found, not a 500" do
+    Stripe::Price.stub(:retrieve, ->(*) { raise Stripe::InvalidRequestError.new("No such price", "price") }) do
+      post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_1tqpce4rpfcaqytyx4bgl8h9" }
     end
     assert_response :not_found
+    assert_equal "price_not_found", response.parsed_body["code"]
+  end
+
+  # An archived price gets past retrieve and only fails at session creation — same
+  # exception class, so the same rescue has to cover it.
+  test "GET with a retired price sends the buyer to the pricing page instead of JSON" do
+    price = fake_price("price_old", @product.stripe_product_id, { "seats" => "1" })
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(*) { raise Stripe::InvalidRequestError.new("The price specified is inactive.", "line_items") }) do
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_old" }
+      end
+    end
+    assert_redirected_to @product.checkout_cancel_url
   end
 
   test "missing price_id is a bad request" do
