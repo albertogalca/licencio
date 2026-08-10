@@ -17,6 +17,7 @@ class Admin::AffiliatesController < Admin::BaseController
     @payable_cents = @affiliate.payments.payable.sum(:commission_cents)
     @paid_cents    = @affiliate.payouts.sum(:amount_cents)
     @owed_cents    = @payable_cents - @paid_cents
+    @products      = Product.order(:name) # rates are per-product, so show the effective one for each
   end
 
   def edit

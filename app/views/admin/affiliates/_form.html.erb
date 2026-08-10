@@ -22,8 +22,9 @@
     <%= form.email_field :payout_email, class: "field-input" %>
   </div>
   <div>
-    <%= form.label :commission_percent, "Commission %", class: "field-label" %>
+    <%= form.label :commission_percent, "Default commission %", class: "field-label" %>
     <%= form.number_field :commission_percent, in: 0..100, class: "field-input w-32" %>
+    <p class="mt-1 text-xs text-gray-500">Used only for products with no rate of their own.</p>
   </div>
   <div>
     <%= form.label :status, class: "field-label" %>

@@ -17,7 +17,12 @@
   <p class="mt-2 text-sm text-gray-500">
     <%= @affiliate.name %> · <%= @affiliate.email %>
     <% if @affiliate.payout_email.present? %> · pays out to <%= @affiliate.payout_email %><% end %>
-    · <span class="tabular-nums"><%= @affiliate.commission_percent %></span>% commission
+  </p>
+  <p class="mt-1 text-sm text-gray-500">
+    <%= safe_join(@products.map { |product|
+          tag.span(safe_join([ product.name, " ",
+            tag.span(@affiliate.commission_percent_for(product), class: "tabular-nums"), "%" ]))
+        }, " · ") %>
   </p>
 </div>
 
