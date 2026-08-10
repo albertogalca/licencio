@@ -4,8 +4,7 @@
   <div>
     <h1 class="text-2xl font-semibold tracking-tight">Hi <%= @affiliate.name %></h1>
     <p class="mt-1 text-sm text-gray-500">
-      Your code <span class="font-mono font-medium text-gray-700"><%= @affiliate.code %></span> ·
-      <span class="tabular-nums"><%= @affiliate.commission_percent %></span>% commission
+      Your code <span class="font-mono font-medium text-gray-700"><%= @affiliate.code %></span>
     </p>
   </div>
   <%= button_to "Sign out", affiliate_session_path, method: :delete,
@@ -32,7 +31,11 @@
     <% @products.each do |product| %>
       <% url = @affiliate.referral_url(product) %>
       <div>
-        <p class="field-label"><%= product.name %></p>
+        <p class="field-label">
+          <%= product.name %>
+          <span class="font-normal text-gray-500">·
+            <span class="tabular-nums"><%= @affiliate.commission_percent_for(product) %></span>% commission</span>
+        </p>
         <div data-controller="clipboard" class="relative">
           <input type="text" readonly value="<%= url %>"
                  data-clipboard-target="source" data-action="focus->clipboard#select"

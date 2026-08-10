@@ -12,7 +12,7 @@ all affiliate emails through that product's Loops config.
 
 # Your affiliate dashboard
 
-Hi {DATA_VARIABLE:affiliate_name}, here's your secure link to the Cozy affiliate dashboard. Open it to grab your referral link and see your sales, commission, and payouts.
+Hi {DATA_VARIABLE:affiliate_name}, here's your secure link to your affiliate dashboard. Open it to grab your referral link and see your sales, commission, and payouts.
 
 [Open my dashboard]({DATA_VARIABLE:magic_link_url})
 

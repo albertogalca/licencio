@@ -22,6 +22,10 @@ class Affiliate < ApplicationRecord
   # A code works on any product's checkout; the dashboard shows one suggested link per product.
   def referral_url(product) = "#{product.affiliate_landing_url}?ref=#{code}"
 
+  # The rate a sale of this product actually pays — the same fallback License#purchase uses.
+  # Rates are per-product, so no single number is correct for the affiliate as a whole.
+  def commission_percent_for(product) = product.affiliate_commission_percent || commission_percent
+
   def approve!
     update!(status: "approved")
     send_dashboard_access_later

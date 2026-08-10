@@ -13,6 +13,14 @@ class AffiliateTest < ActiveSupport::TestCase
     assert_equal 199, @affiliate.commission_for(999)  # floored
   end
 
+  test "commission_percent_for prefers the product override, falls back to the affiliate rate" do
+    @product.update!(affiliate_commission_percent: 25)
+    assert_equal 25, @affiliate.commission_percent_for(@product)
+
+    @product.update!(affiliate_commission_percent: nil)
+    assert_equal @affiliate.commission_percent, @affiliate.commission_percent_for(@product)
+  end
+
   test "code is normalized to lowercase" do
     a = Affiliate.create!(code: "MixedCase", name: "X", email: "x@example.com")
     assert_equal "mixedcase", a.code
