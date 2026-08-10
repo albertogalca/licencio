@@ -213,6 +213,22 @@ class Product < ApplicationRecord
     "#{input}.#{b64url(key.sign(input))}"
   end
 
+  # The promise that outlives this server: publish one of these and every install unlocks
+  # itself, forever, with no network. '*' goes where a normal token binds one device and one
+  # nonce, so the client's existing replay check becomes the marker check — a real activation
+  # token can never be passed off as one of these, and one of these fits any machine.
+  #
+  # Mint it NOW and keep it offsite. eddsa_private_key is encrypted in this database, so a
+  # database you can no longer reach is a promise you can no longer keep. Shutdown day is the
+  # worst possible time to discover that.
+  RESCUE_MARKER = "*"
+
+  def rescue_token(years: 100)
+    sign_jwt(hardware_id: RESCUE_MARKER, license_key: "OFFLINE", expires_at: nil,
+      update_eligible: true, nonce: RESCUE_MARKER,
+      iat: Time.current.to_i, exp: years.years.from_now.to_i)
+  end
+
   private
     def stripe_opts = { api_key: stripe_secret_key }
 

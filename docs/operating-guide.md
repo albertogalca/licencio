@@ -499,3 +499,87 @@ the same numbers and their payout history on their own dashboard — no email ne
 > that gets refunded. If a refund lands *after* you already paid out, that
 > commission is simply money you've eaten — record the next payout for less to
 > settle it, or absorb it. There's no automatic clawback.
+
+---
+
+## 9. If this server ever goes away
+
+The thing customers fear most about buying software they keep is a licence check
+that outlives the company. Answer it once, on purpose, instead of hoping.
+
+**Do this today.** Export the product's Ed25519 signing key and put it somewhere that
+outlives you — a password manager your executor can open, a safe, paper. It is
+encrypted at rest in this database, so a database you can no longer reach is a promise
+you can no longer keep, and the day you need it is the day the server is already gone.
+
+```bash
+# Quote the brackets in zsh.
+bin/rails "licenses:signing_key[cozy]"
+```
+
+**Keep the key, not a token.** A rescue token cannot be revoked — no client ever
+re-checks one — so a token that leaks is free software forever, and the only remedy
+is rotating the product keypair, which locks out every existing install. The key is
+the thing to store; mint a token from it at the moment you actually need one.
+
+```bash
+# When the time comes, if this app still runs:
+bin/rails "licenses:rescue_token[cozy]"
+```
+
+**If nothing else is left.** Rails, this database and this repo may all be gone. The
+key alone is enough — any machine with Node can mint the token, and this snippet is
+short on purpose so it can be retyped from paper:
+
+```js
+// node mint.mjs <base64-signing-key>
+import { createPrivateKey, sign } from 'node:crypto'
+const b64url = (b) => Buffer.from(b).toString('base64url')
+const key = createPrivateKey({
+  key: Buffer.concat([
+    Buffer.from('302e020100300506032b657004220420', 'hex'),
+    Buffer.from(process.argv[2], 'base64')
+  ]),
+  format: 'der',
+  type: 'pkcs8'
+})
+const claims = {
+  hardware_id: '*',
+  license_key: 'OFFLINE',
+  expires_at: null,
+  update_eligible: true,
+  nonce: '*',
+  iat: Math.floor(Date.now() / 1000),
+  exp: 4102444800
+}
+const input = [{ alg: 'EdDSA', typ: 'JWT' }, claims]
+  .map((h) => b64url(JSON.stringify(h)))
+  .join('.')
+console.log(`${input}.${b64url(sign(null, Buffer.from(input, 'ascii'), key))}`)
+```
+
+Store this page next to the key. Together they are the whole kit.
+
+**What a rescue token is.** An ordinary offline token, signed with the same product
+key your app already pins, but carrying `"*"` where a normal token binds one device
+and one nonce. Every install accepts it; no install phones home afterwards. The
+client's existing replay check does the work, so a real activation token captured
+from the network can never be passed off as one.
+
+**How it gets used.** Publish the token — a blog post, the README, a pinned issue —
+and tell people to paste it into the app's licence field in place of a key. That is
+the whole procedure. There is no server involved, so it keeps working forever.
+
+> Verify your client honours it *before* you need it. Cozy's side is
+> `verifyOfflineToken` in `src/main/license/licencio.ts`, covered by
+> `licencio.test.ts` and `manager.test.ts`. A rescue token that doesn't verify is a
+> problem discovered on the one day nobody can fix it.
+
+**Anyone can use a published token, forever.** That is the point at shutdown, when
+there is nobody left to sell to. It is also why you do not mint one early and leave
+it lying in a terminal scrollback or a note file while you are still trading.
+
+**Also worth doing:** don't let the app lock itself on a *silent* failure either. An
+unreachable server is not evidence that a licence is bad, so a client should treat a
+timeout as "keep working", and only ever revoke on a clear answer from a server it
+actually reached.

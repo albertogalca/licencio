@@ -111,6 +111,24 @@ class ProductTest < ActiveSupport::TestCase
     assert_equal product.eddsa_public_key, derived
   end
 
+  # If these break, the shutdown plan breaks with them: a rescue token that doesn't verify
+  # is discovered on the one day nobody can fix it.
+  test "rescue token verifies against the public key the app pins" do
+    product = create_product
+    head, body, sig = product.rescue_token.split(".")
+    verify_key = Ed25519::VerifyKey.new(Base64.strict_decode64(product.eddsa_public_key))
+    assert verify_key.verify(Base64.urlsafe_decode64(sig), "#{head}.#{body}")
+  end
+
+  test "rescue token fits any machine and never expires in a lifetime" do
+    claims = JSON.parse(Base64.urlsafe_decode64(create_product.rescue_token.split(".")[1]))
+    assert_equal "*", claims["hardware_id"]
+    assert_equal "*", claims["nonce"]
+    assert claims["update_eligible"]
+    assert_nil claims["expires_at"]
+    assert_operator claims["exp"], :>, 50.years.from_now.to_i
+  end
+
   test "variants maps Stripe prices, sorts by amount, and reads seats from metadata" do
     list = Struct.new(:data).new([
       fake_price("price_c", "3 seats", 4077, { "seats" => "3" }),
