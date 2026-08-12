@@ -154,6 +154,10 @@ class Product < ApplicationRecord
   # storefront's "trusted by N" social proof.
   def customer_count = customers.distinct.count
 
+  # Both halves or nothing: a code with no template can't be delivered, and a template
+  # with no code would mail an empty discount.
+  def student_discount? = student_transactional_id.present? && student_discount_code.present?
+
   CheckoutNotConfigured = Class.new(StandardError)
 
   def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil, ref: nil)

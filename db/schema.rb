@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_03_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -170,6 +170,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_03_100000) do
     t.string "stripe_product_id"
     t.string "stripe_secret_key"
     t.string "stripe_webhook_secret"
+    t.string "student_discount_code"
+    t.string "student_transactional_id"
     t.integer "trial_days"
     t.integer "update_duration_days"
     t.string "update_policy", null: false

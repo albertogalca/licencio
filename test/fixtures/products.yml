@@ -27,5 +27,7 @@ picmal:
   checkout_success_url: https://picmal.example/thanks
   checkout_cancel_url: https://picmal.example/pricing
   loops_transactional_id: tmpl_picmal
+  student_transactional_id: tmpl_picmal_student
+  student_discount_code: STUDENT
   eddsa_private_key: picmal_private_key
   eddsa_public_key: picmal_public_key

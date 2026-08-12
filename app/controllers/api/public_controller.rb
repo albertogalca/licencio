@@ -15,7 +15,9 @@ class Api::PublicController < ActionController::API
     trial_unavailable:  [ :forbidden,    "No trial is available for this product." ],
     price_not_found:    [ :not_found,    "That price is no longer available." ],
     device_not_active:  [ :not_found,    "That device is not currently active." ],
-    missing_hardware_id: [ :unprocessable_entity, "A hardware_id is required." ]
+    missing_hardware_id: [ :unprocessable_entity, "A hardware_id is required." ],
+    not_academic_email: [ :unprocessable_entity, "That isn't a school address I recognise." ],
+    student_discount_unavailable: [ :service_unavailable, "Student pricing isn't set up for this product." ]
   }.freeze
 
   rescue_from ActiveRecord::RecordNotFound, with: -> { render_api_error(:license_not_found) }

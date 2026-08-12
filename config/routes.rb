@@ -18,6 +18,9 @@ Rails.application.routes.draw do
     # the credential that mints licenses. Read-only — no activation, no seat.
     post   "licenses/validate"   => "validations#create"
     match  "licenses/validate"   => "validations#preflight", via: :options
+    # Public: a storefront posts a school email here and the discount code is mailed to it.
+    post   "students/discount"   => "students#create"
+    match  "students/discount"   => "students#preflight", via: :options
 
     namespace :admin do
       post "migrations/import" => "migrations#import"
