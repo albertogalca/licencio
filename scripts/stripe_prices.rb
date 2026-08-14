@@ -118,7 +118,8 @@ if promo
 else
   report("create promotion code", EDU_PROMO_CODE)
   if APPLY
-    promo = Stripe::PromotionCode.create({ coupon: EDU_COUPON_ID, code: EDU_PROMO_CODE }, OPTS)
+    promo = Stripe::PromotionCode.create(
+      { promotion: { type: "coupon", coupon: EDU_COUPON_ID }, code: EDU_PROMO_CODE }, OPTS)
     puts "  → #{promo.id}"
   end
 end
