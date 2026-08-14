@@ -129,6 +129,33 @@ class ProductTest < ActiveSupport::TestCase
     assert_operator claims["exp"], :>, 50.years.from_now.to_i
   end
 
+  # Existing activation tokens are verified by installs that will never be updated. The
+  # header they check has to keep hashing to the same bytes it always did.
+  test "sign_jwt without a kid produces the header it always produced" do
+    token = create_product.sign_jwt({ hardware_id: "h", nonce: "n" })
+    assert_equal "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9", token.split(".").first
+    assert_equal({ "alg" => "EdDSA", "typ" => "JWT" },
+      JSON.parse(Base64.urlsafe_decode64(token.split(".").first)))
+  end
+
+  test "sign_jwt with a kid names the key, so a client can pin two of them" do
+    product = create_product
+    header = JSON.parse(Base64.urlsafe_decode64(product.sign_jwt({ a: 1 }, kid: "b").split(".").first))
+    assert_equal({ "alg" => "EdDSA", "typ" => "JWT", "kid" => "b" }, header)
+  end
+
+  test "sign_unlock_token signs with the product's current key id" do
+    product = create_product
+    assert_equal "a", product.eddsa_key_id, "the key already in eddsa_public_key"
+
+    token = product.sign_unlock_token({ v: 1 })
+    header, claims, signature = token.split(".")
+    assert_equal "a", JSON.parse(Base64.urlsafe_decode64(header))["kid"]
+
+    verify_key = Ed25519::VerifyKey.new(Base64.strict_decode64(product.eddsa_public_key))
+    assert verify_key.verify(Base64.urlsafe_decode64(signature), "#{header}.#{claims}")
+  end
+
   test "variants maps Stripe prices, sorts by amount, and reads seats from metadata" do
     list = Struct.new(:data).new([
       fake_price("price_c", "3 seats", 4077, { "seats" => "3" }),

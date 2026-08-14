@@ -27,6 +27,17 @@ Rails.application.routes.draw do
     end
   end
 
+  # Unlock by email: no accounts, no keys, no device limit. Public and CORS-wildcard,
+  # because Cozy for iPhone posts from capacitor://localhost.
+  namespace :v1 do
+    post  "unlock/request" => "unlocks#request_code"
+    match "unlock/request" => "unlocks#preflight", via: :options
+    post  "unlock/verify"  => "unlocks#verify"
+    match "unlock/verify"  => "unlocks#preflight", via: :options
+    # Shared-secret (X-Admin-Token), for answering "what did this address buy?" by hand.
+    post  "support/lookup" => "support#lookup"
+  end
+
   namespace :admin do
     resource  :session, only: [ :new, :create, :destroy ]
     resources :products, only: [ :index, :new, :create, :edit, :update ]

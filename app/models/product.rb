@@ -21,6 +21,8 @@ class Product < ApplicationRecord
   has_many :licenses, dependent: :restrict_with_error
   has_many :activations, through: :licenses
   has_many :customers, through: :licenses
+  has_many :purchases, dependent: :restrict_with_error
+  has_many :login_codes, dependent: :delete_all
 
   encrypts :loops_api_key
   encrypts :eddsa_private_key
@@ -211,11 +213,22 @@ class Product < ApplicationRecord
   # (no verification endpoint), so it can't enforce the claims — the client is trusted to
   # honor `expires_at`/`update_eligible` and the `exp` lease. That `exp` (License::TOKEN_LEASE)
   # bounds offline validity: a refund takes effect when the client re-activates past the lease.
-  def sign_jwt(claims)
+  #
+  # `kid` names which public key signed, for clients that pin two of them (see
+  # sign_unlock_token). Omitted when nil, so every existing caller's header is byte-identical
+  # to what it was before rotation existed — an already-issued activation token still verifies.
+  def sign_jwt(claims, kid: nil)
     key = Ed25519::SigningKey.new(Base64.strict_decode64(eddsa_private_key))
-    input = [ { alg: "EdDSA", typ: "JWT" }, claims ].map { |h| b64url(JSON.generate(h)) }.join(".")
+    header = { alg: "EdDSA", typ: "JWT", kid: }.compact
+    input = [ header, claims ].map { |h| b64url(JSON.generate(h)) }.join(".")
     "#{input}.#{b64url(key.sign(input))}"
   end
+
+  # The unlock entitlement: permanent, offline-verified, and never re-checked by this server.
+  # Because clients honour it forever, the only workable rotation is two pinned public keys
+  # (kid "a" and "b") shipped in every build; flipping eddsa_key_id changes which one signs
+  # without stranding a single install. See rake unlock:generate_backup_key.
+  def sign_unlock_token(claims) = sign_jwt(claims, kid: eddsa_key_id)
 
   # The promise that outlives this server: publish one of these and every install unlocks
   # itself, forever, with no network. '*' goes where a normal token binds one device and one
@@ -228,9 +241,11 @@ class Product < ApplicationRecord
   RESCUE_MARKER = "*"
 
   def rescue_token(years: 100)
-    sign_jwt(hardware_id: RESCUE_MARKER, license_key: "OFFLINE", expires_at: nil,
+    # Braced: sign_jwt now takes a kid: keyword, so a bare claims hash would be read as
+    # keyword arguments instead of the claims.
+    sign_jwt({ hardware_id: RESCUE_MARKER, license_key: "OFFLINE", expires_at: nil,
       update_eligible: true, nonce: RESCUE_MARKER,
-      iat: Time.current.to_i, exp: years.years.from_now.to_i)
+      iat: Time.current.to_i, exp: years.years.from_now.to_i })
   end
 
   private

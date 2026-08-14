@@ -157,8 +157,13 @@ flow). Each is a separate field on the product.
 | **Recover / manual grant** — portal access, all of the customer's keys | `loops_transactional_id` | `product_name`, `license_keys` (all, newline-separated), `magic_link_url`, `sender_email` |
 | **Full refund** — cancellation notice | `refund_transactional_id` | `product_name`, `license_keys`, `magic_link_url`, `sender_email` |
 | **~7 days before a `time_limited` license expires** (daily sweep) | `expiry_reminder_transactional_id` | `product_name`, `license_keys` (that key), `expires_at` (pre-formatted, "August 3, 2026"), `renew_url`, `magic_link_url`, `sender_email` |
+| **Unlock code** — six digits, on `POST /v1/unlock/request` | `unlock_transactional_id` | `code`, `product_name` |
 
-Ready-to-paste HTML for the receipt, refund, and expiry emails lives in
+The unlock code is the one exception to "optional": it *is* the unlock flow, so a
+product that sells through `purchases` and leaves `unlock_transactional_id` blank has
+no way for anyone to get in.
+
+Ready-to-paste copy for the receipt, refund, expiry, and unlock-code emails lives in
 [`docs/email-templates/`](email-templates/) — upload each in Loops and copy its id
 into the matching field. Loops merge tags look like `{DATA_VARIABLE:product_name}`.
 Every `magic_link_url` carries the product and is reusable for 30 minutes (see §3).

@@ -9,13 +9,19 @@ class Webhooks::StripeController < ActionController::API
     # secret can only mint/revoke that product's licenses, never another's.
     case event.type
     when "checkout.session.completed"
-      License.fulfill_from_stripe_session(product, event.data.object)
+      session = event.data.object
+      License.fulfill_from_stripe_session(product, session)
+      # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
+      # alongside the license it just minted — the same sale grants both. A price with no
+      # tier (picmal's) records nothing.
+      Purchase.record_stripe!(product, session, price: product.session_price(session))
     when "charge.refunded"
       charge = event.data.object
       # Full refunds only revoke the license; partial refunds — and uncaptured charges, where
       # both amounts are 0 — leave it active.
       if charge.amount_captured.to_i.positive? && charge.amount_refunded == charge.amount_captured
         License.refund!(product:, stripe_payment_intent: charge.payment_intent)
+        Purchase.refund!(product:, provider_order_id: charge.payment_intent)
       end
     end
     head :ok

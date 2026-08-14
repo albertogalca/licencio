@@ -1,0 +1,28 @@
+# Stored exactly as the provider gave it — mixed case, a dot and a +tag — so every test
+# that matches on this address is also testing normalization.
+cozy_forever:
+  product: cozy
+  email: Ana.Perez+cozy@Gmail.com
+  tier: forever
+  purchased_at: <%= 2.months.ago %>
+  provider: stripe
+  provider_order_id: pi_cozy_forever
+
+cozy_standard:
+  product: cozy
+  email: nameless@example.com
+  tier: standard
+  purchased_at: <%= 1.month.ago %>
+  updates_until: <%= 11.months.from_now.to_date %>
+  provider: stripe
+  provider_order_id: pi_cozy_standard
+
+cozy_refunded:
+  product: cozy
+  email: refunded@example.com
+  tier: standard
+  purchased_at: <%= 3.months.ago %>
+  updates_until: <%= 9.months.from_now.to_date %>
+  provider: stripe
+  provider_order_id: pi_cozy_refunded
+  refunded_at: <%= 1.month.ago %>

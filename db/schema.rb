@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_14_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,6 +89,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
     t.index ["product_id"], name: "index_licenses_on_product_id"
   end
 
+  create_table "login_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.string "code_hash", null: false
+    t.datetime "consumed_at"
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.datetime "expires_at", null: false
+    t.uuid "product_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id", "email", "created_at"], name: "index_login_codes_on_product_id_and_email_and_created_at"
+    t.index ["product_id", "email"], name: "index_login_codes_on_product_and_email_unconsumed", where: "(consumed_at IS NULL)"
+    t.index ["product_id"], name: "index_login_codes_on_product_id"
+  end
+
   create_table "notifications", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "customer_id", null: false
@@ -152,6 +166,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
     t.datetime "created_at", null: false
     t.integer "current_version", default: 1, null: false
     t.string "download_url"
+    t.string "eddsa_backup_key_id"
+    t.string "eddsa_backup_public_key"
+    t.string "eddsa_key_id", default: "a", null: false
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
@@ -173,6 +190,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
     t.string "student_discount_code"
     t.string "student_transactional_id"
     t.integer "trial_days"
+    t.string "unlock_transactional_id"
     t.integer "update_duration_days"
     t.string "update_policy", null: false
     t.datetime "updated_at", null: false
@@ -180,6 +198,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
     t.index ["bundle_identifier"], name: "index_products_on_bundle_identifier", unique: true
     t.index ["license_prefix"], name: "index_products_on_license_prefix", unique: true
     t.index ["slug"], name: "index_products_on_slug", unique: true
+  end
+
+  create_table "purchases", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "platforms", default: ["mac", "windows", "iphone"], null: false, array: true
+    t.uuid "product_id", null: false
+    t.string "provider", null: false
+    t.string "provider_order_id", null: false
+    t.datetime "purchased_at", null: false
+    t.datetime "refunded_at"
+    t.string "tier", null: false
+    t.datetime "updated_at", null: false
+    t.date "updates_until"
+    t.index "product_id, (((\nCASE\n    WHEN (split_part(lower(btrim((email)::text)), '@'::text, 2) = ANY (ARRAY['gmail.com'::text, 'googlemail.com'::text])) THEN replace(split_part(split_part(lower(btrim((email)::text)), '@'::text, 1), '+'::text, 1), '.'::text, ''::text)\n    ELSE split_part(split_part(lower(btrim((email)::text)), '@'::text, 1), '+'::text, 1)\nEND || '@'::text) || split_part(lower(btrim((email)::text)), '@'::text, 2)))", name: "index_purchases_on_product_and_normalized_email"
+    t.index ["product_id"], name: "index_purchases_on_product_id"
+    t.index ["provider", "provider_order_id"], name: "index_purchases_on_provider_and_provider_order_id", unique: true
   end
 
   create_table "solid_cable_messages", force: :cascade do |t|
@@ -328,12 +363,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_12_170000) do
   add_foreign_key "affiliate_tokens", "affiliates"
   add_foreign_key "licenses", "customers"
   add_foreign_key "licenses", "products"
+  add_foreign_key "login_codes", "products"
   add_foreign_key "notifications", "customers"
   add_foreign_key "payments", "affiliates"
   add_foreign_key "payments", "licenses"
   add_foreign_key "payouts", "affiliates"
   add_foreign_key "portal_tokens", "customers"
   add_foreign_key "portal_tokens", "products"
+  add_foreign_key "purchases", "products"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
