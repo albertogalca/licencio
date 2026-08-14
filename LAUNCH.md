@@ -121,6 +121,13 @@ the record of what it left on Cozy's own Stripe account.
 |-------|--------|--------|-----------------|
 | `cozy_standard_usd` | $49 | standard | time_limited |
 | `cozy_forever_usd` | $89 | forever | lifetime |
+| `cozy_renewal_usd` | $24 | standard | time_limited |
+
+The $24 renewal price (half of $49, floored — the same rule that made $35's renew $17)
+becomes the product's renewal price at launch, replacing the $17 one. Because it carries
+`tier` metadata, a renewal also writes a fresh `purchases` row, which is what extends the
+email-unlock window — no extra wiring. Cozy Forever never renews; renewal only concerns
+the standard tier.
 
 Also live: the `COZYEDU` promotion code (40% off), and PPP as `currency_options` **on**
 the standard price — 24 per-currency amounts (band A ≈ $29 of value, band B ≈ $19) that
@@ -191,9 +198,16 @@ In this order, within the same hour:
 
 1. Flip `MONETIZATION_ENABLED` on in mobile.
 2. Deploy the marketing site with the new pricing.
-3. Send the grandfathering email to existing customers: they keep everything they have,
+3. In `/admin`, set the cozy product's "Renewal price ID" to the $24 price
+   (`price_1U4Hmr8q5jdfnWu22QNCiKrC`, lookup key `cozy_renewal_usd`).
+4. Send the grandfathering email to existing customers: they keep everything they have,
    plus iPhone at no cost. Say it plainly — this is the email that decides whether the
    change reads as generous or as a rug pull.
+
+One promise to keep by hand: two $35-era buyers hold time-limited licenses expiring
+August 2027 (matt.cassem@…, sandhu.ahmed@…) and were sold "renew for ~$17". When their
+reminders fire, send them a checkout link built on the old $17 price instead of letting
+them pay $24. Two people, one manual link each — not worth code.
 
 ---
 

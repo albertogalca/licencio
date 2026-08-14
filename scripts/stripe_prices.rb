@@ -61,7 +61,13 @@ PRICES = [
   { lookup_key: "cozy_standard_usd", nickname: "Cozy — one year of updates", amount: 4900,
     metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } },
   { lookup_key: "cozy_forever_usd", nickname: "Cozy Forever — every update, always", amount: 8900,
-    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } }
+    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } },
+  # Half of $49, floored — the same rule that made $35's renew price $17. Becomes
+  # `renewal_stripe_price_id` on the cozy product at launch. The `tier` metadata means a
+  # renewal session also writes a fresh `purchases` row, which is how a renewal extends
+  # the email-unlock window: the unlock always reads the newest purchase for the address.
+  { lookup_key: "cozy_renewal_usd", nickname: "Another year of updates (renew, $49 era)", amount: 2400,
+    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } }
 ].freeze
 
 EDU_COUPON_ID = "cozy_edu_40"
