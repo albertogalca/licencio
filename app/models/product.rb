@@ -197,7 +197,11 @@ class Product < ApplicationRecord
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence,
-                  affiliate_id: affiliate&.id }.compact,
+                  affiliate_id: affiliate&.id,
+                  # The storefronts send Seline's visitor id as client_reference_id, but Seline
+                  # matches a guest charge to a visit only by this metadata key. Same value,
+                  # copied under the name Seline looks for.
+                  seline_visitor_id: client_reference_id.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
   end
 

@@ -36,6 +36,8 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to "https://stripe.test/session"
     assert_equal "ph_abc", captured[:client_reference_id]
+    # Seline reads only this metadata key, so the same id has to ride along under it.
+    assert_equal "ph_abc", captured[:metadata][:seline_visitor_id]
   end
 
   test "an approved ref code rides into the session metadata as affiliate_id" do
