@@ -6,7 +6,7 @@ class Customer < ApplicationRecord
   validates :email, presence: true, uniqueness: true
 
   scope :search, ->(term) {
-    pattern = "%#{term.to_s.strip}%"
+    pattern = "%#{sanitize_sql_like(term.to_s.strip)}%" # % and _ are literals, not wildcards
     where("customers.email ILIKE :p OR customers.name ILIKE :p", p: pattern)
   }
   scope :for_product, ->(product_id) {

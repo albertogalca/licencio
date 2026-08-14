@@ -260,6 +260,17 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert purchase.reload.refunded_at
   end
 
+  test "an affiliate buying through their own link earns no commission" do
+    affiliate = affiliates(:approved)
+    post_event completed_event(payment_intent: "pi_self", affiliate_id: affiliate.id,
+      email: affiliate.email)
+
+    payment = Payment.find_by!(stripe_payment_intent: "pi_self")
+    assert_nil payment.affiliate_id, "a self-referral is a discount, not a referral"
+    assert_nil payment.commission_cents
+    assert License.order(:created_at).last.active?, "the sale itself still stands"
+  end
+
   test "a chargeback revokes the license and stops the commission being payable" do
     affiliate = affiliates(:approved)
     post_event completed_event(payment_intent: "pi_dispute", affiliate_id: affiliate.id)

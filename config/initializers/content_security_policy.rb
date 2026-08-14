@@ -10,6 +10,12 @@ Rails.application.configure do
     policy.font_src    :self, :data
     policy.img_src     :self, :https, :data # :https covers Gravatar avatars
     policy.object_src  :none
+    # None of these fall back to default_src, so they have to be stated. base_uri is the one
+    # that matters most: an injected <base> retargets every relative script URL and defeats the
+    # nonce. form_action is safe as :self — the Stripe hand-off is a redirect, not a form post.
+    policy.base_uri        :self
+    policy.form_action     :self
+    policy.frame_ancestors :none
     # No :https here — scripts/styles are self-hosted (importmap, Turbo, compiled
     # Tailwind); allowing any https origin would let an injected external <script> run
     # despite the nonce. The nonce covers our inline importmap + Turbo's inline styles.

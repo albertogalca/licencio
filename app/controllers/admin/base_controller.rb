@@ -10,7 +10,13 @@ class Admin::BaseController < ApplicationController
       @current_admin ||= AdminUser.find_by(id: session[:admin_user_id])
     end
 
+    # An admin cookie has nothing to expire server-side, so a lifted one stays good forever
+    # against the surface that holds every Stripe secret and every customer's PII. One working
+    # day: long enough not to nag, short enough that a stolen session dies overnight.
+    ADMIN_SESSION_MAX_AGE = 12.hours
+
     def require_admin
+      reset_session if session[:admin_authenticated_at].to_i < ADMIN_SESSION_MAX_AGE.ago.to_i
       redirect_to new_admin_session_path unless current_admin
     end
 

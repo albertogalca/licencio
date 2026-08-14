@@ -2,6 +2,11 @@
 # no dashboard, an unlock that goes wrong has no other way to be diagnosed. Not part of the
 # public contract: shared-secret header, and never exposed to a client app.
 class V1::SupportController < Api::PublicController
+  # Returns every purchase row for any address it is asked about, so an unbudgeted guess at
+  # the shared secret buys bulk customer PII. Named, or it would share a bucket with another
+  # limiter. Low ceiling on purpose: this is one human on a support call, not a client app.
+  rate_limit to: 10, within: 1.minute, name: "support-lookup", with: -> { head :too_many_requests }
+
   before_action :authenticate_support
 
   def lookup
@@ -22,6 +27,7 @@ class V1::SupportController < Api::PublicController
       provided = request.headers["X-Admin-Token"].to_s
       token = ENV["SUPPORT_ADMIN_TOKEN"].to_s
       unless token.present? && ActiveSupport::SecurityUtils.secure_compare(provided, token)
+        Rails.logger.warn("[support] rejected lookup from #{request.remote_ip}")
         render_api_error(:unauthorized)
       end
     end

@@ -9,8 +9,11 @@ class License < ApplicationRecord
   enum :status, { active: "active", inactive: "inactive", expired: "expired", refunded: "refunded" }
   enum :migration_source, { lemon_squeezy: "lemon_squeezy", polar: "polar" }, prefix: true
 
+  # sanitize_sql_like escapes % and _ so they match literally — an admin searching for an
+  # underscore in a license key wants that character, not a wildcard, and a lone "%" would
+  # otherwise scan every row across a three-table join, twice (paginate counts first).
   scope :search, ->(term) {
-    pattern = "%#{term.to_s.strip}%"
+    pattern = "%#{sanitize_sql_like(term.to_s.strip)}%"
     left_joins(:customer, :product).where(
       "licenses.license_key ILIKE :p OR licenses.status ILIKE :p OR " \
       "customers.email ILIKE :p OR customers.name ILIKE :p OR products.name ILIKE :p", p: pattern)
@@ -88,6 +91,10 @@ class License < ApplicationRecord
     # here off amount_subtotal — pre-VAT, because under Managed Payments amount_total includes tax we
     # never receive — and stored on the Payment, never recomputed from the affiliate's current rate.
     affiliate = Affiliate.find_by(id: meta[:affiliate_id]) if meta[:affiliate_id].present?
+    if affiliate&.self_referral?(session.customer_details.email)
+      Rails.logger.warn("[affiliate] self-referral dropped: affiliate=#{affiliate.id} session=#{session.id}")
+      affiliate = nil # the sale still stands; only the commission goes
+    end
     subtotal = session.amount_subtotal || session.amount_total
     commission_cents = affiliate&.commission_for(subtotal, percent: product.affiliate_commission_percent)
 

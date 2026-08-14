@@ -3,7 +3,8 @@ class Admin::AffiliatesController < Admin::BaseController
 
   def index
     scope = Affiliate.order(:code)
-    scope = scope.where("code ILIKE :p OR name ILIKE :p OR email ILIKE :p", p: "%#{params[:q].strip}%") if params[:q].present?
+    scope = scope.where("code ILIKE :p OR name ILIKE :p OR email ILIKE :p",
+      p: "%#{Affiliate.sanitize_sql_like(params[:q].strip)}%") if params[:q].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     @affiliates = paginate(scope)
     # Two grouped queries feed the whole page — no per-row lookups.

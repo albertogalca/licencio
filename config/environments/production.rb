@@ -80,8 +80,11 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks. Only the app's
-  # own host is allowed; APP_HOST is required in production.
-  config.hosts << ENV.fetch("APP_HOST") if ENV["APP_HOST"].present?
+  # own host is allowed; APP_HOST is required in production — and now enforced, because an
+  # empty config.hosts means "permit everything", so the old `if present?` guard turned a
+  # missing variable into the protection silently being off. Skipped for the image build's
+  # assets:precompile, which boots production without any real environment.
+  config.hosts << ENV.fetch("APP_HOST") unless ENV["SECRET_KEY_BASE_DUMMY"]
 
   # Skip DNS rebinding protection for the health check endpoints (hit by the proxy over the host IP).
   config.host_authorization = { exclude: ->(request) { request.path == "/up" || request.path == "/health" } }

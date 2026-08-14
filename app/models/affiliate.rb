@@ -8,8 +8,15 @@ class Affiliate < ApplicationRecord
   normalizes :code, with: -> { it.to_s.downcase.strip }
   normalizes :email, with: -> { it.to_s.downcase.strip }
 
+  # Signup is public and uniqueness spans every status, so a pending application that will
+  # never be approved still locks a code forever. Keep the names that would be confusing or
+  # valuable in a published ?ref= URL out of the land grab.
+  RESERVED_CODES = %w[admin affiliate app apps buy checkout deal deals discount download
+    help official picmal cozy lumiv promo sale store student support team]
+
   validates :code, presence: true, uniqueness: true, format: { with: /\A[a-z0-9][a-z0-9-]*\z/,
-    message: "may only contain lowercase letters, numbers and hyphens" }
+    message: "may only contain lowercase letters, numbers and hyphens" },
+    exclusion: { in: ->(_) { RESERVED_CODES + Product.pluck(:slug) }, message: "is reserved" }
   validates :name, presence: true
   validates :email, presence: true, uniqueness: true
   validates :commission_percent, numericality: { in: 0..100 }
@@ -18,6 +25,17 @@ class Affiliate < ApplicationRecord
   # never recomputed from commission_percent later — changing the rate never rewrites past sales.
   # percent: overrides the affiliate's own rate (per-product override); nil → the affiliate's rate.
   def commission_for(subtotal_cents, percent: nil) = subtotal_cents.to_i * (percent || commission_percent) / 100
+
+  # A referral to yourself is a personal discount, not a referral. Without this an approved
+  # affiliate appends their own ?ref= to their own purchase and earns the commission back on
+  # it, every time — and at scale buys at 20% off to resell under the storefront price. Both
+  # addresses count: the one they signed up with and the one that gets paid. Normalized
+  # through Purchase, so +tags and gmail dots don't dodge it.
+  def self_referral?(buyer_email)
+    return false if buyer_email.blank?
+    bought_by = Purchase.normalize_email(buyer_email)
+    [ email, payout_email ].compact_blank.any? { |own| Purchase.normalize_email(own) == bought_by }
+  end
 
   # A code works on any product's checkout; the dashboard shows one suggested link per product.
   def referral_url(product) = "#{product.affiliate_landing_url}?ref=#{code}"
