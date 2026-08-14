@@ -22,14 +22,36 @@ SLUG  = ENV.fetch("PRODUCT_SLUG", "cozy")
 
 # ── Purchasing-power-parity bands ────────────────────────────────────────────────
 # EDIT THESE. They're a judgement call, not a formula: two bands is as much complexity
-# as this is worth, and the country list is the whole policy. `ppp_countries` rides in
-# the price metadata and the webhook only LOGS a mismatch — nothing is ever blocked.
+# as this is worth, and the currency list is the whole policy.
+#
+# PPP rides as `currency_options` ON the standard price — per-currency amounts that
+# Stripe Checkout picks automatically from the buyer's location. One price ID, no
+# separate discounted link to leak. Every band country has its own currency, which is
+# what makes this mapping clean (a shared currency like EUR could not be banded).
+# A currency_options entry is WRITE-ONCE on Stripe: the script only ever adds
+# currencies that are missing, and the amounts below must be right the first time.
 PPP_BANDS = {
-  # ~upper-middle-income
-  "a" => { amount: 2900, countries: %w[BR MX TR PL RO AR CL MY TH ZA CO PE] },
-  # ~lower-income
-  "b" => { amount: 1900, countries: %w[IN ID PH VN EG PK NG BD UA MA KE LK] }
+  # ~upper-middle-income → target $29 of value
+  "a" => { target_usd: 29, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR COP PEN] },
+  # ~lower-income → target $19 of value
+  "b" => { target_usd: 19, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR] }
 }.freeze
+
+# Stripe treats these as zero-decimal: unit_amount is whole currency units.
+ZERO_DECIMAL = %w[CLP VND].freeze
+
+# Round DOWN to a clean local number — Cozy sells round prices, not .99 charm.
+def round_price(x)
+  step = case x
+  when 0...50 then 1
+  when 50...200 then 5
+  when 200...1_000 then 10
+  when 1_000...10_000 then 100
+  when 10_000...100_000 then 1_000
+  else 10_000
+  end
+  (x / step).floor * step
+end
 
 # `seats` is required by Product#create_checkout_session, and Cozy's whole promise is
 # unlimited devices — so every price says so explicitly rather than relying on a default.
@@ -39,13 +61,7 @@ PRICES = [
   { lookup_key: "cozy_standard_usd", nickname: "Cozy — one year of updates", amount: 4900,
     metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } },
   { lookup_key: "cozy_forever_usd", nickname: "Cozy Forever — every update, always", amount: 8900,
-    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } },
-  *PPP_BANDS.map do |band, config|
-    { lookup_key: "cozy_standard_ppp_#{band}", nickname: "Cozy — regional (band #{band.upcase})",
-      amount: config[:amount],
-      metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited",
-                  "ppp_countries" => config[:countries].join(",") } }
-  end
+    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } }
 ].freeze
 
 EDU_COUPON_ID = "cozy_edu_40"
@@ -84,6 +100,37 @@ PRICES.each do |spec|
     unit_amount: spec[:amount], nickname: spec[:nickname], lookup_key: spec[:lookup_key],
     metadata: spec[:metadata] }, OPTS)
   puts "  → #{price.id}"
+end
+
+puts
+
+# ── PPP currency_options on the standard price ──────────────────────────────────
+standard = existing["cozy_standard_usd"] ||
+  Stripe::Price.list({ product: stripe_product_id, active: true, lookup_keys: [ "cozy_standard_usd" ] }, OPTS).data.first
+if standard
+  full = Stripe::Price.retrieve({ id: standard.id, expand: [ "currency_options" ] }, OPTS)
+  present = (full.currency_options&.keys || []).map(&:to_s).map(&:upcase)
+  fx = JSON.parse(Net::HTTP.get(URI("https://open.er-api.com/v6/latest/USD"))).fetch("rates")
+  additions = {}
+  PPP_BANDS.each do |band, config|
+    config[:currencies].each do |cur|
+      next if present.include?(cur)
+      rate = fx[cur] or (warn "  ! no FX rate for #{cur}, skipped"; next)
+      local = round_price(config[:target_usd] * rate)
+      minor = ZERO_DECIMAL.include?(cur) ? local : local * 100
+      additions[cur.downcase] = { unit_amount: minor }
+      report("add currency", format("%s %s ≈ $%.2f (band %s, target $%d)",
+        cur, local, local / rate.to_f, band.upcase, config[:target_usd]))
+    end
+  end
+  if additions.empty?
+    report("keep", "currency_options already complete on #{standard.id}")
+  elsif APPLY
+    Stripe::Price.update(standard.id, { currency_options: additions }, OPTS)
+    puts "  → #{additions.size} currencies added to #{standard.id}"
+  end
+else
+  report("skip", "currency_options — standard price not found (create it first)")
 end
 
 puts

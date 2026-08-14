@@ -124,17 +124,19 @@ Creates, on Cozy's own Stripe account:
 |-------|--------|--------|-----------------|
 | `cozy_standard_usd` | $49 | standard | time_limited |
 | `cozy_forever_usd` | $89 | forever | lifetime |
-| `cozy_standard_ppp_a` | $29 | standard | time_limited |
-| `cozy_standard_ppp_b` | $19 | standard | time_limited |
 
-…plus the `COZYEDU` promotion code (40% off). **Edit `PPP_BANDS` in the script first** —
-the country lists are a judgement call, not a formula.
+…plus the `COZYEDU` promotion code (40% off), and PPP as `currency_options` **on** the
+standard price: per-currency amounts (band A ≈ $29 of value, band B ≈ $19) that Stripe
+Checkout picks automatically from the buyer's location. One price ID, nothing to leak.
+**Edit `PPP_BANDS` in the script first** — the currency lists are a judgement call, not
+a formula. (Already run on 2026-08-14: both prices live, 24 PPP currencies attached.)
 
 Two things to know:
 
-- PPP is honour-system. `ppp_countries` rides in the price metadata and the webhook only
-  **logs** `ppp.country_mismatch`. Nothing is blocked, nothing is voided. A VPN defeats
-  any check, and a traveller with a foreign card is far more common than fraud.
+- A `currency_options` entry is write-once on Stripe. The script only adds missing
+  currencies; to change an amount you must mint a new standard price and swap the site's
+  price ID. PPP is honour-system either way: Stripe picks the currency by location, a
+  VPN defeats any check, and a traveller with a foreign card is far more common than fraud.
 - Stripe scopes a coupon by product, not by price, so `COZYEDU` would also discount the
   forever tier if someone found it there. Only offer the promo field on the standard
   checkout.

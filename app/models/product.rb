@@ -91,18 +91,6 @@ class Product < ApplicationRecord
     Stripe::Webhook.construct_event(payload, signature, stripe_webhook_secret)
   end
 
-  # Issuing country of the card that paid, for the purchasing-power-parity audit log. nil
-  # when Stripe can't tell us (a non-card method, or a transient API failure) — the caller
-  # treats "unknown" as "fine", because PPP pricing is honour-system by design.
-  def card_country(payment_intent_id)
-    return if payment_intent_id.blank?
-    intent = Stripe::PaymentIntent.retrieve(
-      { id: payment_intent_id, expand: [ "latest_charge" ] }, stripe_opts)
-    intent.latest_charge&.payment_method_details&.card&.country
-  rescue Stripe::StripeError
-    nil
-  end
-
   def license_expires_at(from: Time.current, policy: update_policy)
     # ponytail: a time_limited license with no duration gets no expiry instead of crashing
     # (e.g. a per-license time_limited override on a product that never set update_duration_days).
