@@ -195,6 +195,71 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_nil renewal.commission_cents
   end
 
+  # ── Unlock purchases ──────────────────────────────────────────────────────────
+  # The same sale mints a license AND records a purchase; the license-key system is
+  # untouched, and the unlock flow is opted into by a `tier` on the price.
+
+  test "a tiered price records a purchase alongside the license" do
+    assert_difference [ "License.count", "Purchase.count" ], 1 do
+      post_event completed_event(email: "buyer@example.com", payment_intent: "pi_tier"),
+        price_metadata: { "tier" => "forever" }
+    end
+
+    purchase = Purchase.order(:created_at).last
+    assert_equal @product, purchase.product
+    assert_equal "buyer@example.com", purchase.email
+    assert purchase.forever?
+    assert_equal "pi_tier", purchase.provider_order_id
+  end
+
+  test "a standard tier buys a year of updates" do
+    post_event completed_event(payment_intent: "pi_std"), price_metadata: { "tier" => "standard" }
+    purchase = Purchase.order(:created_at).last
+    assert purchase.standard?
+    assert_equal 1.year.from_now.to_date, purchase.updates_until
+  end
+
+  # The $89 SKU is a lifetime license AND a forever unlock, both declared on the price.
+  # Fulfillment already reads update_policy off the price when the session doesn't carry
+  # one, so the two systems agree from the same metadata.
+  test "a price declaring lifetime mints a lifetime license and a forever purchase" do
+    post_event completed_event(payment_intent: "pi_89", quantity: nil),
+      price_metadata: { "seats" => "3", "update_policy" => "lifetime", "tier" => "forever" }
+
+    license = License.order(:created_at).last
+    assert_equal "lifetime", license.update_policy
+    assert_nil license.expires_at, "a lifetime license never stops getting updates"
+    assert_equal 3, license.max_activations
+    assert Purchase.order(:created_at).last.forever?
+  end
+
+  test "a price with no tier records no purchase" do
+    assert_difference "License.count", 1 do
+      assert_no_difference "Purchase.count" do
+        post_event completed_event(payment_intent: "pi_untiered")
+      end
+    end
+  end
+
+  test "a duplicate delivery records the purchase only once" do
+    post_event completed_event(payment_intent: "pi_pdup"), price_metadata: { "tier" => "forever" }
+    assert_no_difference "Purchase.count" do
+      post_event completed_event(payment_intent: "pi_pdup"), price_metadata: { "tier" => "forever" }
+    end
+    assert_response :ok
+  end
+
+  test "a full refund stamps the purchase, and a partial one leaves it alone" do
+    post_event completed_event(payment_intent: "pi_pref"), price_metadata: { "tier" => "forever" }
+    purchase = Purchase.find_by!(provider_order_id: "pi_pref")
+
+    post_event refunded_event(payment_intent: "pi_pref", amount: 1000, amount_refunded: 400)
+    assert_nil purchase.reload.refunded_at
+
+    post_event refunded_event(payment_intent: "pi_pref")
+    assert purchase.reload.refunded_at
+  end
+
   private
     def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",
@@ -216,6 +281,7 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
       {
         type: "checkout.session.completed",
         data: { object: {
+          id: "cs_#{payment_intent}", # every real session has one; session_price needs it
           customer: stripe_customer,
           customer_details:,
           metadata:,
@@ -227,8 +293,17 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
       }.to_json
     end
 
-    def post_event(payload)
-      post "/webhooks/stripe/#{@product.id}", params: payload, headers: signed(payload)
+    # The webhook now reads the purchased line item (for the unlock flow's `tier`), so every
+    # delivery needs a price to read. Empty metadata is the default on purpose: that's
+    # picmal, which sells licenses only and must never grow a purchase row.
+    def post_event(payload, price_metadata: {})
+      price = Struct.new(:id, :product, :metadata)
+        .new("price_test", @product.stripe_product_id, price_metadata)
+      line_items = Struct.new(:data).new([ Struct.new(:price).new(price) ])
+
+      Stripe::Checkout::Session.stub(:list_line_items, line_items) do
+        post "/webhooks/stripe/#{@product.id}", params: payload, headers: signed(payload)
+      end
     end
 
     # CONTENT_TYPE json keeps the body byte-for-byte; form-encoding would break the signature.

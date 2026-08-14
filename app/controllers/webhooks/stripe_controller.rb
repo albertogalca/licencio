@@ -9,13 +9,21 @@ class Webhooks::StripeController < ActionController::API
     # secret can only mint/revoke that product's licenses, never another's.
     case event.type
     when "checkout.session.completed"
-      License.fulfill_from_stripe_session(product, event.data.object)
+      session = event.data.object
+      License.fulfill_from_stripe_session(product, session)
+      # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
+      # alongside the license it just minted — the same sale grants both. A price with no
+      # tier (picmal's) records nothing.
+      price = product.session_price(session)
+      Purchase.record_stripe!(product, session, price:)
+      audit_ppp_country(product, session, price)
     when "charge.refunded"
       charge = event.data.object
       # Full refunds only revoke the license; partial refunds — and uncaptured charges, where
       # both amounts are 0 — leave it active.
       if charge.amount_captured.to_i.positive? && charge.amount_refunded == charge.amount_captured
         License.refund!(product:, stripe_payment_intent: charge.payment_intent)
+        Purchase.refund!(product:, provider_order_id: charge.payment_intent)
       end
     end
     head :ok
@@ -25,4 +33,20 @@ class Webhooks::StripeController < ActionController::API
 
   private
     def find_product = Product.find_by(id: params[:product_id])
+
+    # Purchasing-power-parity prices are cheap on purpose and unenforceable by design: a
+    # VPN defeats any check, and a traveller or an expat with a foreign card is far more
+    # common than someone gaming $20. So this only writes a line in the log — never blocks
+    # a sale, never voids a purchase. Read it if PPP revenue ever looks wrong.
+    def audit_ppp_country(product, session, price)
+      allowed = price && price.metadata["ppp_countries"].to_s.split(",")
+        .map { |c| c.strip.upcase }.reject(&:blank?)
+      return if allowed.blank?
+
+      country = product.card_country(session.payment_intent)
+      return if country.blank? || allowed.include?(country.upcase)
+
+      Rails.logger.warn("ppp.country_mismatch product=#{product.slug} session=#{session.id} " \
+        "price=#{price.id} country=#{country} allowed=#{allowed.join("/")}")
+    end
 end

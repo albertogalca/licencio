@@ -17,7 +17,16 @@ class Api::PublicController < ActionController::API
     device_not_active:  [ :not_found,    "That device is not currently active." ],
     missing_hardware_id: [ :unprocessable_entity, "A hardware_id is required." ],
     not_academic_email: [ :unprocessable_entity, "That isn't a school address I recognise." ],
-    student_discount_unavailable: [ :service_unavailable, "Student pricing isn't set up for this product." ]
+    student_discount_unavailable: [ :service_unavailable, "Student pricing isn't set up for this product." ],
+    product_not_found:  [ :not_found,    "No product matches that name." ],
+    # Unlock flow. There are no accounts here — only a purchase and an inbox — so the
+    # wording never implies one, and never says whether an address has bought anything.
+    invalid_email:      [ :unprocessable_entity, "That doesn't look like an email address." ],
+    code_invalid:       [ :unprocessable_entity, "That code isn't right. Check the email and try again." ],
+    code_expired:       [ :gone,         "That code has expired. Ask for a new one." ],
+    too_many_attempts:  [ :too_many_requests, "Too many tries with that code. Ask for a new one." ],
+    purchase_refunded:  [ :forbidden,    "Your Cozy license was refunded." ],
+    purchase_not_found: [ :not_found,    "I can't find a Cozy license for that email address." ]
   }.freeze
 
   rescue_from ActiveRecord::RecordNotFound, with: -> { render_api_error(:license_not_found) }

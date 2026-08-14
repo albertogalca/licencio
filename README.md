@@ -67,10 +67,65 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
 | `POST /api/admin/migrations/import` | `Bearer ADMIN_API_KEY` | bulk-import licenses (Lemon Squeezy / Polar) |
+| `POST /v1/unlock/request` | none | email → six-digit code in the buyer's inbox (always `{ ok: true }`) |
+| `POST /v1/unlock/verify` | none | code → permanent Ed25519 entitlement token |
+| `POST /v1/support/lookup` | `X-Admin-Token: SUPPORT_ADMIN_TOKEN` | what did this address buy, and optionally re-send a code |
 | `POST /webhooks/stripe/:product_id` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`). Verified with that Product's `stripe_webhook_secret` |
 | `GET /portal` … | session cookie | customer self-serve portal |
 | `GET /affiliate` … | session cookie | affiliate self-serve dashboard (magic-link login; public `/affiliate/signup`) |
 | `GET /up`, `/health` | — | health checks |
+
+## Unlock by email (no accounts, no keys)
+
+A second way in, alongside the license-key system — not a replacement. Nothing about
+license keys changes, and both work at the same time.
+
+A buyer types their email, gets six digits, types them back, and the app is permanently
+unlocked. There is no account, no password, no device limit, and nothing that revokes.
+The apps work forever, offline, after one unlock.
+
+1. `POST /v1/unlock/request` → always `{ ok: true }`, at the same speed, whatever the
+   answer. Whether the address bought anything is decided in `UnlockCodeJob`, behind the
+   queue, so a caller can't learn it by timing the response. Three codes per address per
+   fifteen minutes; over budget the answer is still `{ ok: true }` and no mail is sent.
+2. `POST /v1/unlock/verify` → a `LoginCode` allows five wrong guesses inside ten minutes;
+   the sixth burns it. On success the newest live `Purchase` for that address is signed
+   into an entitlement token.
+
+The token is an EdDSA compact JWT with **no `exp`** — permanently valid by design. Its
+claims are `{ v, sub, tier, updates_until, device, iat }`. `device` is echoed straight
+back from the request and stored nowhere: unlimited devices means there is nothing to
+count. `tier` is `standard` (a year of updates) or `forever`; neither ever stops the app
+working.
+
+Addresses are matched on a **normalized** form — lowercased, trimmed, `+tag` stripped,
+and dots stripped for `gmail.com`/`googlemail.com` only. `Purchase.normalize_email` and
+`Purchase::NORMALIZED_EMAIL_SQL` are the same rule in Ruby and in Postgres (an expression
+index backs the lookup), and a test asserts the two agree — a disagreement is a customer
+who paid and can't unlock.
+
+Purchases are written by the Stripe webhook next to the license it already mints, but
+only for prices whose metadata carries a `tier`. A product that doesn't tag its prices is
+untouched by all of this.
+
+### Key rotation (kid `a` / `b`)
+
+Clients verify these tokens offline, forever, and may never contact the server again — so
+a key can only be rotated if every client already trusts the replacement. Ship **two**
+public keys in every build, keyed by the token header's `kid`:
+
+```
+rake "unlock:generate_backup_key[cozy]"   # prints the private half ONCE — cold-store it
+```
+
+That mints key `b`, stores only its public half (`products.eddsa_backup_public_key`), and
+prints both `(kid, public key)` pairs to embed. `products.eddsa_key_id` says which one
+signs today — `a`, the key already in `eddsa_public_key`. To rotate, restore the cold
+private key into `eddsa_private_key` and set `eddsa_key_id` to `b`; already-issued tokens
+keep verifying against `a`, which clients still trust.
+
+Do this **before the first client ships**. Afterwards there is no way to add a second key
+to installs that never update.
 
 ## Self-hosting
 
@@ -123,6 +178,7 @@ See [`env.example`](env.example) for the full, commented list. The essentials:
 | `DATABASE_URL` | ✅ (auto-set by compose) | Postgres connection (single database) |
 | `APP_HOST` | ✅ in prod | host for magic-link / mailer URLs, e.g. `licenses.yourapp.com` |
 | `ADMIN_API_KEY` | for imports | Bearer token for `/api/admin/*` |
+| `SUPPORT_ADMIN_TOKEN` | for unlock support | `X-Admin-Token` for `POST /v1/support/lookup` |
 | `LOOPS_API_KEY_DEFAULT` | for email | fallback Loops key (per-Product key overrides it) |
 
 Everything Stripe — including the checkout success/cancel redirect URLs — lives
