@@ -48,11 +48,14 @@ class V1::UnlocksController < Api::PublicController
 
   def verify
     product = Product.find_by(slug: params[:product_slug]) or return render_api_error(:product_not_found)
-    code = newest_live_code(product, params[:email])
-    return refuse(:code_invalid, product) if code.nil?
 
-    result = code.verify!(params[:code].to_s.strip)
-    return refuse(result, product) unless result == :ok
+    unless review_unlock?
+      code = newest_live_code(product, params[:email])
+      return refuse(:code_invalid, product) if code.nil?
+
+      result = code.verify!(params[:code].to_s.strip)
+      return refuse(result, product) unless result == :ok
+    end
 
     purchase = Purchase.for_email(product, params[:email]).live.order(:purchased_at).last
     return refuse(refusal_without_purchase(product), product) if purchase.nil?
@@ -73,6 +76,22 @@ class V1::UnlocksController < Api::PublicController
       headers["Access-Control-Allow-Origin"]  = "*"
       headers["Access-Control-Allow-Headers"] = "Content-Type"
       headers["Access-Control-Max-Age"]       = "86400"
+    end
+
+    # App Review can't read a purchaser's inbox, so one designated address accepts one fixed
+    # code from the environment instead of an emailed one. Inert unless BOTH env vars are
+    # set; the address still needs a live purchase row, so the token that comes back is a
+    # real one. Everything after the code check is the normal path.
+    def review_unlock?
+      review_email = ENV["REVIEW_UNLOCK_EMAIL"].to_s
+      review_code  = ENV["REVIEW_UNLOCK_CODE"].to_s
+      return false if review_email.blank? || review_code.blank?
+
+      matched = ActiveSupport::SecurityUtils.secure_compare(
+        Purchase.normalize_email(params[:email].to_s), Purchase.normalize_email(review_email)
+      ) && ActiveSupport::SecurityUtils.secure_compare(params[:code].to_s.strip, review_code)
+      Rails.logger.info("unlock.review_code_used") if matched
+      matched
     end
 
     def newest_live_code(product, raw_email)

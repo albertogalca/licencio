@@ -172,4 +172,45 @@ class V1::UnlocksVerifyTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert_equal "*", response.headers["Access-Control-Allow-Origin"]
   end
+
+  test "the review address unlocks with the fixed code, and only with it" do
+    with_review_env("anaperez@gmail.com", "424242") do
+      verify(code: "424242")
+      assert_response :ok
+      assert_equal true, response.parsed_body["ok"]
+
+      verify(code: "424243")
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "the fixed code works for nobody but the review address" do
+    with_review_env("someone-else@example.com", "424242") do
+      verify(code: "424242")
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "the review path stays inert when the env vars are unset" do
+    verify(code: "424242")
+    assert_response :unprocessable_entity
+  end
+
+  test "a refunded review purchase still refuses" do
+    @purchase.update!(refunded_at: Time.current)
+    with_review_env("anaperez@gmail.com", "424242") do
+      verify(code: "424242")
+      assert_response :forbidden
+    end
+  end
+
+  private
+    def with_review_env(email, code)
+      ENV["REVIEW_UNLOCK_EMAIL"] = email
+      ENV["REVIEW_UNLOCK_CODE"] = code
+      yield
+    ensure
+      ENV.delete("REVIEW_UNLOCK_EMAIL")
+      ENV.delete("REVIEW_UNLOCK_CODE")
+    end
 end

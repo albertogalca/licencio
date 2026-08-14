@@ -172,6 +172,17 @@ Ship the build with both public keys embedded (step 2) and the unlock screen poi
 `/v1/unlock/request` and `/v1/unlock/verify`. Keep `MONETIZATION_ENABLED` **off** — the
 build goes through review while the flow is dark.
 
+For App Review's demo of the email unlock, set two env vars on the server before
+submitting (and clear them after approval):
+
+1. `REVIEW_UNLOCK_EMAIL` → `appreview@cozyjournal.app` (the backfill in step 3 gives it a
+   purchase row; without one the fixed code still refuses).
+2. `REVIEW_UNLOCK_CODE` → six digits of your choosing. Put the same address and code in
+   the App Review notes.
+
+That address then verifies with the fixed code instead of an emailed one. Every other
+address is untouched, and the pair being unset turns the path off entirely.
+
 ---
 
 ## 7. Launch day
