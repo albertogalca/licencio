@@ -172,9 +172,13 @@ class Product < ApplicationRecord
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
     # The renewal price is a discount for people who already bought — /api/checkout takes any
     # price_id belonging to this product, so without this guard anyone could buy a brand-new
-    # license at the renewal rate.
-    if renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id && renew_license_key.blank?
-      raise CheckoutNotConfigured, "#{slug} renewal price is not for sale on its own"
+    # license at the renewal rate. Checking that the key is merely *present* did not achieve
+    # that: any junk string got past it, then fulfill! failed to find the license and fell
+    # through to issue_license!, minting a full new license at the discounted price. The key has
+    # to resolve to a license of this product that is actually due for renewal.
+    if renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id &&
+        !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable?
+      raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key"
     end
     # Never silently ship an unlimited-seat license from an unconfigured price: unlimited must be
     # declared (seats "unlimited"/"0"); anything else needs a seat count from price metadata or the

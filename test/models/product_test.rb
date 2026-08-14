@@ -197,9 +197,16 @@ class ProductTest < ActiveSupport::TestCase
         product.create_checkout_session(price_id: "price_renew", email: "a@b.com")
       end
 
+      # A key that resolves to nothing is the whole attack: presence alone used to pass, and
+      # fulfillment then minted a full license at the discounted price.
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_renew", email: "a@b.com",
+          renew_license_key: "PICM-NOT-A-REAL-KEY")
+      end
+
       Stripe::Checkout::Session.stub(:create, ->(*_) { :session }) do
         assert_equal :session, product.create_checkout_session(price_id: "price_renew",
-          email: "a@b.com", renew_license_key: "PICM-1")
+          email: "a@b.com", renew_license_key: licenses(:picmal_expired).license_key)
       end
     end
   end

@@ -8,8 +8,15 @@ class Webhooks::StripeController < ActionController::API
     # Actions are scoped to THIS endpoint's product: a signed event for one product's
     # secret can only mint/revoke that product's licenses, never another's.
     case event.type
-    when "checkout.session.completed"
+    when "checkout.session.completed", "checkout.session.async_payment_succeeded"
       session = event.data.object
+      # A delayed payment method (bank debit, voucher, buy-now-pay-later) completes the session
+      # while payment_status is still "unpaid" and settles days later, so completion alone is not
+      # proof of payment — fulfilling on it hands out a license for money that can still fail to
+      # arrive. Stripe re-delivers as async_payment_succeeded once it does, which is why that
+      # event fulfills through the same branch. async_payment_failed needs no handler: nothing
+      # was minted, so there is nothing to revoke.
+      return head :ok unless session.payment_status.to_s.in?(%w[paid no_payment_required])
       License.fulfill_from_stripe_session(product, session)
       # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
       # alongside the license it just minted — the same sale grants both. A price with no

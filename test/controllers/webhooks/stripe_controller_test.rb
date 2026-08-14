@@ -260,6 +260,21 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert purchase.reload.refunded_at
   end
 
+  test "an unpaid session mints nothing — a delayed payment method can still fail" do
+    assert_no_difference -> { License.count } do
+      post_event completed_event(payment_status: "unpaid", payment_intent: "pi_async")
+    end
+    assert_response :ok # ack it, or Stripe retries a delivery that is behaving correctly
+  end
+
+  test "async_payment_succeeded fulfills the sale the unpaid session did not" do
+    post_event completed_event(payment_status: "unpaid", payment_intent: "pi_async")
+    assert_difference -> { License.count }, 1 do
+      post_event completed_event(payment_status: "paid", payment_intent: "pi_async",
+        type: "checkout.session.async_payment_succeeded")
+    end
+  end
+
   private
     def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",
@@ -272,19 +287,21 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     def completed_event(email: "buyer@example.com", product_id: @product.id,
                         quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
                         stripe_customer: "cus_buyer", amount_total: 2999, amount_subtotal: nil,
-                        currency: "eur", name: nil, affiliate_id: nil)
+                        currency: "eur", name: nil, affiliate_id: nil,
+                        type: "checkout.session.completed", payment_status: "paid")
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
       metadata[:affiliate_id] = affiliate_id if affiliate_id
       customer_details = { email: }
       customer_details[:name] = name if name
       {
-        type: "checkout.session.completed",
+        type:,
         data: { object: {
           id: "cs_#{payment_intent}", # every real session has one; session_price needs it
           customer: stripe_customer,
           customer_details:,
           metadata:,
+          payment_status:,
           payment_intent:,
           amount_total:,
           amount_subtotal: amount_subtotal || amount_total,
