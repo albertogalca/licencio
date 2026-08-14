@@ -260,6 +260,19 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert purchase.reload.refunded_at
   end
 
+  test "a chargeback revokes the license and stops the commission being payable" do
+    affiliate = affiliates(:approved)
+    post_event completed_event(payment_intent: "pi_dispute", affiliate_id: affiliate.id)
+    license = License.order(:created_at).last
+    Payment.find_by!(stripe_payment_intent: "pi_dispute").update!(created_at: 40.days.ago)
+    assert_equal 1, affiliate.payments.payable.count, "commission is owed before the dispute"
+
+    post_event dispute_event(payment_intent: "pi_dispute")
+    assert_response :ok
+    assert license.reload.refunded?
+    assert_equal 0, affiliate.payments.payable.count, "money we no longer have is not commissionable"
+  end
+
   test "an unpaid session mints nothing — a delayed payment method can still fail" do
     assert_no_difference -> { License.count } do
       post_event completed_event(payment_status: "unpaid", payment_intent: "pi_async")
@@ -276,6 +289,10 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+    def dispute_event(payment_intent:)
+      { type: "charge.dispute.created", data: { object: { payment_intent: } } }.to_json
+    end
+
     def refunded_event(payment_intent:, amount: 1000, amount_captured: nil, amount_refunded: 1000)
       { type: "charge.refunded",
         data: { object: { payment_intent:, amount:, amount_captured: amount_captured || amount,

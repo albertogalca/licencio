@@ -171,6 +171,18 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # api_key authenticates every desktop client, so a database dump must not hand it over in the
+  # clear. Deterministic, or the unique index and Api::BaseController's find_by would break.
+  test "api_key is stored encrypted and still resolves a product" do
+    product = products(:picmal)
+    stored = Product.connection.select_value(
+      Product.sanitize_sql([ "SELECT api_key FROM products WHERE id = ?", product.id ]))
+
+    assert_not_equal product.api_key, stored, "api_key is sitting in the clear"
+    assert product.api_key.start_with?("prod_"), "it must still decrypt for the app"
+    assert_equal product, Product.find_by(api_key: product.api_key)
+  end
+
   # The renewal SKU is a discount for existing owners and the cheapest price on the product —
   # left in, it would headline the storefront and win the cheapest-variant fallback.
   test "variants hides the renewal price from the storefront" do

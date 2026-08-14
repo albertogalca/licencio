@@ -28,6 +28,10 @@ class Product < ApplicationRecord
   encrypts :eddsa_private_key
   encrypts :stripe_secret_key
   encrypts :stripe_webhook_secret
+  # Deterministic, unlike its four siblings: this one is a lookup key
+  # (Api::BaseController finds the product by it) and carries a unique index, both of which
+  # need the same plaintext to always produce the same ciphertext.
+  encrypts :api_key, deterministic: true
 
   enum :update_policy, UPDATE_POLICIES
 
