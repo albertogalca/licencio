@@ -1,8 +1,6 @@
 require "test_helper"
 
 class V1::SupportControllerTest < ActionDispatch::IntegrationTest
-  include ActiveJob::TestHelper
-
   TOKEN = "support-secret-token"
 
   setup do

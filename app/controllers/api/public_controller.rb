@@ -19,14 +19,30 @@ class Api::PublicController < ActionController::API
     not_academic_email: [ :unprocessable_entity, "That isn't a school address I recognise." ],
     student_discount_unavailable: [ :service_unavailable, "Student pricing isn't set up for this product." ],
     product_not_found:  [ :not_found,    "No product matches that name." ],
-    # Unlock flow. There are no accounts here — only a purchase and an inbox — so the
-    # wording never implies one, and never says whether an address has bought anything.
-    invalid_email:      [ :unprocessable_entity, "That doesn't look like an email address." ],
-    code_invalid:       [ :unprocessable_entity, "That code isn't right. Check the email and try again." ],
-    code_expired:       [ :gone,         "That code has expired. Ask for a new one." ],
-    too_many_attempts:  [ :too_many_requests, "Too many tries with that code. Ask for a new one." ],
-    purchase_refunded:  [ :forbidden,    "Your Cozy license was refunded." ],
-    purchase_not_found: [ :not_found,    "I can't find a Cozy license for that email address." ]
+    # Unlock flow. These are read by a person, inside the app, at the one moment they're
+    # trying to get in — so each says what happened AND what to do next. There are no
+    # accounts here, only a purchase and an inbox, so the wording never implies one, and
+    # never says whether an address has bought anything.
+    invalid_email:      [ :unprocessable_entity,
+                          "That doesn't look like an email address. Check it for a typo and try again." ],
+    # Also the answer when there's no live code at all (spent, or never issued), which is
+    # why it offers a fresh one as well as a re-read of the digits.
+    code_invalid:       [ :unprocessable_entity,
+                          "Those six digits don't match the code I emailed. Check them and try again, " \
+                          "or ask for a new code." ],
+    code_expired:       [ :gone,
+                          "Codes last 10 minutes, and this one has run out. Ask for a new one and " \
+                          "I'll email it straight away." ],
+    too_many_attempts:  [ :too_many_requests,
+                          "That code has been tried too many times, so it no longer works. Ask for a " \
+                          "new one to start over." ],
+    # Factual, not accusatory: it states what the record says and offers a way to correct it.
+    purchase_refunded:  [ :forbidden,
+                          "This Cozy license was refunded, so it no longer unlocks the app. Reply to " \
+                          "your purchase receipt if that isn't right." ],
+    purchase_not_found: [ :not_found,
+                          "I can't find a Cozy license for that email address. If you bought with a " \
+                          "different one, try that address — or reply to your receipt and I'll sort it out." ]
   }.freeze
 
   rescue_from ActiveRecord::RecordNotFound, with: -> { render_api_error(:license_not_found) }

@@ -6,28 +6,42 @@ hurry — step 2 in particular can only be done once, and only before clients sh
 The license-key system stays live throughout. Every existing key keeps working, every
 existing endpoint keeps answering. This adds a second way in, it does not replace one.
 
+**Where this stands (2026-08-14).** Everything on Stripe is already done — both prices,
+the `COZYEDU` promotion code, and the 24 PPP currencies on the standard price. Step 4
+below is a record of what exists, not work to run again. Steps 1, 2, 3, 5, 6 and 7 are
+still to do, in that order.
+
 ---
 
 ## 1. Deploy the server
 
-```bash
-bin/rails db:migrate
-```
+1. Generate the support token:
 
-Set the new environment variable and restart:
+   ```bash
+   openssl rand -hex 32
+   ```
 
-```bash
-SUPPORT_ADMIN_TOKEN=$(openssl rand -hex 32)   # keep it in the password manager
-```
+2. Store that value in the password manager, and set it as `SUPPORT_ADMIN_TOKEN` in the
+   deploy environment (it is read from the app's env, not from a shell).
 
-Check `/up` answers, then confirm the new routes exist:
+3. Deploy this branch.
 
-```bash
-curl -sS -X POST https://$APP_HOST/v1/unlock/request \
-  -H 'Content-Type: application/json' \
-  -d '{"product_slug":"cozy","email":"nobody@example.com","platform":"mac"}'
-# → {"ok":true}   (an unknown address is answered exactly like a customer's)
-```
+4. Run the migrations:
+
+   ```bash
+   bin/rails db:migrate
+   ```
+
+5. Restart the app, so it picks up `SUPPORT_ADMIN_TOKEN`.
+
+6. Check `/up` answers, then confirm the new routes are live:
+
+   ```bash
+   curl -sS -X POST https://$APP_HOST/v1/unlock/request \
+     -H 'Content-Type: application/json' \
+     -d '{"product_slug":"cozy","email":"nobody@example.com","platform":"mac"}'
+   # → {"ok":true}   (an unknown address is answered exactly like a customer's)
+   ```
 
 ---
 
@@ -38,111 +52,117 @@ server again. A key can only be rotated if every client **already** trusts the
 replacement, so both public keys have to be in the very first build. There is no way to
 add one later.
 
-```bash
-bin/rails "unlock:generate_backup_key[cozy]"
-```
+1. Mint it:
 
-It prints the private half **once**. Put it in cold storage now — a password manager, or
-paper in a drawer. It is stored nowhere on the server: only the public half is saved.
+   ```bash
+   bin/rails "unlock:generate_backup_key[cozy]"
+   ```
 
-Then embed **both** public keys in every client (Mac, Windows, iPhone), keyed by the
-token header's `kid`:
+2. Put the private half it printed into cold storage — a password manager, or paper in a
+   drawer. It is printed **once** and stored nowhere on the server; only the public half
+   is saved.
 
-```json
-{ "a": "<products.eddsa_public_key>", "b": "<products.eddsa_backup_public_key>" }
-```
+3. Embed **both** public keys in every client (Mac, Windows, iPhone), keyed by the token
+   header's `kid`:
 
-The client reads `kid` from the JWT header, picks that key, and verifies. `a` signs
-today. Rotating later means restoring the cold private key and setting
-`products.eddsa_key_id = "b"` — no client needs updating.
+   ```json
+   { "a": "<products.eddsa_public_key>", "b": "<products.eddsa_backup_public_key>" }
+   ```
 
-While you're here, also keep `rake "licenses:signing_key[cozy]"` output in cold storage
-if you haven't: it is the same insurance for the license-key system.
+   The client reads `kid` from the JWT header, picks that key, and verifies. `a` signs
+   today. Rotating later means restoring the cold private key and setting
+   `products.eddsa_key_id = "b"` — no client needs updating.
+
+4. If you haven't already, put `rake "licenses:signing_key[cozy]"` output in cold storage
+   too. It is the same insurance for the license-key system.
 
 ---
 
 ## 3. Backfill the existing customers
 
-Everyone who bought before today has to be able to unlock. Preview first:
+Everyone who bought before today has to be able to unlock.
 
-```bash
-DRY_RUN=1 bin/rails "unlock:backfill_purchases[cozy]"
-```
+1. Preview, writing nothing:
 
-Read the tally. `created` should be roughly the number of claimed, non-trial Cozy
-licenses; `skipped` is trials, unclaimed imports, and licenses that say nothing about
-updates. If the numbers look wrong, stop — this is the moment to find out.
+   ```bash
+   DRY_RUN=1 bin/rails "unlock:backfill_purchases[cozy]"
+   ```
 
-```bash
-bin/rails "unlock:backfill_purchases[cozy]"
-```
+2. Read the tally. `created` should be roughly the number of claimed, non-trial Cozy
+   licenses; `skipped` is trials, unclaimed imports, and licenses that say nothing about
+   updates. If the numbers look wrong, stop — this is the moment to find out.
 
-Idempotent: re-running reports `existing`, not duplicates.
+3. Apply it:
 
-Verify against one real customer you can recognize:
+   ```bash
+   bin/rails "unlock:backfill_purchases[cozy]"
+   ```
 
-```bash
-curl -sS -X POST https://$APP_HOST/v1/support/lookup \
-  -H "X-Admin-Token: $SUPPORT_ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"product_slug":"cozy","email":"a.real.buyer@gmail.com"}'
-```
+   Idempotent: re-running reports `existing`, not duplicates.
 
-Their tier, purchase date and updates window should match what they actually bought.
+4. Verify against one real customer you can recognize:
 
----
+   ```bash
+   curl -sS -X POST https://$APP_HOST/v1/support/lookup \
+     -H "X-Admin-Token: $SUPPORT_ADMIN_TOKEN" -H 'Content-Type: application/json' \
+     -d '{"product_slug":"cozy","email":"a.real.buyer@gmail.com"}'
+   ```
 
-## 4. Loops templates
-
-Create two transactional templates in Loops:
-
-- **Unlock code** — data variables `code`, `product_name`. This is the whole flow; if it
-  doesn't arrive, nobody unlocks. Keep it plain, keep the six digits large, and say the
-  code expires in ten minutes.
-- **Education discount** — data variables `discount_code`, `pricing_url`, `product_name`,
-  `sender_email`.
-
-Then set on the Cozy product in `/admin`:
-
-- `unlock_transactional_id` → the unlock code template
-- `student_transactional_id` → the education template
-- `student_discount_code` → `COZYEDU`
-
-Send yourself a real code end to end before moving on.
+   Their tier, purchase date and updates window should match what they actually bought.
 
 ---
 
-## 5. Stripe prices
+## 4. Stripe prices — DONE on 2026-08-14
 
-```bash
-bin/rails runner scripts/stripe_prices.rb              # dry run — read the output
-bin/rails runner scripts/stripe_prices.rb -- --apply
-```
-
-Creates, on Cozy's own Stripe account:
+Nothing to run here. `scripts/stripe_prices.rb` has already been applied, and this is
+the record of what it left on Cozy's own Stripe account.
 
 | Price | Amount | `tier` | `update_policy` |
 |-------|--------|--------|-----------------|
 | `cozy_standard_usd` | $49 | standard | time_limited |
 | `cozy_forever_usd` | $89 | forever | lifetime |
 
-…plus the `COZYEDU` promotion code (40% off), and PPP as `currency_options` **on** the
-standard price: per-currency amounts (band A ≈ $29 of value, band B ≈ $19) that Stripe
-Checkout picks automatically from the buyer's location. One price ID, nothing to leak.
-**Edit `PPP_BANDS` in the script first** — the currency lists are a judgement call, not
-a formula. (Already run on 2026-08-14: both prices live, 24 PPP currencies attached.)
+Also live: the `COZYEDU` promotion code (40% off), and PPP as `currency_options` **on**
+the standard price — 24 per-currency amounts (band A ≈ $29 of value, band B ≈ $19) that
+Stripe Checkout picks automatically from the buyer's location. One price ID, nothing to
+leak.
 
-Two things to know:
+Three things to know:
 
-- A `currency_options` entry is write-once on Stripe. The script only adds missing
-  currencies; to change an amount you must mint a new standard price and swap the site's
-  price ID. PPP is honour-system either way: Stripe picks the currency by location, a
-  VPN defeats any check, and a traveller with a foreign card is far more common than fraud.
+- A `currency_options` entry is write-once on Stripe. To change an amount you must mint a
+  new standard price and swap the site's price ID. PPP is honour-system either way:
+  Stripe picks the currency by location, a VPN defeats any check, and a traveller with a
+  foreign card is far more common than fraud.
 - Stripe scopes a coupon by product, not by price, so `COZYEDU` would also discount the
   forever tier if someone found it there. Only offer the promo field on the standard
   checkout.
+- To add currencies later, edit `PPP_BANDS` in the script and re-run it. It is idempotent
+  — it only adds what is missing, and leaves every existing price and currency alone:
 
-Buy each price once in test mode and confirm a `Purchase` row appears with the right
-tier.
+  ```bash
+  bin/rails runner scripts/stripe_prices.rb              # dry run — read the output
+  bin/rails runner scripts/stripe_prices.rb -- --apply
+  ```
+
+---
+
+## 5. Loops templates
+
+1. Create two transactional templates in Loops:
+
+   - **Unlock code** — data variables `code`, `product_name`. Copy to paste is in
+     [`docs/email-templates/unlock-code.md`](docs/email-templates/unlock-code.md). This
+     is the whole flow: if it doesn't arrive, nobody unlocks.
+   - **Education discount** — data variables `discount_code`, `pricing_url`,
+     `product_name`, `sender_email`.
+
+2. Set these three fields on the Cozy product in `/admin`:
+
+   - `unlock_transactional_id` → the unlock code template
+   - `student_transactional_id` → the education template
+   - `student_discount_code` → `COZYEDU` (created in step 4)
+
+3. Send yourself a real code end to end, and unlock with it, before moving on.
 
 ---
 
@@ -168,12 +188,15 @@ In this order, within the same hour:
 
 ## Smoke tests
 
-Run all of these against production on launch day.
+Run all of these against production on launch day. Use a fresh test address: an address
+only gets three codes per fifteen minutes, and over budget the request still answers
+`{ ok: true }` while quietly mailing nothing — which reads exactly like a broken test.
 
 - [ ] **Test-mode purchase** → a `purchases` row appears with the right `tier`,
       `updates_until` and `provider_order_id`.
 - [ ] **Three devices, one address** → request + verify from three machines with the same
-      email; all three succeed, all three get different tokens, none is refused.
+      email; all three succeed, all three get different tokens, none is refused. That is
+      the whole budget, so start the fifteen minutes here.
 - [ ] **Refund** → refund the test purchase, then request a code for that address:
       `{ ok: true }`, and no email arrives.
 - [ ] **Six wrong codes** → the sixth answers `429 too_many_attempts`, and the correct
