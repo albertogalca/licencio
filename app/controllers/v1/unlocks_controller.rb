@@ -21,10 +21,16 @@ class V1::UnlocksController < Api::PublicController
 
   # Sends mail to a caller-supplied address, so it's throttled per-IP too. The only place
   # this endpoint looks at an IP at all — nothing about the caller is logged or stored.
-  rate_limit to: 10, within: 1.hour, only: :request_code, with: -> { head :too_many_requests }
+  #
+  # The `name:` on each limiter matters: without it Rails keys both counters as
+  # "rate-limit:v1/unlocks:<ip>", so requesting a code would eat the verify budget under
+  # whichever TTL was written first — three requests and a few typos locked an address out.
+  rate_limit to: 10, within: 1.hour, only: :request_code, name: "request",
+    with: -> { head :too_many_requests }
   # Guessing budget belongs to the code (LoginCode::MAX_ATTEMPTS); this just stops one host
   # from grinding many codes at once.
-  rate_limit to: 10, within: 1.minute, only: :verify, with: -> { head :too_many_requests }
+  rate_limit to: 10, within: 1.minute, only: :verify, name: "verify",
+    with: -> { head :too_many_requests }
 
   # Cozy for iPhone posts from capacitor://localhost and the marketing site from the web, so
   # both preflight. Wildcard is honest: public, rate limited, and no cookie or API key rides
