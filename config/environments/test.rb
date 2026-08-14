@@ -53,4 +53,11 @@ Rails.application.configure do
 
   # Encrypt encrypted attributes in fixtures so they load and read back correctly.
   config.active_record.encryption.encrypt_fixtures = true
+
+  # Fixed throwaway keys, not credentials: CI has no master.key, so reading these from
+  # credentials made every encrypted-attribute test error out. Test data is disposable and
+  # never leaves the run, and the real keys stay out of the CI runner.
+  config.active_record.encryption.primary_key = "test-encryption-primary-key"
+  config.active_record.encryption.deterministic_key = "test-encryption-deterministic-key"
+  config.active_record.encryption.key_derivation_salt = "test-encryption-key-derivation-salt"
 end

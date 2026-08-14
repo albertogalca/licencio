@@ -1,0 +1,14 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "113402c7aba1fe1ccd9e67dd8845f615998800cbfff99ed8c375e106013d14b0",
+      "note": "Product#checkout_cancel_url is an admin-set column, never a request param."
+    },
+    {
+      "fingerprint": "f9cbadfab4bf54270e01228d790e56ef942c061400f27fc527c1e5fdb6d06355",
+      "note": "license.renewal_checkout.url is a Stripe Checkout Session URL we just created server-side."
+    }
+  ],
+  "updated": "2026-08-14",
+  "brakeman_version": "8.0.5"
+}

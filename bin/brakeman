@@ -2,6 +2,7 @@
 require "rubygems"
 require "bundler/setup"
 
-ARGV.unshift("--ensure-latest")
+# No --ensure-latest: it exits 5 the day a new brakeman ships, which turns CI red over the
+# gem version rather than over anything in this app. Real findings still exit 3.
 
 load Gem.bin_path("brakeman", "brakeman")
