@@ -166,7 +166,8 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
-  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil, ref: nil)
+  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil, ref: nil,
+      affonso_referral: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -209,7 +210,10 @@ class Product < ApplicationRecord
                   # The storefronts send Seline's visitor id as client_reference_id, but Seline
                   # matches a guest charge to a visit only by this metadata key. Same value,
                   # copied under the name Seline looks for.
-                  seline_visitor_id: client_reference_id.presence }.compact,
+                  seline_visitor_id: client_reference_id.presence,
+                  # Affonso attributes commissions by reading exactly this key off the
+                  # completed session; the storefront forwards its cookie as this param.
+                  affonso_referral: affonso_referral.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
   end
 

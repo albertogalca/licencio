@@ -64,6 +64,19 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_nil captured[:metadata][:affiliate_id]
   end
 
+  test "forwards affonso_referral into the session metadata" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", affonso_referral: "aff_123" }
+      end
+    end
+    assert_redirected_to "https://stripe.test/session"
+    # Affonso attributes the commission by reading exactly this metadata key.
+    assert_equal "aff_123", captured[:metadata][:affonso_referral]
+  end
+
   test "rejects a price that belongs to a different Stripe product" do
     price = fake_price("price_x", "prod_someone_else", { "seats" => "1" })
     Stripe::Price.stub(:retrieve, price) do
