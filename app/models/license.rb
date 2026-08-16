@@ -54,9 +54,13 @@ class License < ApplicationRecord
   # field, so fulfillment matches this customer and renew! extends this license instead of
   # minting a second one. An unclaimed (imported) license has no email and gets claimed by
   # whoever pays — fulfill! already allows exactly that.
-  def renewal_checkout
+  #
+  # The attribution params ride along the same way they do on /api/checkout. Without them a
+  # renewal reached Stripe with seline_visitor_id nil, so Seline could not match the charge to
+  # a visit and every renewal landed in the revenue chart as unattributed.
+  def renewal_checkout(client_reference_id: nil, ref: nil, affonso_referral: nil)
     product.create_checkout_session(price_id: renewal_price_id, email: customer&.email,
-      renew_license_key: license_key)
+      renew_license_key: license_key, client_reference_id:, ref:, affonso_referral:)
   end
 
   before_validation :assign_license_key, on: :create
