@@ -4,8 +4,10 @@ class Portal::UpgradesController < Portal::BaseController
   skip_before_action :require_customer
 
   # Hits Stripe, and `new` confirms whether a key exists — cap per-IP to blunt key probing.
-  rate_limit to: 5, within: 1.minute,
-    with: -> { redirect_to new_portal_upgrade_path(product: params[:product].presence), alert: "Too many requests. Try again in a minute." }
+  # Render, don't redirect: the redirect target is this same limited controller, so under the
+  # cap every redirect re-counts and Chrome dies on ERR_TOO_MANY_REDIRECTS.
+  rate_limit to: 10, within: 1.minute,
+    with: -> { render plain: "Too many requests. Wait a minute, then reload.", status: :too_many_requests }
 
   def new
     @license = License.find_by_key(params[:license_key].to_s.strip)
