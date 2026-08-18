@@ -43,7 +43,7 @@ class Portal::UpgradesControllerTest < ActionDispatch::IntegrationTest
     Stripe::Price.stub(:list, @prices) do
       Stripe::Price.stub(:retrieve, ->(*_) { price }) do
         Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; Stub.new(url: "https://stripe.test/checkout") }) do
-          post portal_upgrades_path, params: { license_key: @license.license_key,
+          post portal_upgrades_path, params: { license_key: @license.license_key, price_id: "price_2to5",
             client_reference_id: "visitor_abc", affonso_referral: "aff_1" }
         end
       end
@@ -58,12 +58,24 @@ class Portal::UpgradesControllerTest < ActionDispatch::IntegrationTest
     called = false
     Stripe::Price.stub(:list, Struct.new(:data).new([])) do
       Stripe::Checkout::Session.stub(:create, ->(*_) { called = true; Stub.new(url: "x") }) do
-        post portal_upgrades_path, params: { license_key: @license.license_key }
+        post portal_upgrades_path, params: { license_key: @license.license_key, price_id: "price_forged" }
       end
     end
 
     assert_not called
     assert_redirected_to new_portal_upgrade_path(license_key: @license.license_key)
+  end
+
+  test "a bare key submit shows the options instead of charging the first SKU" do
+    called = false
+    Stripe::Checkout::Session.stub(:create, ->(*_) { called = true; Stub.new(url: "x") }) do
+      post portal_upgrades_path, params: { license_key: @license.license_key,
+        product: "picmal", client_reference_id: "visitor_abc" }
+    end
+
+    assert_not called, "no price was picked, so Stripe must not be reached"
+    assert_redirected_to new_portal_upgrade_path(license_key: @license.license_key,
+      product: "picmal", client_reference_id: "visitor_abc")
   end
 
   test "an unknown key is refused without reaching Stripe" do

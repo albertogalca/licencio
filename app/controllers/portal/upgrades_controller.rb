@@ -16,12 +16,18 @@ class Portal::UpgradesController < Portal::BaseController
   end
 
   def create
+    # Two-step on purpose. A bare key submit (no price picked yet) bounces back to `new`, which
+    # renders the license's options with seat counts and prices — nobody lands on Stripe without
+    # having SEEN what they're buying, even when there's only one option.
+    if params[:price_id].blank?
+      return redirect_to new_portal_upgrade_path(license_key: params[:license_key],
+        product: params[:product].presence, **attribution.compact)
+    end
     license = License.find_by_key(params[:license_key].to_s.strip)
     # The client picks WHICH of its own upgrades (a 1-seat license has two targets), but
     # upgrade_checkout only accepts a price from the license's own upgrade_options.
-    price_id = params[:price_id].presence || license&.upgrade_options&.first&.price_id
-    if license && price_id
-      redirect_to license.upgrade_checkout(price_id:, **attribution).url,
+    if license
+      redirect_to license.upgrade_checkout(price_id: params[:price_id], **attribution).url,
         allow_other_host: true, status: :see_other
     else
       redirect_to new_portal_upgrade_path(license_key: params[:license_key], product: params[:product].presence),

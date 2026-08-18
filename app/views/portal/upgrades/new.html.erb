@@ -38,7 +38,7 @@
             <label class="flex cursor-pointer items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm has-[:checked]:border-accent-600 has-[:checked]:ring-1 has-[:checked]:ring-accent-600">
               <span class="flex items-center gap-2">
                 <%= radio_button_tag :price_id, option.price_id, i.zero? %>
-                <%= option.seats %> devices
+                <%= option.seats %> devices <span class="text-gray-500">(+<%= option.seats - @license.max_activations %>)</span>
               </span>
               <span class="font-medium text-gray-700"><%= money_cents(option.amount_cents, option.currency) %></span>
             </label>
@@ -52,7 +52,8 @@
         <p class="text-xs text-red-600">We couldn't find that license key.</p>
       <% end %>
 
-      <%= form.submit "Add seats", class: "btn-primary w-full" %>
+      <%# First submit shows the options; only a visible, picked option goes to Stripe. %>
+      <%= form.submit @options.any? ? "Add seats" : "See upgrade options", class: "btn-primary w-full" %>
     <% end %>
   </div>
 
