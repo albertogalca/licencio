@@ -91,6 +91,15 @@ class Portal::UpgradesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=hidden][name=affonso_referral]", false, "no empty passenger fields"
   end
 
+  test "new brands off ?product before any key is typed, and the form carries it" do
+    get new_portal_upgrade_path(product: "picmal")
+
+    assert_response :ok
+    assert_match "your Picmal license", @response.body
+    assert_match "PICM-", @response.body, "key placeholder uses the product's prefix"
+    assert_select "input[type=hidden][name=product][value=picmal]"
+  end
+
   test "new tells you when a key doesn't exist" do
     get new_portal_upgrade_path(license_key: "NOPE-0000")
 

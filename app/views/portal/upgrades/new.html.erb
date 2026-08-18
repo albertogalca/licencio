@@ -1,4 +1,4 @@
-<% content_for :title, "Add more Macs — Licencio" %>
+<% content_for :title, "Add more seats — #{@product&.name || "Licencio"}" %>
 <% content_for :centered, "1" %>
 
 <div class="w-full max-w-sm">
@@ -20,12 +20,14 @@
       <% Portal::BaseController::ATTRIBUTION_PARAMS.each do |key| %>
         <%= form.hidden_field key, value: params[key], id: nil if params[key].present? %>
       <% end %>
+      <%# Keeps the page branded when create bounces back with an error. %>
+      <%= form.hidden_field :product, value: params[:product], id: nil if params[:product].present? %>
 
       <div>
         <%= form.label :license_key, "License key", class: "field-label" %>
         <%= form.text_field :license_key, value: params[:license_key], required: true,
               autofocus: params[:license_key].blank?, autocomplete: "off", spellcheck: false,
-              placeholder: "COZY-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+              placeholder: "#{(@product&.license_prefix || "XXXX").upcase}-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
               class: "field-input font-mono text-sm" %>
       </div>
 

@@ -5,11 +5,13 @@ class Portal::UpgradesController < Portal::BaseController
 
   # Hits Stripe, and `new` confirms whether a key exists — cap per-IP to blunt key probing.
   rate_limit to: 5, within: 1.minute,
-    with: -> { redirect_to new_portal_upgrade_path, alert: "Too many requests. Try again in a minute." }
+    with: -> { redirect_to new_portal_upgrade_path(product: params[:product].presence), alert: "Too many requests. Try again in a minute." }
 
   def new
     @license = License.find_by_key(params[:license_key].to_s.strip)
-    @product = @license&.product # brands the layout
+    # Brands the layout. The storefront link carries ?product=<slug> so the page is branded
+    # before a key is typed, same as recoveries; a found license always wins.
+    @product = @license&.product || (Product.matching(params[:product]).first if params[:product].present?)
     @options = @license&.upgrade_options || []
   end
 
@@ -22,16 +24,16 @@ class Portal::UpgradesController < Portal::BaseController
       redirect_to license.upgrade_checkout(price_id:, **attribution).url,
         allow_other_host: true, status: :see_other
     else
-      redirect_to new_portal_upgrade_path(license_key: params[:license_key]),
+      redirect_to new_portal_upgrade_path(license_key: params[:license_key], product: params[:product].presence),
         alert: "An upgrade isn't available for that license."
     end
   rescue ActiveRecord::RecordNotFound
     # upgrade_checkout raises this for a price outside the license's own options — a forged
     # price_id, not an outage, so "try again" would be the wrong advice.
-    redirect_to new_portal_upgrade_path(license_key: params[:license_key]),
+    redirect_to new_portal_upgrade_path(license_key: params[:license_key], product: params[:product].presence),
       alert: "An upgrade isn't available for that license."
   rescue Product::CheckoutNotConfigured, Stripe::StripeError
-    redirect_to new_portal_upgrade_path(license_key: params[:license_key]),
+    redirect_to new_portal_upgrade_path(license_key: params[:license_key], product: params[:product].presence),
       alert: "Upgrades are temporarily unavailable — please try again."
   end
 end

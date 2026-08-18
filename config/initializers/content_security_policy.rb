@@ -12,9 +12,10 @@ Rails.application.configure do
     policy.object_src  :none
     # None of these fall back to default_src, so they have to be stated. base_uri is the one
     # that matters most: an injected <base> retargets every relative script URL and defeats the
-    # nonce. form_action is safe as :self — the Stripe hand-off is a redirect, not a form post.
+    # nonce. form_action needs Stripe: Chrome applies it to the redirect that FOLLOWS a form
+    # post, so the renew/upgrade forms' 303 to Stripe Checkout is blocked under bare :self.
     policy.base_uri        :self
-    policy.form_action     :self
+    policy.form_action     :self, "https://checkout.stripe.com"
     policy.frame_ancestors :none
     # No :https here — scripts/styles are self-hosted (importmap, Turbo, compiled
     # Tailwind); allowing any https origin would let an injected external <script> run
