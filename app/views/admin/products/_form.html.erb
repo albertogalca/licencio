@@ -133,16 +133,6 @@
       <%= form.label :checkout_cancel_url, "Checkout cancel URL", class: "field-label" %>
       <%= form.url_field :checkout_cancel_url, class: "field-input" %>
     </div>
-    <div>
-      <%= form.label :affiliate_landing_url, "Affiliate landing URL", class: "field-label" %>
-      <%= form.url_field :affiliate_landing_url, class: "field-input" %>
-      <p class="field-hint">Suggested referral link for this product (affiliates append <code>?ref=code</code>). Any page works.</p>
-    </div>
-    <div>
-      <%= form.label :affiliate_commission_percent, "Affiliate commission % (this product)", class: "field-label" %>
-      <%= form.number_field :affiliate_commission_percent, in: 0..100, class: "field-input w-32" %>
-      <p class="field-hint">Overrides the affiliate's own rate for sales of this product. Leave blank to use the affiliate's rate (default 20%).</p>
-    </div>
   </section>
 
   <section class="card space-y-4 p-6">
@@ -171,11 +161,6 @@
       <%= form.label :expiry_reminder_transactional_id, "Expiry reminder transactional ID", class: "field-label" %>
       <%= form.text_field :expiry_reminder_transactional_id, class: "field-input" %>
       <p class="field-hint">Sent ~7 days before a time-limited license expires.</p>
-    </div>
-    <div>
-      <%= form.label :affiliate_transactional_id, "Affiliate sign-in transactional ID", class: "field-label" %>
-      <%= form.text_field :affiliate_transactional_id, class: "field-input" %>
-      <p class="field-hint">Affiliate dashboard magic link. Set on one product — it sends all affiliate emails.</p>
     </div>
     <div>
       <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>

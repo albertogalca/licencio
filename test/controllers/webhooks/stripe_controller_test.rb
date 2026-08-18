@@ -176,25 +176,6 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert_equal "cus_xyz", License.order(:created_at).last.stripe_customer_id
   end
 
-  test "an affiliate-tagged purchase freezes commission off amount_subtotal, not amount_total" do
-    affiliate = affiliates(:approved) # 20%
-    post_event completed_event(payment_intent: "pi_aff", amount_total: 3630, amount_subtotal: 3000,
-      affiliate_id: affiliate.id)
-    payment = License.order(:created_at).last.payments.kind_purchase.first
-    assert_equal affiliate.id, payment.affiliate_id
-    assert_equal 600, payment.commission_cents # 20% of the 3000 subtotal, not the 3630 total
-  end
-
-  test "a renewal does not credit an affiliate" do
-    post_event completed_event(payment_intent: "pi_orig2", affiliate_id: affiliates(:approved).id)
-    license = License.order(:created_at).last
-    post_event completed_event(payment_intent: "pi_renew2", renew_license_key: license.license_key,
-      affiliate_id: affiliates(:approved).id)
-    renewal = license.reload.payments.kind_renewal.first
-    assert_nil renewal.affiliate_id
-    assert_nil renewal.commission_cents
-  end
-
   # ── Unlock purchases ──────────────────────────────────────────────────────────
   # The same sale mints a license AND records a purchase; the license-key system is
   # untouched, and the unlock flow is opted into by a `tier` on the price.
@@ -260,28 +241,13 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     assert purchase.reload.refunded_at
   end
 
-  test "an affiliate buying through their own link earns no commission" do
-    affiliate = affiliates(:approved)
-    post_event completed_event(payment_intent: "pi_self", affiliate_id: affiliate.id,
-      email: affiliate.email)
-
-    payment = Payment.find_by!(stripe_payment_intent: "pi_self")
-    assert_nil payment.affiliate_id, "a self-referral is a discount, not a referral"
-    assert_nil payment.commission_cents
-    assert License.order(:created_at).last.active?, "the sale itself still stands"
-  end
-
-  test "a chargeback revokes the license and stops the commission being payable" do
-    affiliate = affiliates(:approved)
-    post_event completed_event(payment_intent: "pi_dispute", affiliate_id: affiliate.id)
+  test "a chargeback revokes the license" do
+    post_event completed_event(payment_intent: "pi_dispute")
     license = License.order(:created_at).last
-    Payment.find_by!(stripe_payment_intent: "pi_dispute").update!(created_at: 40.days.ago)
-    assert_equal 1, affiliate.payments.payable.count, "commission is owed before the dispute"
 
     post_event dispute_event(payment_intent: "pi_dispute")
     assert_response :ok
     assert license.reload.refunded?
-    assert_equal 0, affiliate.payments.payable.count, "money we no longer have is not commissionable"
   end
 
   test "an unpaid session mints nothing — a delayed payment method can still fail" do
@@ -315,11 +281,10 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     def completed_event(email: "buyer@example.com", product_id: @product.id,
                         quantity: 1, payment_intent: "pi_test", renew_license_key: nil,
                         stripe_customer: "cus_buyer", amount_total: 2999, amount_subtotal: nil,
-                        currency: "eur", name: nil, affiliate_id: nil,
+                        currency: "eur", name: nil,
                         type: "checkout.session.completed", payment_status: "paid")
       metadata = { licencio_product_id: product_id, quantity: quantity.to_s }
       metadata[:renew_license_key] = renew_license_key if renew_license_key
-      metadata[:affiliate_id] = affiliate_id if affiliate_id
       customer_details = { email: }
       customer_details[:name] = name if name
       {

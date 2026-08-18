@@ -7,7 +7,7 @@
     "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* A branded product overrides this whole scale inline on <html> (see brand_style),
-     mixing every shade from its one accent colour. Unbranded pages — admin, affiliate —
+     mixing every shade from its one accent colour. Unbranded pages (admin)
      keep this blue and are unaffected. */
   --color-accent-50: var(--color-blue-50);
   --color-accent-100: var(--color-blue-100);
@@ -41,7 +41,7 @@
   :root {
     --brand-bg: var(--color-gray-50);
     /* Primary buttons are near-black everywhere; a branded portal points these at its
-       accent instead (see brand_style), so admin and affiliate pages stay as they were. */
+       accent instead (see brand_style), so admin pages stay as they were. */
     --brand-btn: var(--color-gray-900);
     --brand-btn-hover: var(--color-gray-800);
     --brand-btn-active: var(--color-gray-950);

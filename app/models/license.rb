@@ -58,9 +58,36 @@ class License < ApplicationRecord
   # The attribution params ride along the same way they do on /api/checkout. Without them a
   # renewal reached Stripe with seline_visitor_id nil, so Seline could not match the charge to
   # a visit and every renewal landed in the revenue chart as unattributed.
-  def renewal_checkout(client_reference_id: nil, ref: nil, affonso_referral: nil)
+  def renewal_checkout(client_reference_id: nil, affonso_referral: nil)
     product.create_checkout_session(price_id: renewal_price_id, email: customer&.email,
-      renew_license_key: license_key, client_reference_id:, ref:, affonso_referral:)
+      renew_license_key: license_key, client_reference_id:, affonso_referral:)
+  end
+
+  # The seat upgrades this license can buy: the product's upgrade SKUs whose
+  # `upgrade_from_seats` matches where this license sits today. A trial, a refunded key, or an
+  # unlimited-seat license (nil max_activations) has nothing to upgrade.
+  def upgrade_options
+    return [] if trial? || !active? || max_activations.nil?
+    product.upgrade_variants.select { |v| v.from_seats == max_activations && v.seats && v.seats > max_activations }
+  end
+
+  def upgradeable? = upgrade_options.any?
+
+  # The checkout-time guard's question, answered from the Stripe price itself (no second
+  # Stripe call): is this license really sitting at the price's `upgrade_from_seats`?
+  def upgradeable_with?(price)
+    to = product.seats_for(price)
+    active? && !trial? && max_activations.present? &&
+      max_activations == price.metadata["upgrade_from_seats"].to_i && to && to > max_activations
+  end
+
+  # The upgrade checkout. price_id is client-picked (a 1-seat license has two targets) but only
+  # ever from this license's own upgrade_options — never an arbitrary price. Same email
+  # prefill/attribution reasoning as renewal_checkout above.
+  def upgrade_checkout(price_id:, client_reference_id: nil, affonso_referral: nil)
+    raise ActiveRecord::RecordNotFound unless upgrade_options.any? { |v| v.price_id == price_id }
+    product.create_checkout_session(price_id:, email: customer&.email,
+      upgrade_license_key: license_key, client_reference_id:, affonso_referral:)
   end
 
   before_validation :assign_license_key, on: :create
@@ -91,17 +118,6 @@ class License < ApplicationRecord
       quantity = product.seats_for(price)
     end
 
-    # An affiliate is credited only on a new purchase (renewals pass nothing). Commission is frozen
-    # here off amount_subtotal — pre-VAT, because under Managed Payments amount_total includes tax we
-    # never receive — and stored on the Payment, never recomputed from the affiliate's current rate.
-    affiliate = Affiliate.find_by(id: meta[:affiliate_id]) if meta[:affiliate_id].present?
-    if affiliate&.self_referral?(session.customer_details.email)
-      Rails.logger.warn("[affiliate] self-referral dropped: affiliate=#{affiliate.id} session=#{session.id}")
-      affiliate = nil # the sale still stands; only the commission goes
-    end
-    subtotal = session.amount_subtotal || session.amount_total
-    commission_cents = affiliate&.commission_for(subtotal, percent: product.affiliate_commission_percent)
-
     # []-access, not .name: Stripe omits the key entirely when name collection is off.
     customer = Customer.upsert!(email: session.customer_details.email, name: session.customer_details[:name])
     license = fulfill!(
@@ -113,7 +129,7 @@ class License < ApplicationRecord
       currency: session.currency,
       update_policy: meta[:update_policy].presence || (price.metadata["update_policy"] if price),
       renew_key: meta[:renew_license_key],
-      affiliate_id: affiliate&.id, commission_cents:)
+      upgrade_key: meta[:upgrade_license_key])
     # Purchase email only when a license was actually issued — fulfill! returns nil on Stripe's
     # duplicate deliveries. subscribe is an idempotent upsert, safe to always run.
     customer.send_purchase_email_later(license:, amount: session.amount_total, currency: session.currency) if license
@@ -148,20 +164,24 @@ class License < ApplicationRecord
 
   def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, price_id: nil,
                     stripe_customer_id: nil, amount_cents: nil, currency: nil,
-                    renew_key: nil, update_policy: nil, affiliate_id: nil, commission_cents: nil)
+                    renew_key: nil, upgrade_key: nil, update_policy: nil)
     # Idempotency backbone: one Payment per Stripe intent. Catches redelivery of the original
     # purchase even after a renewal has overwritten the license's own stripe_payment_id.
     return if Payment.exists?(stripe_payment_intent: stripe_payment_id)
     transaction do
+      upgrading = upgrade_key && product.licenses.find_by(license_key: upgrade_key)
       existing = renew_key && product.licenses.find_by(license_key: renew_key)
-      # Renew only a license the payer already owns, or an unclaimed (imported) one the payer now
-      # claims — never let a client-supplied renew_key renew someone else's license.
-      if existing && (existing.customer_id.nil? || existing.customer_id == customer&.id)
-        # Renewals never credit an affiliate — affiliate_id/commission_cents intentionally dropped.
+      # Renew/upgrade only a license the payer already owns, or an unclaimed (imported) one the
+      # payer now claims — never let a client-supplied key modify someone else's license. A
+      # mismatch falls through to a fresh license sized at the paid seat count, same as renewals.
+      if upgrading && (upgrading.customer_id.nil? || upgrading.customer_id == customer&.id)
+        upgrading.upgrade!(stripe_payment_id:, to_seats: quantity, price_id:,
+          buyer: customer, amount_cents:, currency:)
+      elsif existing && (existing.customer_id.nil? || existing.customer_id == customer&.id)
         existing.renew!(stripe_payment_id:, price_id:, buyer: customer)
       else
         product.issue_license!(customer:, quantity:, stripe_payment_id:, price_id:,
-          stripe_customer_id:, amount_cents:, currency:, update_policy:, affiliate_id:, commission_cents:)
+          stripe_customer_id:, amount_cents:, currency:, update_policy:)
       end
     end
   rescue ActiveRecord::RecordNotUnique
@@ -179,6 +199,21 @@ class License < ApplicationRecord
         stripe_price_id: price_id || stripe_price_id,
         expires_at: product.license_expires_at(from:, policy: effective_update_policy))
       payments.create!(stripe_payment_intent: stripe_payment_id, kind: "renewal")
+      self
+    end
+  end
+
+  # A paid seat upgrade: same license, same key, more Macs. Never shrinks — a stale or
+  # mismatched SKU can at worst be a no-op on seats, and the payment is still recorded.
+  def upgrade!(stripe_payment_id:, to_seats:, price_id: nil, buyer: nil, amount_cents: nil, currency: nil)
+    with_lock do
+      # Idempotent under Stripe's at-least-once retries, same shape as renew!.
+      next self if self.stripe_payment_id == stripe_payment_id
+      update!(stripe_payment_id:,
+        customer: customer || buyer,               # claim an unclaimed imported license on upgrade
+        stripe_price_id: price_id || stripe_price_id,
+        max_activations: [ to_seats, max_activations ].compact.max)
+      payments.create!(stripe_payment_intent: stripe_payment_id, kind: "upgrade", amount_cents:, currency:)
       self
     end
   end

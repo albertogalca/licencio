@@ -41,7 +41,8 @@ class Api::CheckoutsController < Api::PublicController
       Product.find_by!(slug: params[:product_slug]).create_checkout_session(
         price_id: params.require(:price_id), email: params[:email],
         renew_license_key: params[:renew_license_key],
-        client_reference_id: params[:client_reference_id], ref: params[:ref],
+        upgrade_license_key: params[:upgrade_license_key],
+        client_reference_id: params[:client_reference_id],
         affonso_referral: params[:affonso_referral])
     end
 end

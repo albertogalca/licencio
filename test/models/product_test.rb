@@ -223,6 +223,63 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # Upgrade SKUs are pay-the-difference discounts against a license the buyer already owns —
+  # on the storefront they'd headline the buy button at $15.
+  test "variants hides upgrade prices from the storefront" do
+    list = Struct.new(:data).new([
+      fake_price("price_up",   "1 to 2", 1500, { "seats" => "2", "upgrade_from_seats" => "1" }),
+      fake_price("price_full", "Full",   3900, { "seats" => "2" })
+    ])
+    Stripe::Price.stub(:list, list) do
+      assert_equal [ "price_full" ], products(:picmal).variants.map(&:price_id)
+    end
+  end
+
+  test "upgrade_variants lists only upgrade prices, with their from-seat gate" do
+    list = Struct.new(:data).new([
+      fake_price("price_up",   "1 to 2", 1500, { "seats" => "2", "upgrade_from_seats" => "1" }),
+      fake_price("price_full", "Full",   3900, { "seats" => "2" })
+    ])
+    Stripe::Price.stub(:list, list) do
+      variants = products(:picmal).upgrade_variants
+      assert_equal [ "price_up" ], variants.map(&:price_id)
+      assert_equal 1, variants.first.from_seats
+      assert_equal 2, variants.first.seats
+    end
+    assert_equal [], products(:cozy).upgrade_variants, "no Stripe product, no upgrades, no Stripe call"
+  end
+
+  test "create_checkout_session refuses an upgrade price without an eligible license" do
+    product = products(:picmal)
+    price = Struct.new(:id, :product, :metadata)
+      .new("price_up", product.stripe_product_id, { "seats" => "5", "upgrade_from_seats" => "2" })
+
+    Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+      # No key, junk key, or a license at the wrong seat count — all the same attack as the
+      # renewal price: buying a full license at the discounted upgrade rate.
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_up", email: "a@b.com")
+      end
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_up", email: "a@b.com",
+          upgrade_license_key: "PICM-NOT-A-REAL-KEY")
+      end
+      wrong_seats = product.licenses.create!(status: "active", max_activations: 5)
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_up", email: "a@b.com",
+          upgrade_license_key: wrong_seats.license_key)
+      end
+
+      eligible = product.licenses.create!(status: "active", max_activations: 2)
+      captured = nil
+      Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; :session }) do
+        assert_equal :session, product.create_checkout_session(price_id: "price_up",
+          email: "a@b.com", upgrade_license_key: eligible.license_key)
+      end
+      assert_equal eligible.license_key, captured[:metadata][:upgrade_license_key]
+    end
+  end
+
   test "variants falls back to max_activations_default when seats metadata is absent" do
     list = Struct.new(:data).new([ fake_price("price_x", "Studio", 12000, {}) ])
     Stripe::Price.stub(:list, list) do
@@ -311,7 +368,8 @@ class ProductTest < ActiveSupport::TestCase
 
   private
     def fake_price(id, nickname, unit_amount, metadata)
-      Struct.new(:id, :nickname, :unit_amount, :metadata).new(id, nickname, unit_amount, metadata)
+      # Trailing currency defaults to nil for the callers that don't care.
+      Struct.new(:id, :nickname, :unit_amount, :metadata, :currency).new(id, nickname, unit_amount, metadata)
     end
 
     def create_product

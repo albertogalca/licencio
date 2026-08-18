@@ -18,24 +18,6 @@ Postgres is managed by **DBngin**, engine named **`licencio`** — PostgreSQL 18
 
 Stripe is per-Product (Studio Model) — no ENV fallback. Each Stripe call passes the product's own `stripe_secret_key` explicitly (`Product#stripe_opts`); there is no global `Stripe.api_key` (the initializer was removed). Inbound webhooks are addressed per product at `/webhooks/stripe/:product_id` and verified with that product's `stripe_webhook_secret`.
 
-## Affiliate program
-
-Global affiliates (one `Affiliate`, one `code`, one rate, spanning all products). A `?ref=CODE` link on a
-marketing page is captured by a 60-day cookie on that site, appended to `/api/checkout`, and rides through
-the Stripe session `metadata[:affiliate_id]`. On `checkout.session.completed`, commission is **frozen at
-sale time** onto `payments.commission_cents` — computed off `amount_subtotal` (pre-VAT, since Managed
-Payments' `amount_total` includes tax we never receive), never recomputed from the affiliate's current rate.
-Renewals never credit.
-
-- **Payouts are a manual ledger** (`Payout` rows), because `managed_payments: { enabled: true }` (Stripe as
-  Merchant of Record) is incompatible with Stripe Connect — no transfers/application fees. Owed =
-  `payments.payable.sum(:commission_cents) − payouts.sum(:amount_cents)`. `Payment.payable` clears a 30-day
-  refund hold and excludes refunded licenses. Global Payouts (v2 preview) is the future automation path.
-- **Self-serve** via magic link, mirroring the `Portal::*` pattern: `AffiliateToken` ≈ `PortalToken`,
-  `Affiliate::*` controllers ≈ `Portal::*`. Signup → admin approval (`Affiliate#approve!`) → magic-link email.
-- Affiliate emails ship through **one** product's Loops config: `Product.affiliate_mailer` = first product
-  with `affiliate_transactional_id` set. Set `affiliate_landing_url` per product for the dashboard's links.
-
 ## Conventions
 
 - UUID primary keys everywhere (`config.generators` → `primary_key_type: :uuid`, `gen_random_uuid()` default).

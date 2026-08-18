@@ -32,10 +32,9 @@ class Webhooks::StripeController < ActionController::API
       end
     when "charge.dispute.created"
       # A chargeback is a refund the buyer took rather than asked for: Stripe withholds the
-      # money the moment the dispute opens. Treated identically, which also drops the sale out
-      # of Payment#payable, so the affiliate commission stops being owed on money we no longer
-      # have. ponytail: no restore path for a dispute we later win — rare enough on a $39 Mac
-      # app to fix by hand; handle charge.dispute.closed if that stops being true.
+      # money the moment the dispute opens, so it is treated identically. ponytail: no restore
+      # path for a dispute we later win — rare enough on a $39 Mac app to fix by hand; handle
+      # charge.dispute.closed if that stops being true.
       License.refund!(product:, stripe_payment_intent: event.data.object.payment_intent)
       Purchase.refund!(product:, provider_order_id: event.data.object.payment_intent)
     end

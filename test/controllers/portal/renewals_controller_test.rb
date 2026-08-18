@@ -81,11 +81,10 @@ class Portal::RenewalsControllerTest < ActionDispatch::IntegrationTest
     license = licenses(:picmal_expired)
 
     get new_portal_renewal_path(license_key: license.license_key,
-      client_reference_id: "visitor_abc", ref: "friend")
+      client_reference_id: "visitor_abc")
 
     # The POST is where they'd silently vanish, and the buyer never sees this page's source.
     assert_select "input[type=hidden][name=client_reference_id][value=visitor_abc]"
-    assert_select "input[type=hidden][name=ref][value=friend]"
     assert_select "input[type=hidden][name=affonso_referral]", false, "no empty passenger fields"
   end
 

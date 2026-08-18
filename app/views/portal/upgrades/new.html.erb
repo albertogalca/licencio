@@ -1,0 +1,61 @@
+<% content_for :title, "Add more Macs — Licencio" %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-center text-2xl font-semibold tracking-tight">
+    Add more seats<%= " to your #{@product.name} license" if @product %>
+  </h1>
+  <p class="mb-6 text-center text-sm text-gray-500 max-w-xs mx-auto">
+    <% if @options.any? %>
+      Same license key, more devices. You only pay the difference.
+    <% else %>
+      Enter the license key you'd like to upgrade.
+    <% end %>
+  </p>
+
+  <div class="card p-6">
+    <%= form_with url: portal_upgrades_path, method: :post, data: { turbo: false }, class: "space-y-4" do |form| %>
+      <%# The storefront puts these on the upgrade link. They only reach Stripe if they survive
+          this POST, so carry them through rather than dropping them at the form. %>
+      <% Portal::BaseController::ATTRIBUTION_PARAMS.each do |key| %>
+        <%= form.hidden_field key, value: params[key], id: nil if params[key].present? %>
+      <% end %>
+
+      <div>
+        <%= form.label :license_key, "License key", class: "field-label" %>
+        <%= form.text_field :license_key, value: params[:license_key], required: true,
+              autofocus: params[:license_key].blank?, autocomplete: "off", spellcheck: false,
+              placeholder: "COZY-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+              class: "field-input font-mono text-sm" %>
+      </div>
+
+      <% if @options.any? %>
+        <fieldset class="space-y-2">
+          <legend class="field-label">Upgrade to</legend>
+          <% @options.each_with_index do |option, i| %>
+            <label class="flex cursor-pointer items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm has-[:checked]:border-accent-600 has-[:checked]:ring-1 has-[:checked]:ring-accent-600">
+              <span class="flex items-center gap-2">
+                <%= radio_button_tag :price_id, option.price_id, i.zero? %>
+                <%= option.seats %> devices
+              </span>
+              <span class="font-medium text-gray-700"><%= money_cents(option.amount_cents, option.currency) %></span>
+            </label>
+          <% end %>
+        </fieldset>
+      <% elsif @license %>
+        <p class="text-xs text-gray-500">
+          There's no self-serve upgrade for this license — email support and we'll sort it out.
+        </p>
+      <% elsif params[:license_key].present? %>
+        <p class="text-xs text-red-600">We couldn't find that license key.</p>
+      <% end %>
+
+      <%= form.submit "Add seats", class: "btn-primary w-full" %>
+    <% end %>
+  </div>
+
+  <p class="mt-6 text-center text-xs text-gray-600">
+    Lost your key? <%= link_to "Email it to me", new_portal_recovery_path(product: @product&.slug),
+      class: "text-accent-600 hover:underline" %>
+  </p>
+</div>

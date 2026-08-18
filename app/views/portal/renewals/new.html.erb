@@ -17,7 +17,7 @@
     <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "space-y-4" do |form| %>
       <%# The storefront puts these on the renew link. They only reach Stripe if they survive
           this POST, so carry them through rather than dropping them at the form. %>
-      <% Portal::RenewalsController::ATTRIBUTION_PARAMS.each do |key| %>
+      <% Portal::BaseController::ATTRIBUTION_PARAMS.each do |key| %>
         <%= form.hidden_field key, value: params[key], id: nil if params[key].present? %>
       <% end %>
 

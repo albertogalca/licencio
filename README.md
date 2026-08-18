@@ -15,7 +15,7 @@ all in one database): no Redis, nothing external beyond Stripe and (optionally)
 Loops for email.
 
 - **License**: MIT (see [`LICENSE`](LICENSE))
-- **Operating guide** (setup → Stripe/Loops → admin → website → affiliates): [`docs/operating-guide.md`](docs/operating-guide.md)
+- **Operating guide** (setup → Stripe/Loops → admin → website): [`docs/operating-guide.md`](docs/operating-guide.md)
 - **Client integration**: [`docs/client-integration.md`](docs/client-integration.md)
 
 ## The Studio Model
@@ -49,11 +49,6 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 - **Activation** — one device seat (`hardware_id` + `device_name`).
 - **Customer** — the buyer. No passwords; signs into the portal via emailed
   magic link.
-- **Affiliate** — an optional referral partner, **global** across every Product
-  (one code, one commission rate, one dashboard). A `?ref=CODE` link earns
-  commission — frozen at sale time — on the purchases it drives; partners self-serve
-  a magic-link dashboard and you pay them from a manual ledger. See the
-  [operating guide](docs/operating-guide.md#8-affiliate-program-optional).
 
 ### Endpoints
 
@@ -61,7 +56,7 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 |-------|------|---------|
 | `GET /api/products/:slug/variants` | none | list a product's variants (Stripe prices) for a pricing page |
 | `GET /api/products/:slug/stats` | none | product's distinct customer count (for "trusted by N" social proof) |
-| `GET /api/checkout?product_slug=…&price_id=…[&ref=CODE]` | none | 302-redirect a plain buy link straight to Stripe Checkout (optional `ref` credits an affiliate) |
+| `GET /api/checkout?product_slug=…&price_id=…` | none | 302-redirect a plain buy link straight to Stripe Checkout |
 | `POST /api/checkout` | product `slug` + Stripe `price_id` in body | create a Stripe Checkout session (Managed Payments) → `{ url }` |
 | `POST /api/licenses/activate` | `X-Api-Key` | activate a device → `{ jwt, public_key }` |
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
@@ -72,7 +67,6 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | `POST /v1/support/lookup` | `X-Admin-Token: SUPPORT_ADMIN_TOKEN` | what did this address buy, and optionally re-send a code |
 | `POST /webhooks/stripe/:product_id` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`). Verified with that Product's `stripe_webhook_secret` |
 | `GET /portal` … | session cookie | customer self-serve portal |
-| `GET /affiliate` … | session cookie | affiliate self-serve dashboard (magic-link login; public `/affiliate/signup`) |
 | `GET /up`, `/health` | — | health checks |
 
 ## Unlock by email (no accounts, no keys)

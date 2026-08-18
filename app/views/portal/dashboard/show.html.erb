@@ -78,6 +78,13 @@
         <% end %>
       <% end %>
 
+      <% if license.upgradeable? %>
+        <p class="mb-4">
+          <%= link_to "Add more seats", new_portal_upgrade_path(license_key: license.license_key),
+                class: "text-sm font-medium text-accent-600 hover:underline" %>
+        </p>
+      <% end %>
+
       <% active = license.activations.active %>
       <% if active.any? %>
         <div class="overflow-x-auto">

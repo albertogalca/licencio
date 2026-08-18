@@ -46,18 +46,6 @@ Rails.application.routes.draw do
     end
     resources :customers, only: [ :index, :show ]
     resources :activations, only: [ :index, :destroy ]
-    resources :affiliates, only: [ :index, :show, :edit, :update ] do
-      resource  :approval, only: :create # approving = creating an approval (mints the magic link)
-      resources :payouts,  only: :create # "Mark paid"
-    end
-    root to: "dashboard#show"
-  end
-
-  namespace :affiliate do
-    resource  :signup,     only: [ :new, :create ]  # public self-signup
-    resources :recoveries, only: [ :new, :create ]  # "email me my dashboard link"
-    get    "session", to: "sessions#create"         # magic-link consume (GET)
-    delete "session", to: "sessions#destroy"        # logout
     root to: "dashboard#show"
   end
 
@@ -66,6 +54,7 @@ Rails.application.routes.draw do
     delete "session", to: "sessions#destroy"     # logout
     resources :activations, only: :destroy       # deactivate a device
     resources :renewals, only: [ :new, :create ] # renew a license via Stripe checkout (public, keyed on the license key)
+    resources :upgrades, only: [ :new, :create ] # add seats to a license via Stripe checkout (public, keyed on the license key)
     resources :recoveries, only: [ :new, :create ] # public recovery form
     root to: "dashboard#show"
   end

@@ -5,7 +5,18 @@ class Portal::BaseController < ApplicationController
 
   helper_method :current_customer, :current_product
 
+  # The public keyed checkouts (renewals, upgrades) carry these from the storefront link,
+  # through the form as hidden fields, into the Stripe session — the same way /api/checkout's do.
+  ATTRIBUTION_PARAMS = %i[client_reference_id affonso_referral].freeze
+
   private
+    # Anything long enough to make Stripe reject the whole session is dropped rather than
+    # allowed to turn a junk query param into a failed checkout — losing the attribution on
+    # one sale beats losing the sale.
+    def attribution
+      ATTRIBUTION_PARAMS.index_with { |key| params[key].presence&.then { |v| v if v.length <= 200 } }
+    end
+
     def current_customer
       @current_customer ||= Customer.find_by(id: session[:customer_id])
     end

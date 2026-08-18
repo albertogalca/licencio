@@ -2,6 +2,7 @@ require "ed25519"
 
 class Product < ApplicationRecord
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
+  UpgradeVariant = Data.define(:price_id, :name, :amount_cents, :currency, :seats, :from_seats)
 
   # Shared with License, which can override a product's policy per license.
   UPDATE_POLICIES = { lifetime: "lifetime", time_limited: "time_limited", versioned: "versioned" }.freeze
@@ -102,8 +103,7 @@ class Product < ApplicationRecord
   end
 
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil,
-                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil,
-                     affiliate_id: nil, commission_cents: nil)
+                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil)
     # Ignore an unrecognized policy from price metadata (falls back to the product's) rather than
     # letting a bad enum string raise ArgumentError and wedge fulfillment on Stripe's retries.
     update_policy = update_policy.presence_in(UPDATE_POLICIES.values)
@@ -113,15 +113,9 @@ class Product < ApplicationRecord
       expires_at: license_expires_at(policy: effective),
       licensed_version: (current_version if effective == "versioned"))
     license.payments.create!(stripe_payment_intent: stripe_payment_id, kind: "purchase",
-      amount_cents:, currency:, affiliate_id:, commission_cents:) if stripe_payment_id
+      amount_cents:, currency:) if stripe_payment_id
     license
   end
-
-  # A global affiliate isn't tied to any one product, but its magic-link email still ships through
-  # some product's Loops config. The studio configures affiliate_transactional_id on one product;
-  # that product is the sender. ponytail: first configured product; add a dedicated setting only if
-  # a second sender is ever needed.
-  def self.affiliate_mailer = where.not(affiliate_transactional_id: nil).order(:created_at).first
 
   # nil = unlimited seats — a deliberate SKU. A price declares it explicitly with seats
   # "unlimited"/"0"; create_checkout_session refuses a price that declares neither seat metadata
@@ -145,13 +139,31 @@ class Product < ApplicationRecord
   # What the storefront may sell. The renewal price is deliberately excluded: it's a discounted
   # "another year of updates" SKU that only means anything attached to an existing license, and
   # it's the cheapest price on the product — left in, it would headline the buy button and win
-  # License#fallback_variant_price_id's cheapest-variant tiebreak.
+  # License#fallback_variant_price_id's cheapest-variant tiebreak. Upgrade prices (metadata
+  # `upgrade_from_seats`) are excluded for the same reason: they're discounts against a license
+  # the buyer already owns, not licenses for sale.
   def variants
     Rails.cache.fetch([ "product-variants", stripe_product_id, renewal_stripe_price_id ], expires_in: 5.minutes) do
-      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data
-        .reject { |p| p.id == renewal_stripe_price_id }
+      active_stripe_prices
+        .reject { |p| p.id == renewal_stripe_price_id || p.metadata["upgrade_from_seats"].present? }
         .map do |p|
           Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
+        end.sort_by(&:amount_cents)
+    end
+  end
+
+  # Seat-upgrade SKUs: a price with metadata `upgrade_from_seats` moves an existing license
+  # from that seat count to the price's own `seats`. Pay-the-difference is frozen into these
+  # amounts per from→to pair, so checkout stays a plain fixed price (promo codes, MoR tax and
+  # currency handling all unchanged).
+  def upgrade_variants
+    return [] if stripe_product_id.blank?
+    Rails.cache.fetch([ "product-upgrade-variants", stripe_product_id ], expires_in: 5.minutes) do
+      active_stripe_prices
+        .select { |p| p.metadata["upgrade_from_seats"].present? }
+        .map do |p|
+          UpgradeVariant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount,
+            currency: p.currency, seats: seats_for(p), from_seats: p.metadata["upgrade_from_seats"].to_i)
         end.sort_by(&:amount_cents)
     end
   end
@@ -166,8 +178,8 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
-  def create_checkout_session(price_id:, email:, renew_license_key: nil, client_reference_id: nil, ref: nil,
-      affonso_referral: nil)
+  def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
+      client_reference_id: nil, affonso_referral: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -185,6 +197,12 @@ class Product < ApplicationRecord
         !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable?
       raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key"
     end
+    # Same reasoning for upgrade prices: they're pay-the-difference discounts, so the key has to
+    # resolve to a license of this product actually sitting at the price's `upgrade_from_seats`.
+    if price.metadata["upgrade_from_seats"].present? &&
+        !licenses.find_by(license_key: upgrade_license_key.to_s.strip)&.upgradeable_with?(price)
+      raise CheckoutNotConfigured, "#{slug} upgrade price needs an eligible license key"
+    end
     # Never silently ship an unlimited-seat license from an unconfigured price: unlimited must be
     # declared (seats "unlimited"/"0"); anything else needs a seat count from price metadata or the
     # product default.
@@ -192,8 +210,6 @@ class Product < ApplicationRecord
       raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
         "(set price metadata `seats`, or the product's max_activations_default)"
     end
-    # An unknown or unapproved ref just drops out (nil) — checkout always proceeds.
-    affiliate = Affiliate.approved.find_by(code: ref.to_s.downcase) if ref.present?
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
@@ -206,7 +222,7 @@ class Product < ApplicationRecord
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
                   update_policy: price.metadata["update_policy"].presence,
                   renew_license_key: renew_license_key.presence,
-                  affiliate_id: affiliate&.id,
+                  upgrade_license_key: upgrade_license_key.presence,
                   # The storefronts send Seline's visitor id as client_reference_id, but Seline
                   # matches a guest charge to a visit only by this metadata key. Same value,
                   # copied under the name Seline looks for.
@@ -266,6 +282,10 @@ class Product < ApplicationRecord
 
   private
     def stripe_opts = { api_key: stripe_secret_key }
+
+    def active_stripe_prices
+      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data
+    end
 
     def b64url(bytes) = Base64.urlsafe_encode64(bytes, padding: false)
 

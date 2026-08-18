@@ -378,6 +378,76 @@ class LicenseTest < ActiveSupport::TestCase
     end
   end
 
+  test "an upgrade adds seats to the payer's own license instead of minting a new one" do
+    product = products(:picmal)
+    owner = Customer.upsert!(email: "buyer-cs_up@example.com", name: nil)
+    license = product.licenses.create!(status: "active", max_activations: 1, customer: owner)
+
+    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "5",
+      price_id: "price_up", upgrade_license_key: license.license_key }, id: "cs_up")
+    assert_no_difference "License.count" do
+      assert_equal license, License.fulfill_from_stripe_session(product, session)
+    end
+
+    license.reload
+    assert_equal 5, license.max_activations
+    assert_equal license.license_key, license.reload.license_key, "same key, more seats"
+    assert_equal "price_up", license.stripe_price_id
+    assert_equal 1, license.payments.kind_upgrade.count
+    assert_equal 1599, license.payments.kind_upgrade.first.amount_cents
+  end
+
+  test "a redelivered upgrade session does not add a second payment" do
+    product = products(:picmal)
+    license = product.licenses.create!(status: "active", max_activations: 1,
+      customer: Customer.upsert!(email: "buyer-cs_up2@example.com", name: nil))
+    session = fake_session(metadata: { licencio_product_id: product.id, quantity: "5",
+      upgrade_license_key: license.license_key }, id: "cs_up2")
+
+    License.fulfill_from_stripe_session(product, session)
+    License.fulfill_from_stripe_session(product, session) # Stripe redelivery
+
+    assert_equal 5, license.reload.max_activations
+    assert_equal 1, license.payments.count
+  end
+
+  test "an upgrade key for someone else's license mints a fresh license instead" do
+    victim = licenses(:picmal_expired) # owned by customers(:nameless), not the payer
+    victim.update!(status: "active", max_activations: 2)
+
+    session = fake_session(metadata: { licencio_product_id: victim.product.id, quantity: "5",
+      upgrade_license_key: victim.license_key }, id: "cs_up3")
+    assert_difference "License.count", 1 do
+      License.fulfill_from_stripe_session(victim.product, session)
+    end
+    assert_equal 2, victim.reload.max_activations, "never touch a license the payer doesn't own"
+  end
+
+  test "upgrade! never shrinks a license" do
+    license = licenses(:picmal_expired) # max_activations: 5
+    license.upgrade!(stripe_payment_id: "pi_down", to_seats: 2)
+    assert_equal 5, license.reload.max_activations
+  end
+
+  test "upgrade_options matches only the license's own seat count, and only for live keys" do
+    product = products(:picmal)
+    license = product.licenses.create!(status: "active", max_activations: 2)
+    prices = Struct.new(:data).new([
+      fake_upgrade_price("price_2to5", 3000, "2", "5"),
+      fake_upgrade_price("price_1to5", 4000, "1", "5")
+    ])
+
+    Stripe::Price.stub(:list, prices) do
+      assert_equal [ "price_2to5" ], license.upgrade_options.map(&:price_id)
+      assert license.upgradeable?
+
+      license.update!(status: "refunded")
+      assert_not license.upgradeable?, "a refunded key buys nothing"
+    end
+    # Lifetime product with no Stripe product configured never offers upgrades (and never calls Stripe).
+    assert_not licenses(:cozy_active).upgradeable?
+  end
+
   test "fulfill_from_stripe_session refuses to mint when no seat count is declared anywhere" do
     product = products(:picmal)
     product.update!(max_activations_default: nil)
@@ -391,7 +461,7 @@ class LicenseTest < ActiveSupport::TestCase
   private
     def fake_session(metadata:, id:, client_reference_id: nil)
       meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
-        :affiliate_id, keyword_init: true).new(**metadata)
+        :upgrade_license_key, keyword_init: true).new(**metadata)
       Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total,
         :amount_subtotal, :currency, :client_reference_id, keyword_init: true).new(metadata: meta, id:,
         customer_details: Struct.new(:email, :name).new("buyer-#{id}@example.com", "Ada Lovelace"),
@@ -401,6 +471,12 @@ class LicenseTest < ActiveSupport::TestCase
 
     def fake_stripe_price(id, product, metadata)
       Struct.new(:id, :product, :metadata).new(id, product, metadata)
+    end
+
+    # What Product#upgrade_variants reads off a Stripe price.
+    def fake_upgrade_price(id, unit_amount, from_seats, seats)
+      Struct.new(:id, :nickname, :unit_amount, :currency, :metadata).new(
+        id, nil, unit_amount, "usd", { "seats" => seats, "upgrade_from_seats" => from_seats })
     end
 
     def stub_line_item(price, &blk)
