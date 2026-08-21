@@ -178,6 +178,37 @@ class Product < ApplicationRecord
 
   CheckoutNotConfigured = Class.new(StandardError)
 
+  # The one question every new sale carries. Seline only ever sees the browser side of a
+  # purchase, and the channels that actually sell (a forum post, a newsletter, a friend)
+  # arrive with no usable referrer at all, so asking the buyer beats tracking them. Stripe
+  # stores the answer on the Session itself (custom_fields[0].dropdown.value) — nothing to
+  # migrate, nothing to write on the webhook, and the weekly metrics script reads it out of
+  # the sessions list it already pulls.
+  #
+  # Optional on purpose: a required question at the pay button is a conversion tax, and a
+  # forced answer is a guess more often than it is data.
+  #
+  # `key` and every option `value` must be ALPHANUMERIC — Stripe rejects underscores and
+  # hyphens, which is why it reads `indieappsales`. Changing a value silently breaks
+  # comparison with earlier weeks, so add options, never rename them. The label is capped at
+  # 50 characters and is the only copy available: managed payments forbids `custom_text`, so
+  # there is no helper line under the field. Stripe does not translate custom labels either.
+  #
+  # ponytail: one constant shared by every product. Add a per-product column the day a
+  # product needs its own question.
+  SOURCE_FIELD = {
+    key: "source", type: "dropdown", optional: true,
+    label: { type: "custom", custom: "How did you find us?" },
+    dropdown: { options: [
+      { label: "Reddit",               value: "reddit" },
+      { label: "Indie App Sales",      value: "indieappsales" },
+      { label: "X/Twitter",            value: "xtwitter" },
+      { label: "A newsletter or blog", value: "newsletterblog" },
+      { label: "Search",               value: "search" },
+      { label: "A friend",             value: "friend" },
+      { label: "Somewhere else",       value: "other" } ] }
+  }.freeze
+
   def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
       client_reference_id: nil, affonso_referral: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
@@ -216,6 +247,10 @@ class Product < ApplicationRecord
       # remits global VAT/sales tax (no registrations on our end).
       # MoR owns tax config, so do NOT set automatic_tax here.
       allow_promotion_codes: true,          # show the coupon field at checkout
+      # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
+      # who answered this once already, and asking again would double-count the channel
+      # that actually brought them.
+      custom_fields: (renew_license_key || upgrade_license_key) ? [] : [ SOURCE_FIELD ],
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
