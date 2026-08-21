@@ -241,14 +241,21 @@ class Product < ApplicationRecord
       raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
         "(set price metadata `seats`, or the product's max_activations_default)"
     end
-    # Is this an existing owner? Keyed on a license key that actually resolves to one of this
-    # product's licenses, never on the parameter merely being present: /api/checkout is public
-    # and takes both keys straight off the URL, so any junk string would otherwise silence the
-    # question on a genuine new sale. The price is not a safe test either — renewal_price_id
-    # falls back to the original price for a product with no renewal price of its own, so a
-    # real renewal can arrive on an ordinary price id.
+    # Is this an existing owner, or a first-time buyer? Mirror License.fulfill!'s own rule,
+    # because that is what decides whether this payment renews a license or mints a fresh one:
+    # the key must resolve to one of this product's licenses AND that license must be either
+    # unclaimed or already this buyer's.
+    #
+    # Presence is not enough — /api/checkout is public and copies both keys straight off the
+    # URL, so any junk string would silence the question on a genuine new sale. Existence is
+    # not enough either: a real key belonging to somebody else falls through to
+    # issue_license!, which makes it a first-time sale that has to be counted as one. The
+    # price is no test at all, since renewal_price_id falls back to the original price for a
+    # product with no renewal price of its own.
     owner = [ renew_license_key, upgrade_license_key ].any? do |key|
-      key.present? && licenses.exists?(license_key: key.to_s.strip)
+      next false if key.blank?
+      license = licenses.find_by(license_key: key.to_s.strip)
+      license && (license.customer_id.nil? || license.customer&.email == email)
     end
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
