@@ -280,6 +280,49 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # The question only earns its place if it never blocks a sale, and the weekly tally is only
+  # readable if it counts first-time buyers alone.
+  test "checkout asks how they found us, and spares renewals" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew")
+    fake = Struct.new(:id, :product, :metadata)
+    captured = nil
+
+    Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; :session }) do
+      full = fake.new("price_full", product.stripe_product_id, { "seats" => "1" })
+      Stripe::Price.stub(:retrieve, ->(*_) { full }) do
+        product.create_checkout_session(price_id: "price_full", email: "a@b.com")
+      end
+      field = captured[:custom_fields].sole
+      assert_equal "source", field[:key]
+      assert field[:optional], "a required question at the pay button is a conversion tax"
+      assert_equal "How did you find us?", field[:label][:custom]
+
+      renewal = fake.new("price_renew", product.stripe_product_id, { "seats" => "1" })
+      owned = licenses(:picmal_expired)
+      Stripe::Price.stub(:retrieve, ->(*_) { renewal }) do
+        product.create_checkout_session(price_id: "price_renew", email: owned.customer.email,
+          renew_license_key: owned.license_key)
+      end
+      assert_empty captured[:custom_fields], "a renewing owner already answered this once"
+
+      # /api/checkout is public and copies both keys off the URL, so neither a junk key nor
+      # somebody else's real key may silence the question. Both fall through to
+      # issue_license!, which makes them first-time sales the tally has to count.
+      Stripe::Price.stub(:retrieve, ->(*_) { full }) do
+        product.create_checkout_session(price_id: "price_full", email: "a@b.com",
+          renew_license_key: "PICM-NOT-A-REAL-KEY", upgrade_license_key: "  ")
+        assert_equal [ Product::SOURCE_FIELD ], captured[:custom_fields],
+          "a key that resolves to nothing is a first-time buyer"
+
+        product.create_checkout_session(price_id: "price_full", email: "a@b.com",
+          renew_license_key: owned.license_key)
+        assert_equal [ Product::SOURCE_FIELD ], captured[:custom_fields],
+          "somebody else's key mints a new license, so it is a first-time sale"
+      end
+    end
+  end
+
   test "variants falls back to max_activations_default when seats metadata is absent" do
     list = Struct.new(:data).new([ fake_price("price_x", "Studio", 12000, {}) ])
     Stripe::Price.stub(:list, list) do
