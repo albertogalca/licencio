@@ -241,22 +241,18 @@ class Product < ApplicationRecord
       raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
         "(set price metadata `seats`, or the product's max_activations_default)"
     end
-    # Is this an existing owner, or a first-time buyer? Mirror License.fulfill!'s own rule,
-    # because that is what decides whether this payment renews a license or mints a fresh one:
-    # the key must resolve to one of this product's licenses AND that license must be either
-    # unclaimed or already this buyer's.
+    # Ask only a first-time buyer. Decided by the PRICE, which is the one signal that is both
+    # known this early and impossible to forge: the two guards above mean a renewal price
+    # proves a renewable license and an upgrade price proves an eligible one, so neither is
+    # reachable by anybody who does not already own this product.
     #
-    # Presence is not enough — /api/checkout is public and copies both keys straight off the
-    # URL, so any junk string would silence the question on a genuine new sale. Existence is
-    # not enough either: a real key belonging to somebody else falls through to
-    # issue_license!, which makes it a first-time sale that has to be counted as one. The
-    # price is no test at all, since renewal_price_id falls back to the original price for a
-    # product with no renewal price of its own.
-    owner = [ renew_license_key, upgrade_license_key ].any? do |key|
-      next false if key.blank?
-      license = licenses.find_by(license_key: key.to_s.strip)
-      license && (license.customer_id.nil? || license.customer&.email == email)
-    end
+    # The license keys deliberately play no part. /api/checkout is public and copies both
+    # straight off the URL, so a junk key, or a real key belonging to somebody else, would
+    # silence the question on a genuine new sale — and comparing against `email` cannot fix
+    # that, because the email is blank whenever the caller did not prefill one and Stripe has
+    # not collected it yet. The price is known now and is already validated.
+    owner_only_price = price.id == renewal_stripe_price_id ||
+      price.metadata["upgrade_from_seats"].present?
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
@@ -266,7 +262,7 @@ class Product < ApplicationRecord
       # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
       # who answered this once already, and asking again would double-count the channel
       # that actually brought them.
-      custom_fields: owner ? [] : [ SOURCE_FIELD ],
+      custom_fields: owner_only_price ? [] : [ SOURCE_FIELD ],
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
