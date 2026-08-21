@@ -304,6 +304,16 @@ class ProductTest < ActiveSupport::TestCase
           renew_license_key: licenses(:picmal_expired).license_key)
       end
       assert_empty captured[:custom_fields], "a renewing owner already answered this once"
+
+      # /api/checkout is public and copies both keys off the URL. A junk key never reaches the
+      # price guards on a full price, so keying the question off mere presence would drop a
+      # real new sale out of the tally.
+      Stripe::Price.stub(:retrieve, ->(*_) { full }) do
+        product.create_checkout_session(price_id: "price_full", email: "a@b.com",
+          renew_license_key: "PICM-NOT-A-REAL-KEY", upgrade_license_key: "  ")
+      end
+      assert_equal [ Product::SOURCE_FIELD ], captured[:custom_fields],
+        "a key that resolves to nothing is a first-time buyer"
     end
   end
 

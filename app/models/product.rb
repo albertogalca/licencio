@@ -241,6 +241,15 @@ class Product < ApplicationRecord
       raise CheckoutNotConfigured, "#{slug} price #{price.id} has no seat count " \
         "(set price metadata `seats`, or the product's max_activations_default)"
     end
+    # Is this an existing owner? Keyed on a license key that actually resolves to one of this
+    # product's licenses, never on the parameter merely being present: /api/checkout is public
+    # and takes both keys straight off the URL, so any junk string would otherwise silence the
+    # question on a genuine new sale. The price is not a safe test either — renewal_price_id
+    # falls back to the original price for a product with no renewal price of its own, so a
+    # real renewal can arrive on an ordinary price id.
+    owner = [ renew_license_key, upgrade_license_key ].any? do |key|
+      key.present? && licenses.exists?(license_key: key.to_s.strip)
+    end
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
@@ -250,7 +259,7 @@ class Product < ApplicationRecord
       # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
       # who answered this once already, and asking again would double-count the channel
       # that actually brought them.
-      custom_fields: (renew_license_key || upgrade_license_key) ? [] : [ SOURCE_FIELD ],
+      custom_fields: owner ? [] : [ SOURCE_FIELD ],
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
