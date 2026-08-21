@@ -5,10 +5,14 @@
       "note": "Product#checkout_cancel_url is an admin-set column, never a request param."
     },
     {
-      "fingerprint": "f9cbadfab4bf54270e01228d790e56ef942c061400f27fc527c1e5fdb6d06355",
-      "note": "license.renewal_checkout.url is a Stripe Checkout Session URL we just created server-side."
+      "fingerprint": "b1f233b2009d2aa9be0c30239ee5c6c348600276bbb2423682e0cccc29923378",
+      "note": "license.renewal_checkout.url is a Stripe Checkout Session URL we just created server-side. Refingerprinted from f9cbadfa when the attribution params joined the call."
+    },
+    {
+      "fingerprint": "be355da9816357ce97b0d590c9a94d0e8325bb0c65790d6b112054fe345417b0",
+      "note": "license.upgrade_checkout.url is the same Stripe Checkout Session URL as the renewal above, created server-side and never built from a request param. allow_other_host is required because the host is checkout.stripe.com."
     }
   ],
-  "updated": "2026-08-14",
+  "updated": "2026-08-21",
   "brakeman_version": "8.0.5"
 }
