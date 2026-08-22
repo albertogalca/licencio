@@ -14,6 +14,8 @@ Rails.application.routes.draw do
     post   "licenses/activate"   => "activations#create"
     delete "licenses/deactivate" => "activations#destroy"
     post   "licenses/recover"    => "recoveries#create"
+    # A bundle store posts a buyer here after each sale; the reply is the bare license key.
+    post   "licenses/issue"      => "issuances#create"
     # Public (no API key): lets an App Store binary check a desktop key without shipping
     # the credential that mints licenses. Read-only — no activation, no seat.
     post   "licenses/validate"   => "validations#create"
