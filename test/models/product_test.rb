@@ -368,7 +368,7 @@ class ProductTest < ActiveSupport::TestCase
 
   # Branding is interpolated into an inline style attribute and an <img src> on the portal,
   # so a malformed value has to be rejected at the model rather than reach the page.
-  test "branding accepts blank, hex colours and http urls, and rejects anything else" do
+  test "branding accepts blank, hex colors and http urls, and rejects anything else" do
     product = create_product
     assert product.valid?, "blank branding should be allowed"
 
@@ -378,7 +378,7 @@ class ProductTest < ActiveSupport::TestCase
 
     product.accent_color = "red; background: url(evil)"
     assert_not product.valid?
-    assert_includes product.errors[:accent_color].to_sentence, "hex colour"
+    assert_includes product.errors[:accent_color].to_sentence, "hex color"
 
     product.accent_color = "#2563eb"
     product.logo_url = "javascript:alert(1)"

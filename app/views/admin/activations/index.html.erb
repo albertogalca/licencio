@@ -1,9 +1,9 @@
-<% content_for :title, "Activations — Licencio" %>
+<% content_for :title, "Devices — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold tracking-tight">Activations</h1>
+<h1 class="mb-8 text-title font-bold tracking-tight">Devices</h1>
 
 <% if @activations.any? %>
-  <div class="table-card">
+  <div class="card overflow-x-auto">
     <table class="data-table">
       <thead>
         <tr>
@@ -11,26 +11,28 @@
           <th>Product</th>
           <th>Customer</th>
           <th>Activated</th>
-          <th>State</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         <% @activations.each do |a| %>
           <tr>
-            <td class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" aria-hidden="true"></span>
-              <span class="truncate"><%= a.device_name.presence || a.hardware_id %></span>
+            <td>
+              <div class="flex items-center gap-2">
+                <%= activation_dot(a) %>
+                <span class="truncate"><%= a.device_name.presence || a.hardware_id %></span>
+              </div>
             </td>
             <td class="text-gray-600"><%= a.license.product.name %></td>
             <td class="text-gray-600"><%= a.license.customer&.email %></td>
             <td class="text-gray-600 tabular-nums"><%= a.activated_at&.to_date %></td>
             <td class="text-right">
               <% if a.deactivated_at %>
-                <span class="text-xs text-gray-600">deactivated</span>
+                <span class="text-meta text-gray-600">deactivated</span>
               <% else %>
                 <%= button_to "Deactivate", admin_activation_path(a), method: :delete,
-                  form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can re-activate." } },
-                  class: "text-xs font-medium text-red-600 hover:text-red-700 cursor-pointer" %>
+                  form: { data: { turbo_confirm: "Deactivate this device? It frees a seat; the customer can reactivate." } },
+                  class: "link-danger" %>
               <% end %>
             </td>
           </tr>
@@ -40,5 +42,5 @@
   </div>
   <%= render "admin/pagination" %>
 <% else %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No activations yet.</p>
+  <p class="empty-state">No devices yet. One appears here the first time a device uses a license key.</p>
 <% end %>

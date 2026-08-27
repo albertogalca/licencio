@@ -1,7 +1,7 @@
 <% content_for :title, "Licenses — Licencio" %>
 
-<div class="mb-6 flex items-center justify-between gap-4">
-  <h1 class="text-xl font-semibold tracking-tight">Licenses</h1>
+<div class="mb-8 flex items-center justify-between gap-4">
+  <h1 class="text-title font-bold tracking-tight">Licenses</h1>
   <%= link_to "New license", new_admin_license_path, class: "btn-primary" %>
 </div>
 
@@ -19,7 +19,7 @@
 <% end %>
 
 <% if @licenses.any? %>
-  <div class="table-card">
+  <div class="card overflow-x-auto">
     <table class="data-table">
       <thead>
         <tr>
@@ -29,27 +29,31 @@
           <th>Status</th>
           <th>Seats</th>
           <th>Expires</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
         <% @licenses.each do |license| %>
-          <tr>
-            <td class="font-mono text-xs"><%= license.license_key %></td>
+          <tr class="<%= "row-#{license.status}" if license.refunded? || license.expired? %>">
+            <td class="cell-key font-mono text-meta">
+              <%= link_to license.license_key, edit_admin_license_path(license),
+                    class: "text-gray-900 underline-offset-2 hover:text-accent-700 hover:underline" %>
+            </td>
             <td class="text-gray-600"><%= license.product.name %></td>
             <td class="text-gray-600"><%= license.customer&.email %></td>
             <td><%= status_badge(license.status) %></td>
             <td class="text-gray-600 tabular-nums"><%= license.max_activations || "∞" %></td>
-            <td class="text-gray-600 tabular-nums"><%= license.expires_at&.to_date %></td>
-            <td class="text-right">
-              <%= link_to "Edit", edit_admin_license_path(license), class: "link-muted" %>
-            </td>
+            <td class="whitespace-nowrap text-gray-600 tabular-nums"><%= license.expires_at&.to_date %></td>
           </tr>
         <% end %>
       </tbody>
     </table>
   </div>
   <%= render "admin/pagination" %>
+<% elsif params[:q].present? || params[:product_id].present? || params[:status].present? %>
+  <p class="empty-state">No licenses match that search.</p>
 <% else %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No licenses found.</p>
+  <div class="empty-state">
+    <p>No licenses yet. Stripe issues one on every purchase — or add one by hand.</p>
+    <%= link_to "New license", new_admin_license_path, class: "btn-primary mt-4" %>
+  </div>
 <% end %>

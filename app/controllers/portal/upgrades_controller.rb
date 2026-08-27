@@ -33,7 +33,7 @@ class Portal::UpgradesController < Portal::BaseController
         allow_other_host: true, status: :see_other
     else
       redirect_to new_portal_upgrade_path(license_key: params[:license_key], product: params[:product].presence),
-        alert: "An upgrade isn't available for that license."
+        alert: "We couldn't find that license key."
     end
   rescue ActiveRecord::RecordNotFound
     # upgrade_checkout raises this for a price outside the license's own options — a forged

@@ -10,8 +10,20 @@ class Admin::DashboardController < Admin::BaseController
     @customers        = Customer.count
     @active_devices   = Activation.active.count
 
+    # Two grouped queries, not two per product: the Studio Model means the catalogue grows
+    # and the overview shouldn't get slower every time it does.
+    by_status = License.group(:product_id, :status).count
+    devices   = Activation.active.joins(:license).group("licenses.product_id").count
+
     @products = Product.order(:name).map do |product|
-      { product:, licenses: product.licenses.count, active: product.licenses.active.count }
+      counts = by_status.select { |(id, _), _| id == product.id }
+      {
+        product:,
+        licenses: counts.values.sum,
+        active:   counts.fetch([ product.id, "active" ], 0),
+        refunded: counts.fetch([ product.id, "refunded" ], 0),
+        devices:  devices.fetch(product.id, 0)
+      }
     end
   end
 end

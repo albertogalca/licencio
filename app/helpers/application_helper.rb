@@ -6,11 +6,11 @@ module ApplicationHelper
   end
 
   STATUS_BADGE_VARIANTS = {
-    "active" => "badge-emerald",
+    "active" => "badge-accent",
     "expired" => "badge-amber",
     "refunded" => "badge-red",
     "inactive" => "badge-gray",
-    "approved" => "badge-emerald",
+    "approved" => "badge-accent",
     "pending" => "badge-amber",
     "rejected" => "badge-red"
   }.freeze
@@ -23,6 +23,13 @@ module ApplicationHelper
   def status_badge(status)
     variant = STATUS_BADGE_VARIANTS.fetch(status.to_s, "badge-gray")
     tag.span(status, class: "#{variant} capitalize")
+  end
+
+  # Live or freed, in the one dot the admin reads down a column.
+  def activation_dot(activation)
+    live = activation.deactivated_at.nil?
+    tag.span(nil, class: "h-1.5 w-1.5 shrink-0 rounded-full #{live ? "bg-accent-500" : "bg-gray-300"}",
+      title: live ? "active" : "deactivated", aria: { hidden: true })
   end
 
   EMAIL_KIND_LABELS = {

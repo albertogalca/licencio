@@ -1,0 +1,40 @@
+<%# The one shape both self-serve Stripe pages share: type your key, see what it buys, go to
+    checkout. Neither page sends a price — the controllers pick that server-side from the
+    licence itself, so the only thing this form carries is the key and the attribution. %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-center text-display text-balance font-bold tracking-tight"><%= heading %></h1>
+  <p class="mx-auto mb-6 max-w-sm text-center text-lead text-balance text-gray-600"><%= subheading %></p>
+
+  <div class="card p-6">
+    <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which
+        Turbo can't follow. %>
+    <%= form_with url: url, method: :post, class: "space-y-4",
+          data: { turbo: false, controller: "submit-lock", action: "submit->submit-lock#lock" } do |form| %>
+      <%# The storefront puts these on the link. They only reach Stripe if they survive this
+          POST, so carry them through rather than dropping them at the form. %>
+      <% Portal::BaseController::ATTRIBUTION_PARAMS.each do |key| %>
+        <%= form.hidden_field key, value: params[key], id: nil if params[key].present? %>
+      <% end %>
+
+      <div>
+        <%= form.label :license_key, "License key", class: "field-label" %>
+        <%= form.text_field :license_key, value: params[:license_key], required: true,
+              autofocus: params[:license_key].blank?, autocomplete: "off", spellcheck: false,
+              placeholder: "#{(branded_product&.license_prefix || "XXXX").upcase}-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+              class: "field-input font-mono text-body" %>
+      </div>
+
+      <%= yield form %>
+
+      <%= form.submit submit_label, class: "btn-primary w-full",
+            data: { "submit-lock-target": "button", locked_label: "Taking you to checkout…" } %>
+    <% end %>
+  </div>
+
+  <p class="mt-6 text-center text-body text-gray-600">
+    Lost your key? <%= link_to "Email it to me", new_portal_recovery_path(product: branded_product&.slug),
+      class: "link-accent" %>
+  </p>
+</div>

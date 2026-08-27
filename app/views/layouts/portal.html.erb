@@ -7,6 +7,7 @@
     <%= csp_meta_tag %>
     <%= yield :head %>
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preload" href="<%= asset_path "geist-sans.woff2" %>" as="font" type="font/woff2" crossorigin>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%# A nonced <style> rather than style="" on <html>: our CSP is style-src :self, which
         blocks inline style attributes outright (they can't carry a nonce). %>
@@ -20,10 +21,12 @@
     <main class="mx-auto flex w-full max-w-3xl grow flex-col px-5 py-12 <%= "items-center justify-center gap-6" if content_for?(:centered) %>">
       <%= render "layouts/flash" %>
       <% if branded_product&.logo_url.present? %>
-        <%= image_tag branded_product.logo_url, alt: branded_product.name, class: "mb-2 h-8 w-auto self-center" %>
+        <%= image_tag branded_product.logo_url, alt: branded_product.name, height: 32,
+            class: "mb-2 h-8 w-auto self-center",
+            data: { controller: "image-fallback", action: "error->image-fallback#hide" } %>
       <% end %>
       <%= yield %>
-      <p class="flex items-center gap-1.5 self-center text-xs text-gray-600 <%= "mt-auto pt-10" unless content_for?(:centered) %>">
+      <p class="flex items-center gap-1.5 self-center text-meta text-gray-600 <%= "mt-auto pt-10" unless content_for?(:centered) %>">
         <%= image_tag "/icon.svg", alt: "", class: "h-4 w-4", aria: { hidden: true } %>
         Powered by Licencio
       </p>

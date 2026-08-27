@@ -1,0 +1,8 @@
+<%# Every rejected save says why in the same place, in the same box. %>
+<% if record.errors.any? %>
+  <div class="rounded-md bg-red-50 px-4 py-3 text-body text-red-800 ring-1 ring-inset ring-red-600/20">
+    <ul class="list-disc pl-5">
+      <% record.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+    </ul>
+  </div>
+<% end %>

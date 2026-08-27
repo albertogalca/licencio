@@ -1,21 +1,20 @@
 <% content_for :title, "Your #{current_product.name} licenses — Licencio" %>
 
 <header class="mb-8 flex items-center justify-between gap-4">
-  <h1 class="text-2xl font-semibold tracking-tight">Your <%= current_product.name %> licenses</h1>
+  <h1 class="text-display text-balance font-bold tracking-tight">Your <%= current_product.name %> licenses</h1>
   <div class="flex shrink-0 items-center gap-2">
     <% if current_product.download_url.present? %>
-      <%= link_to "Download app", current_product.download_url,
-            class: "inline-flex shrink-0 items-center rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
+      <%= link_to "Download app", current_product.download_url, class: "btn-primary" %>
     <% end %>
-    <%= button_to "Sign out", portal_session_path, method: :delete,
-          class: "inline-flex shrink-0 items-center rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>
+    <%= button_to "Sign out", portal_session_path, method: :delete, class: "btn-ghost" %>
   </div>
 </header>
 
 <% if @licenses.empty? %>
-  <div class="rounded-lg border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
-    <p class="text-sm text-gray-500">No <%= current_product.name %> licenses found for <span class="font-medium text-gray-700"><%= current_customer.email %></span>.</p>
-  </div>
+  <p class="empty-state">
+    No <%= current_product.name %> licenses found for
+    <span class="font-medium text-gray-700"><%= current_customer.email %></span>.
+  </p>
 <% end %>
 
 <div class="space-y-4">
@@ -27,9 +26,9 @@
         <div data-controller="clipboard" class="relative min-w-0 flex-1">
           <input type="text" readonly value="<%= license.license_key %>"
                  data-clipboard-target="source" data-action="focus->clipboard#select"
-                 class="field-input w-full pr-11 font-mono text-sm">
+                 class="field-input w-full pr-11 font-mono text-body">
           <button type="button" data-action="clipboard#copy" aria-label="Copy license key"
-                  class="absolute inset-y-0 right-0 flex cursor-pointer items-center rounded-r-md px-3 text-gray-600 transition-colors hover:text-gray-700">
+                  class="absolute inset-y-0 right-0 flex cursor-pointer items-center rounded-r-md px-3 text-gray-600 transition-colors hover:text-gray-900">
             <svg data-clipboard-target="copyIcon" class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="7" y="7" width="9" height="9" rx="2" /><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
             </svg>
@@ -41,15 +40,19 @@
         <%= status_badge(license.status) %>
       </div>
 
+      <% full = cap && used >= cap %>
       <div class="mb-4">
-        <p class="mb-1.5 text-xs text-gray-500">
-          <span class="tabular-nums font-medium text-gray-700"><%= used %></span> of
-          <span class="tabular-nums"><%= cap || "∞" %></span> seats in use
+        <p class="mb-2 text-body text-gray-600">
+          <span class="tabular-nums font-medium <%= full ? "text-red-700" : "text-gray-900" %>"><%= used %></span> of
+          <span class="tabular-nums"><%= cap || "∞" %></span> seats in use<%
+          %><% if full %><span class="font-medium text-red-700"> · no seats left</span><% end %>
         </p>
         <% if cap %>
           <% pct = cap.zero? ? 0 : [(used.to_f / cap * 100).round, 100].min %>
-          <% bar = used >= cap ? "bg-red-500" : (used >= cap * 0.8 ? "bg-amber-500" : "bg-accent-500") %>
-          <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+          <% bar = full ? "bg-red-600" : (used >= cap * 0.8 ? "bg-amber-500" : "bg-accent-600") %>
+          <%# A gauge, not a hairline: this is the one number a customer comes here to check. %>
+          <div class="h-2 w-full overflow-hidden rounded-full bg-gray-100 ring-1 ring-inset ring-gray-200"
+               role="img" aria-label="<%= used %> of <%= cap %> seats in use">
             <div id="seatbar-<%= license.id %>" class="h-full rounded-full <%= bar %>"></div>
           </div>
           <%# ponytail: CSP style_src has no 'unsafe-inline', so a style="width:X%" attribute is dropped
@@ -59,7 +62,7 @@
       </div>
 
       <% if license.effective_update_policy == "time_limited" && license.expires_at %>
-        <p class="mb-4 text-xs text-gray-500">
+        <p class="mb-4 text-body text-gray-500">
           <% if license.expires_at.past? %>
             Expired <span class="font-medium text-red-600"><%= license.expires_at.to_date.to_fs(:long) %></span>
           <% else %>
@@ -70,10 +73,11 @@
         <% if license.renewable? && current_product.variants.any? %>
           <%# Native submit (not Turbo): the controller redirects to Stripe (cross-origin), which Turbo can't follow. %>
           <%# Price is chosen server-side from the license's own tier — not submitted by the client. %>
-          <%= form_with url: portal_renewals_path, method: :post, data: { turbo: false }, class: "mb-4" do %>
+          <%= form_with url: portal_renewals_path, method: :post, class: "mb-4",
+                  data: { turbo: false, controller: "submit-lock", action: "submit->submit-lock#lock" } do %>
             <%= hidden_field_tag :license_key, license.license_key %>
-            <%= submit_tag "Renew license",
-                  class: "inline-flex shrink-0 cursor-pointer items-center rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700" %>
+            <%= submit_tag "Renew license", class: "btn-primary",
+                    data: { "submit-lock-target": "button", locked_label: "Taking you to checkout…" } %>
           <% end %>
         <% end %>
       <% end %>
@@ -81,40 +85,40 @@
       <% if license.upgradeable? %>
         <p class="mb-4">
           <%= link_to "Add more seats", new_portal_upgrade_path(license_key: license.license_key),
-                class: "text-sm font-medium text-accent-600 hover:underline" %>
+                class: "link-accent tap-target text-body" %>
         </p>
       <% end %>
 
       <% active = license.activations.active %>
       <% if active.any? %>
         <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs font-medium uppercase tracking-wide text-gray-600">
-              <th class="py-1.5">Device</th>
-              <th class="py-1.5">Hardware ID</th>
-              <th class="py-1.5">Activated</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% active.each do |activation| %>
-              <tr class="border-t border-gray-100">
-                <td class="py-2.5"><%= activation.device_name.presence || "—" %></td>
-                <td class="max-w-[12rem] break-all py-2.5 font-mono text-xs text-gray-500"><%= activation.hardware_id %></td>
-                <td class="py-2.5 text-gray-500 tabular-nums"><%= activation.activated_at.to_date.to_fs(:long) %></td>
-                <td class="py-2.5 text-right">
-                  <%= button_to "Deactivate", portal_activation_path(activation), method: :delete,
-                        data: { turbo_confirm: "Free this seat? The device will need to reactivate." },
-                        class: "cursor-pointer text-xs font-medium text-red-600 transition-colors hover:text-red-800" %>
-                </td>
+          <table class="w-full text-body">
+            <thead>
+              <tr class="text-left text-meta font-semibold uppercase tracking-caps text-gray-600">
+                <th class="py-1.5">Device</th>
+                <th class="py-1.5">Hardware ID</th>
+                <th class="py-1.5">Activated</th>
+                <th></th>
               </tr>
-            <% end %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% active.each do |activation| %>
+                <tr class="border-t border-gray-100">
+                  <td class="py-2.5"><%= activation.device_name.presence || "—" %></td>
+                  <td class="max-w-[12rem] break-all py-2.5 font-mono text-meta text-gray-500"><%= activation.hardware_id %></td>
+                  <td class="py-2.5 text-gray-500 tabular-nums"><%= activation.activated_at.to_date.to_fs(:long) %></td>
+                  <td class="py-2.5 text-right">
+                    <%= button_to "Deactivate", portal_activation_path(activation), method: :delete,
+                          data: { turbo_confirm: "Free this seat? The device will need to reactivate." },
+                          class: "link-danger" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
         </div>
       <% else %>
-        <p class="border-t border-gray-100 pt-3 text-sm text-gray-600">No active devices.</p>
+        <p class="border-t border-gray-100 pt-3 text-body text-gray-600">No active devices.</p>
       <% end %>
     </article>
   <% end %>

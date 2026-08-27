@@ -1,6 +1,6 @@
 <% content_for :title, "Customers — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold tracking-tight">Customers</h1>
+<h1 class="mb-8 text-title font-bold tracking-tight">Customers</h1>
 
 <%= form_with url: admin_customers_path, method: :get, class: "mb-5 flex flex-wrap items-center gap-3" do |form| %>
   <%= form.text_field :q, value: params[:q], placeholder: "Search email, name…",
@@ -14,14 +14,13 @@
 <% end %>
 
 <% if @customers.any? %>
-  <div class="table-card">
+  <div class="card overflow-x-auto">
     <table class="data-table">
       <thead>
         <tr>
           <th>Email</th>
           <th>Name</th>
           <th>Licenses</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -37,9 +36,6 @@
             <td>
               <span class="badge-gray tabular-nums"><%= customer.licenses.count %></span>
             </td>
-            <td class="text-right">
-              <%= link_to "View", admin_customer_path(customer), class: "link-muted" %>
-            </td>
           </tr>
         <% end %>
       </tbody>
@@ -47,7 +43,7 @@
   </div>
   <%= render "admin/pagination" %>
 <% elsif params[:q].present? || params[:product_id].present? %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No customers found.</p>
+  <p class="empty-state">No customers match that search.</p>
 <% else %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No customers yet.</p>
+  <p class="empty-state">No customers yet. One is created with the first purchase.</p>
 <% end %>

@@ -1,47 +1,57 @@
 <% content_for :title, "Overview — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold tracking-tight">Overview</h1>
+<h1 class="mb-8 text-title font-bold tracking-tight">Overview</h1>
 
-<% stats = [
-     { label: "Active licenses", value: @active_licenses },
-     { label: "New licenses",    value: @new_licenses,  sub: "last 30 days" },
-     { label: "Refunded",        value: @refunded,      sub: "last 30 days" },
-     { label: "Customers",       value: @customers },
-     { label: "Active devices",  value: @active_devices },
-   ] %>
+<%# The products are what you act on, so they lead. The five global figures are context for
+    them, not the headline — they sit underneath, on one line. %>
+<% if @products.empty? %>
+  <div class="empty-state">
+    <p>No products yet. A product is one app you sell — its own Stripe account, keys and licenses.</p>
+    <%= link_to "New product", new_admin_product_path, class: "btn-primary mt-4" %>
+  </div>
+<% else %>
+<div class="max-w-3xl divide-y divide-gray-200 border-y border-gray-200">
+  <% @products.each do |row| %>
+    <div class="flex items-baseline justify-between gap-6 py-6">
+      <div class="min-w-0">
+        <h2 class="text-display font-bold tracking-tight">
+          <%= link_to admin_licenses_path(product_id: row[:product].id),
+                class: "text-gray-900 transition-colors hover:text-accent-700" do %>
+            <%= row[:product].name %><span aria-hidden="true" class="text-gray-300"> →</span>
+          <% end %>
+        </h2>
+        <p class="mt-1.5 text-body text-gray-600">
+          <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(row[:active]) %></span> active
+          <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+          <%# A zero here is good news and should stay quiet; a non-zero is the one thing on
+              this page worth interrupting for. %>
+          <span class="<%= "font-medium text-red-700" if row[:refunded].positive? %>">
+            <span class="tabular-nums"><%= number_with_delimiter(row[:refunded]) %></span> refunded
+          </span>
+          <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+          <span class="tabular-nums"><%= number_with_delimiter(row[:devices]) %></span> devices
+        </p>
+      </div>
 
-<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-  <% stats.each do |stat| %>
-    <div class="card p-4">
-      <p class="text-xs font-medium uppercase tracking-wide text-gray-500"><%= stat[:label] %></p>
-      <p class="mt-2 text-3xl font-semibold tabular-nums tracking-tight"><%= number_with_delimiter(stat[:value]) %></p>
-      <p class="mt-1 text-xs text-gray-600"><%= stat[:sub] || " " %></p>
+      <div class="shrink-0 text-right">
+        <p class="text-display font-bold tabular-nums tracking-tight"><%= number_with_delimiter(row[:licenses]) %></p>
+        <p class="text-meta text-gray-500">licenses</p>
+      </div>
     </div>
   <% end %>
 </div>
 
-<h2 class="mb-3 mt-10 text-xs font-semibold uppercase tracking-wide text-gray-500">By product</h2>
-<div class="table-card">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Licenses</th>
-        <th>Active</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @products.each do |row| %>
-        <tr>
-          <td class="font-medium"><%= row[:product].name %></td>
-          <td class="text-gray-600 tabular-nums"><%= number_with_delimiter(row[:licenses]) %></td>
-          <td class="text-gray-600 tabular-nums"><%= number_with_delimiter(row[:active]) %></td>
-          <td class="text-right">
-            <%= link_to "View", admin_licenses_path(product_id: row[:product].id), class: "link-accent" %>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-</div>
+<p class="mt-5 max-w-3xl text-body text-gray-600">
+  Across <%= pluralize(@products.size, "product") %>:
+  <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@active_licenses) %></span> active
+  <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+  <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@new_licenses) %></span> new
+  <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+  <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@refunded) %></span> refunded
+  <span class="text-gray-500">(last 30 days)</span>
+  <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+  <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@customers) %></span> customers
+  <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+  <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@active_devices) %></span> devices
+</p>
+<% end %>

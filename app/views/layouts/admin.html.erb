@@ -7,6 +7,7 @@
     <%= csp_meta_tag %>
     <%= yield :head %>
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preload" href="<%= asset_path "geist-sans.woff2" %>" as="font" type="font/woff2" crossorigin>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
@@ -17,10 +18,10 @@
            ["Products",    admin_products_path,    "admin/products"],
            ["Licenses",    admin_licenses_path,    "admin/licenses"],
            ["Customers",   admin_customers_path,   "admin/customers"],
-           ["Activations", admin_activations_path, "admin/activations"],
+           ["Devices",     admin_activations_path, "admin/activations"],
          ] %>
       <header class="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur">
-        <nav class="mx-auto flex max-w-5xl items-stretch gap-6 px-5 text-sm">
+        <nav class="mx-auto flex max-w-5xl items-stretch gap-6 px-5 text-body">
           <%= link_to admin_root_path, class: "flex items-center gap-2 py-3.5 font-semibold tracking-tight" do %>
             <%= image_tag "/icon.svg", alt: "", class: "h-5 w-5", aria: { hidden: true } %>
             Licencio
@@ -30,10 +31,10 @@
             <%= link_to label, path,
                   class: "flex items-center border-b-2 py-3.5 transition-colors #{active ? "border-accent-500 font-medium text-gray-900" : "border-transparent text-gray-600 hover:text-gray-900"}" %>
           <% end %>
-          <span class="ml-auto flex items-center text-xs text-gray-600"><%= current_admin.email %></span>
+          <span class="ml-auto flex items-center text-meta text-gray-600"><%= current_admin.email %></span>
           <div class="flex items-center">
             <%= button_to "Sign out", admin_session_path, method: :delete,
-                  class: "inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>
+                  class: "inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-meta font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900" %>
           </div>
         </nav>
       </header>

@@ -1,16 +1,10 @@
 <% content_for :title, "New license — Licencio" %>
 
-<h1 class="mb-6 text-xl font-semibold tracking-tight">New license</h1>
+<h1 class="mb-6 text-title font-bold tracking-tight">New license</h1>
 
 <div class="card max-w-xl p-6">
   <%= form_with model: @license, url: admin_licenses_path, method: :post, class: "space-y-4" do |form| %>
-    <% if @license.errors.any? %>
-      <div class="rounded-md border-l-2 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">
-        <ul class="list-disc pl-5">
-          <% @license.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
-        </ul>
-      </div>
-    <% end %>
+    <%= render "shared/form_errors", record: @license %>
 
     <div>
       <%= form.label :product_id, "Product", class: "field-label" %>
@@ -22,7 +16,7 @@
       <p class="field-hint">Optional — a customer is created if this email is new.</p>
     </div>
     <div>
-      <%= form.label :max_activations, class: "field-label" %>
+      <%= form.label :max_activations, "Seats", class: "field-label" %>
       <%= form.number_field :max_activations, value: @license.max_activations || 3, class: "field-input" %>
     </div>
     <div>
@@ -46,7 +40,7 @@
 
     <div class="flex items-center gap-3 border-t border-gray-100 pt-4">
       <%= form.submit "Create license", class: "btn-primary" %>
-      <%= link_to "Cancel", admin_licenses_path, class: "link-muted text-sm" %>
+      <%= link_to "Cancel", admin_licenses_path, class: "link-muted text-body" %>
     </div>
   <% end %>
 </div>

@@ -1,12 +1,12 @@
 <% content_for :title, "Products — Licencio" %>
 
-<div class="mb-6 flex items-center justify-between gap-4">
-  <h1 class="text-xl font-semibold tracking-tight">Products</h1>
+<div class="mb-8 flex items-center justify-between gap-4">
+  <h1 class="text-title font-bold tracking-tight">Products</h1>
   <%= link_to "New product", new_admin_product_path, class: "btn-primary" %>
 </div>
 
 <% if @products.any? %>
-  <div class="table-card">
+  <div class="card overflow-x-auto">
     <table class="data-table">
       <thead>
         <tr>
@@ -15,20 +15,19 @@
           <th>Prefix</th>
           <th>Policy</th>
           <th>Licenses</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
         <% @products.each do |product| %>
           <tr>
-            <td class="font-medium"><%= product.name %></td>
-            <td class="font-mono text-xs text-gray-600"><%= product.slug %></td>
-            <td class="font-mono text-xs text-gray-600"><%= product.license_prefix %></td>
+            <td class="font-medium">
+              <%= link_to product.name, edit_admin_product_path(product),
+                    class: "text-gray-900 underline-offset-2 hover:text-accent-700 hover:underline" %>
+            </td>
+            <td class="font-mono text-meta text-gray-600"><%= product.slug %></td>
+            <td class="font-mono text-meta text-gray-600"><%= product.license_prefix %></td>
             <td class="text-gray-600"><%= product.update_policy %></td>
             <td class="text-gray-600 tabular-nums"><%= product.licenses.count %></td>
-            <td class="text-right">
-              <%= link_to "Edit", edit_admin_product_path(product), class: "link-muted" %>
-            </td>
           </tr>
         <% end %>
       </tbody>
@@ -36,5 +35,8 @@
   </div>
   <%= render "admin/pagination" %>
 <% else %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No products yet.</p>
+  <div class="empty-state">
+    <p>No products yet. A product is one app you sell — its own Stripe account, keys and licenses.</p>
+    <%= link_to "New product", new_admin_product_path, class: "btn-primary mt-4" %>
+  </div>
 <% end %>

@@ -21,7 +21,7 @@ class Portal::RenewalsController < Portal::BaseController
       redirect_to license.renewal_checkout(**attribution).url, allow_other_host: true, status: :see_other
     else
       redirect_to new_portal_renewal_path(license_key: params[:license_key]),
-        alert: "Renewal isn't available for that license."
+        alert: license ? "Renewal isn't available for that license." : "We couldn't find that license key."
     end
   rescue Product::CheckoutNotConfigured, ActiveRecord::RecordNotFound, Stripe::StripeError
     redirect_to new_portal_renewal_path(license_key: params[:license_key]),

@@ -1,17 +1,17 @@
 <% content_for :title, "#{@customer.email} — Licencio" %>
 
 <div class="mb-8">
-  <%= link_to "← Customers", admin_customers_path, class: "link-muted text-sm" %>
+  <%= link_to "← Customers", admin_customers_path, class: "link-muted text-body" %>
   <div class="mt-2 flex items-center gap-3">
     <%= image_tag gravatar_url(@customer.email, size: 96), alt: "", width: 48, height: 48, class: "h-12 w-12 rounded-full bg-gray-100 ring-1 ring-gray-200" %>
     <div>
-      <h1 class="text-xl font-semibold tracking-tight"><%= @customer.email %></h1>
-      <% if @customer.name %><p class="text-sm text-gray-500"><%= @customer.name %></p><% end %>
+      <h1 class="text-title font-bold tracking-tight"><%= @customer.email %></h1>
+      <% if @customer.name %><p class="text-body text-gray-500"><%= @customer.name %></p><% end %>
     </div>
   </div>
 </div>
 
-<h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Licenses</h2>
+<h2 class="section-title mb-3">Licenses</h2>
 <% if @licenses.any? %>
   <div class="space-y-4">
     <% @licenses.each do |license| %>
@@ -22,19 +22,19 @@
               <p class="font-medium"><%= license.product.name %></p>
               <%= status_badge(license.status) %>
             </div>
-            <p class="mt-1 truncate font-mono text-xs text-gray-500"><%= license.license_key %></p>
+            <p class="mt-1 truncate font-mono text-meta text-gray-500"><%= license.license_key %></p>
           </div>
-          <%= link_to "Edit", edit_admin_license_path(license), class: "link-muted shrink-0 text-sm" %>
+          <%= link_to "Edit", edit_admin_license_path(license), class: "link-muted shrink-0 text-body" %>
         </div>
-        <p class="mt-2 text-xs text-gray-500">
+        <p class="mt-2 text-body text-gray-500">
           <span class="tabular-nums"><%= license.activations.active.size %>/<%= license.max_activations || "∞" %></span> seats
           <% if license.expires_at %>· expires <%= license.expires_at.to_date %><% end %>
         </p>
         <% if license.activations.any? %>
-          <ul class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-600">
+          <ul class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-meta text-gray-600">
             <% license.activations.each do |a| %>
               <li class="flex items-center gap-2">
-                <span class="h-1.5 w-1.5 shrink-0 rounded-full <%= a.deactivated_at ? "bg-gray-300" : "bg-accent-500" %>" title="<%= a.deactivated_at ? "deactivated" : "active" %>"></span>
+                <%= activation_dot(a) %>
                 <span class="truncate <%= "text-gray-600 line-through" if a.deactivated_at %>"><%= a.device_name.presence || a.hardware_id %></span>
               </li>
             <% end %>
@@ -44,5 +44,5 @@
     <% end %>
   </div>
 <% else %>
-  <p class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">No licenses.</p>
+  <p class="empty-state">No licenses.</p>
 <% end %>

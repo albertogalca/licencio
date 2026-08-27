@@ -12,11 +12,12 @@ class Product < ApplicationRecord
   HEX_COLOR = /\A#(?:\h{3}|\h{6})\z/
   HTTP_URL = %r{\Ahttps?://\S+\z}
 
-  # How each accent shade is mixed from the product's one accent colour. 600 is the colour
+  # How each accent shade is mixed from the product's one accent color. 600 is the color
   # itself; the rest are tints toward white and shades toward black, matching the spacing of
   # Tailwind's own scales closely enough for badges, links and focus rings.
-  ACCENT_MIX = { 50 => [ 10, "white" ], 100 => [ 20, "white" ], 200 => [ 35, "white" ],
-                 500 => [ 80, "white" ], 600 => nil,
+  # Every accent shade the stylesheet actually uses, and no more — each one costs a
+  # color-mix() declaration on every branded page load.
+  ACCENT_MIX = { 50 => [ 10, "white" ], 500 => [ 80, "white" ], 600 => nil,
                  700 => [ 82, "black" ], 800 => [ 68, "black" ] }.freeze
 
   has_many :licenses, dependent: :restrict_with_error
@@ -48,7 +49,7 @@ class Product < ApplicationRecord
     if: -> { update_policy == "time_limited" }
   validates :current_version, presence: true, if: -> { update_policy == "versioned" }
   validates :accent_color, :background_color, format: { with: HEX_COLOR,
-    message: "must be a hex colour, like #2563eb" }, allow_blank: true
+    message: "must be a hex color, like #2563eb" }, allow_blank: true
   validates :logo_url, format: { with: HTTP_URL,
     message: "must start with http:// or https://" }, allow_blank: true
   # A Stripe-selling product must carry its full credential set, so it can't validate yet
