@@ -44,6 +44,17 @@
             </label>
           <% end %>
         </fieldset>
+      <%# An active license with no options is usually fine, not stuck. Say which it is, so
+          nobody is sent to email support over a license that is already as large as it gets. %>
+      <% elsif @license&.unlimited_seats? %>
+        <p class="text-xs text-gray-500">
+          This license already covers unlimited devices, so there's nothing to add.
+        </p>
+      <% elsif @license&.top_tier? %>
+        <p class="text-xs text-gray-500">
+          This license is already the largest size, covering
+          <%= pluralize(@license.max_activations, "device") %>.
+        </p>
       <% elsif @license %>
         <p class="text-xs text-gray-500">
           There's no self-serve upgrade for this license — email support and we'll sort it out.

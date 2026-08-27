@@ -125,4 +125,32 @@ class Portal::UpgradesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_match "email support", @response.body
   end
+
+  # An unlimited key and the largest SKU both land with zero options, same as a real gap.
+  # Sending either one to support is the wrong advice, so they get their own answer.
+  test "new tells an unlimited-seat license it already covers everything" do
+    @license.update!(max_activations: nil)
+
+    Stripe::Price.stub(:list, @prices) do
+      get new_portal_upgrade_path(license_key: @license.license_key)
+    end
+
+    assert_response :ok
+    assert_match "already covers unlimited devices", @response.body
+    assert_no_match(/email support/, @response.body)
+  end
+
+  test "new tells a license on the largest SKU that there is nothing above it" do
+    # Only a 2->5 SKU exists, so a 5-seat license has nothing bigger to buy.
+    @license.update!(max_activations: 5)
+
+    Stripe::Price.stub(:list, @prices) do
+      get new_portal_upgrade_path(license_key: @license.license_key)
+    end
+
+    assert_response :ok
+    assert_match "already the largest size", @response.body
+    assert_match "5 devices", @response.body
+    assert_no_match(/email support/, @response.body)
+  end
 end

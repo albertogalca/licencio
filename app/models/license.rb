@@ -63,21 +63,37 @@ class License < ApplicationRecord
       renew_license_key: license_key, client_reference_id:, affonso_referral:)
   end
 
+  # One name for "this key can take part in seat upgrades at all" — every seat question below
+  # asks it first, so the rule lives in one place and the answers can't drift apart.
+  def upgradable_state? = active? && !trial?
+
   # The seat upgrades this license can buy: the product's upgrade SKUs whose
   # `upgrade_from_seats` matches where this license sits today. A trial, a refunded key, or an
   # unlimited-seat license (nil max_activations) has nothing to upgrade.
   def upgrade_options
-    return [] if trial? || !active? || max_activations.nil?
+    return [] unless upgradable_state? && max_activations
     product.upgrade_variants.select { |v| v.from_seats == max_activations && v.seats && v.seats > max_activations }
   end
 
   def upgradeable? = upgrade_options.any?
 
+  # Why an active license can have nothing to buy. Both of these are fine states, not gaps:
+  # an unlimited key already covers every device, and a key at or above the biggest SKU has
+  # nothing over it. A seat count that sits BELOW some SKU but matches none of them is a real
+  # gap, so it keeps falling through to "email support".
+  def unlimited_seats? = upgradable_state? && max_activations.nil?
+
+  def top_tier?
+    return false unless upgradable_state? && max_activations
+    variants = product.upgrade_variants
+    variants.any? && variants.none? { |v| v.seats && v.seats > max_activations }
+  end
+
   # The checkout-time guard's question, answered from the Stripe price itself (no second
   # Stripe call): is this license really sitting at the price's `upgrade_from_seats`?
   def upgradeable_with?(price)
     to = product.seats_for(price)
-    active? && !trial? && max_activations.present? &&
+    upgradable_state? && max_activations.present? &&
       max_activations == price.metadata["upgrade_from_seats"].to_i && to && to > max_activations
   end
 
