@@ -10,7 +10,7 @@
     <%= link_to "New product", new_admin_product_path, class: "btn-primary mt-4" %>
   </div>
 <% else %>
-<div class="max-w-3xl divide-y divide-gray-200 border-y border-gray-200">
+<div class="divide-y divide-gray-200 border-y border-gray-200">
   <% @products.each do |row| %>
     <div class="flex items-baseline justify-between gap-6 py-6">
       <div class="min-w-0">
@@ -41,7 +41,7 @@
   <% end %>
 </div>
 
-<p class="mt-5 max-w-3xl text-body text-gray-600">
+<p class="mt-5 text-body text-gray-600">
   Across <%= pluralize(@products.size, "product") %>:
   <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@active_licenses) %></span> active
   <span aria-hidden="true" class="px-1 text-gray-300">·</span>
