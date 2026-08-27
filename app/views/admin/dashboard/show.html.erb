@@ -12,8 +12,12 @@
 <% else %>
 <div class="divide-y divide-gray-200 border-y border-gray-200">
   <% @products.each do |row| %>
-    <div class="flex items-baseline justify-between gap-6 py-6">
-      <div class="min-w-0">
+    <div class="flex items-center justify-between gap-6 py-6">
+      <% if row[:product].logo_url.present? %>
+        <%= image_tag row[:product].logo_url, alt: "", class: "size-10 shrink-0 rounded-lg object-contain",
+              aria: { hidden: true }, loading: "lazy" %>
+      <% end %>
+      <div class="min-w-0 mr-auto">
         <h2 class="text-display font-bold tracking-tight">
           <%= link_to admin_licenses_path(product_id: row[:product].id),
                 class: "text-gray-900 transition-colors hover:text-accent-700" do %>
