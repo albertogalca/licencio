@@ -67,8 +67,15 @@ PRICES = [
   # renewal session also writes a fresh `purchases` row, which is how a renewal extends
   # the email-unlock window: the unlock always reads the newest purchase for the address.
   { lookup_key: "cozy_renewal_usd", nickname: "Another year of updates (renew, $49 era)", amount: 2400,
-    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } }
+    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited",
+                "renewal" => "1" } }
 ].freeze
+
+# Renewal SKUs that predate the `renewal` flag, keyed by price id because they carry no lookup
+# key of ours. `renewal_stripe_price_id` only ever names ONE price, so the moment it moves to the
+# $49-era SKU the $17 one would become an ordinary buyable price: a full license for $17. The
+# flag is what keeps a retired renewal price refused after the column has moved on.
+LEGACY_RENEWAL_PRICES = %w[price_1U0I8T8q5jdfnWu2gO7BbBMQ].freeze
 
 EDU_COUPON_ID = "cozy_edu_40"
 EDU_PROMO_CODE = "COZYEDU"
@@ -106,6 +113,18 @@ PRICES.each do |spec|
     unit_amount: spec[:amount], nickname: spec[:nickname], lookup_key: spec[:lookup_key],
     metadata: spec[:metadata] }, OPTS)
   puts "  → #{price.id}"
+end
+
+# Metadata on prices that already exist. Only ever ADDS missing keys — an existing value is
+# left alone, so re-running can't rewrite a price's meaning under a license already sold.
+(PRICES.filter_map { |spec| [ existing[spec[:lookup_key]]&.id, spec[:metadata] ] if existing[spec[:lookup_key]] } +
+  LEGACY_RENEWAL_PRICES.map { |id| [ id, { "renewal" => "1" } ] }).each do |price_id, wanted|
+  current = Stripe::Price.retrieve(price_id, OPTS).metadata.to_h.transform_keys(&:to_s)
+  missing = wanted.reject { |k, _| current.key?(k) }
+  next if missing.empty?
+
+  report("add metadata", "#{price_id} #{missing}")
+  Stripe::Price.update(price_id, { metadata: missing }, OPTS) if APPLY
 end
 
 puts

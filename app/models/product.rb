@@ -137,16 +137,28 @@ class Product < ApplicationRecord
       .list_line_items(session.id, { limit: 1 }, stripe_opts).data.first&.price
   end
 
-  # What the storefront may sell. The renewal price is deliberately excluded: it's a discounted
-  # "another year of updates" SKU that only means anything attached to an existing license, and
-  # it's the cheapest price on the product — left in, it would headline the buy button and win
-  # License#fallback_variant_price_id's cheapest-variant tiebreak. Upgrade prices (metadata
-  # `upgrade_from_seats`) are excluded for the same reason: they're discounts against a license
-  # the buyer already owns, not licenses for sale.
+  # A price that only means anything attached to a license the buyer already owns, so it must
+  # never mint a new one at the discounted rate. Two things mark one, and the metadata is the
+  # load-bearing half: `renewal_stripe_price_id` names a single price and is off entirely until
+  # somebody sets it (a $24 renewal SKU sat publicly buyable as a full license for exactly that
+  # reason), while `renewal` metadata travels with the price and covers retired renewal SKUs the
+  # column has moved on from. Same reasoning as `upgrade_from_seats` on upgrade prices.
+  def renewal_price?(price)
+    (renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id) ||
+      price.metadata["renewal"].present?
+  end
+
+  def owner_only_price?(price) = renewal_price?(price) || price.metadata["upgrade_from_seats"].present?
+
+  # What the storefront may sell. Renewal prices are deliberately excluded: they're discounted
+  # "another year of updates" SKUs, and the cheapest prices on the product — left in, one would
+  # headline the buy button and win License#fallback_variant_price_id's cheapest-variant
+  # tiebreak. Upgrade prices are excluded for the same reason: they're discounts against a
+  # license the buyer already owns, not licenses for sale.
   def variants
     Rails.cache.fetch([ "product-variants", stripe_product_id, renewal_stripe_price_id ], expires_in: 5.minutes) do
       active_stripe_prices
-        .reject { |p| p.id == renewal_stripe_price_id || p.metadata["upgrade_from_seats"].present? }
+        .reject { |p| owner_only_price?(p) }
         .map do |p|
           Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
         end.sort_by(&:amount_cents)
@@ -225,7 +237,7 @@ class Product < ApplicationRecord
     # that: any junk string got past it, then fulfill! failed to find the license and fell
     # through to issue_license!, minting a full new license at the discounted price. The key has
     # to resolve to a license of this product that is actually due for renewal.
-    if renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id &&
+    if renewal_price?(price) &&
         !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable?
       raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key"
     end
@@ -252,8 +264,7 @@ class Product < ApplicationRecord
     # silence the question on a genuine new sale — and comparing against `email` cannot fix
     # that, because the email is blank whenever the caller did not prefill one and Stripe has
     # not collected it yet. The price is known now and is already validated.
-    owner_only_price = price.id == renewal_stripe_price_id ||
-      price.metadata["upgrade_from_seats"].present?
+    owner_only_price = owner_only_price?(price)
     Stripe::Checkout::Session.create({
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &

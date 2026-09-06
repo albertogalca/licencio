@@ -199,7 +199,20 @@ In this order, within the same hour:
 1. Flip `MONETIZATION_ENABLED` on in mobile.
 2. Deploy the marketing site with the new pricing.
 3. In `/admin`, set the cozy product's "Renewal price ID" to the $24 price
-   (`price_1U4Hmr8q5jdfnWu22QNCiKrC`, lookup key `cozy_renewal_usd`).
+   (`price_1U4Hmr8q5jdfnWu22QNCiKrC`, lookup key `cozy_renewal_usd`). It still points at
+   the old $17 price (`price_1U0I8T8q5jdfnWu2gO7BbBMQ`) — checked in production
+   2026-09-06 — so **do this one first**, not last. Until it is set, the renewal guard in
+   `Product#create_checkout_session` is off for the $24 price, `/api/products/cozy/variants`
+   lists that price publicly, and
+   `GET /api/checkout?product_slug=cozy&price_id=price_1U4Hmr8q5jdfnWu22QNCiKrC` mints a
+   brand-new $49 licence for $24. Verified live: it returns a 303 to Stripe Checkout.
+
+   The guard no longer depends on this column alone: `Product#renewal_price?` also refuses any
+   price carrying `renewal` metadata, the way upgrade prices carry `upgrade_from_seats`. Two
+   steps come before the one above, on the same day. Deploy that guard, then run
+   `bin/rails runner scripts/stripe_prices.rb -- --apply` to put the flag on the $24 SKU and on
+   the retired $17 one — without the flag, the $17 price becomes an ordinary buyable price the
+   moment the column moves off it.
 4. Send the grandfathering email to existing customers: they keep everything they have,
    plus iPhone at no cost. Say it plainly — this is the email that decides whether the
    change reads as generous or as a rug pull.

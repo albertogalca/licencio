@@ -223,6 +223,40 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # The column names one price and starts out unset, which is how a $24 renewal SKU came to sit
+  # publicly buyable as a full license. The flag on the price itself is the half that can't be
+  # left switched off, and it still refuses once the column has moved to a newer renewal SKU.
+  test "create_checkout_session refuses a flagged renewal price the column doesn't name" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: nil)
+    price = Struct.new(:id, :product, :metadata)
+      .new("price_renew", product.stripe_product_id, { "seats" => "1", "renewal" => "1" })
+
+    Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+      assert_raises(Product::CheckoutNotConfigured) do
+        product.create_checkout_session(price_id: "price_renew", email: "a@b.com")
+      end
+
+      Stripe::Checkout::Session.stub(:create, ->(*_) { :session }) do
+        assert_equal :session, product.create_checkout_session(price_id: "price_renew",
+          email: "a@b.com", renew_license_key: licenses(:picmal_expired).license_key)
+      end
+    end
+  end
+
+  test "variants hides a flagged renewal price the column doesn't name" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: nil)
+    list = Struct.new(:data).new([
+      fake_price("price_renew", "Renew", 1700, { "seats" => "1", "renewal" => "1" }),
+      fake_price("price_full",  "Full",  3500, { "seats" => "1" })
+    ])
+
+    Stripe::Price.stub(:list, list) do
+      assert_equal [ "price_full" ], product.variants.map(&:price_id)
+    end
+  end
+
   # Upgrade SKUs are pay-the-difference discounts against a license the buyer already owns —
   # on the storefront they'd headline the buy button at $15.
   test "variants hides upgrade prices from the storefront" do
