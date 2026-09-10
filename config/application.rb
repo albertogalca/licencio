@@ -43,5 +43,14 @@ module Licencio
     config.generators do |g|
       g.orm :active_record, primary_key_type: :uuid
     end
+
+    # Traefik and Thruster set X-Forwarded-For only. Client-Ip and Forwarded are
+    # therefore always client-supplied, and Rack 3 prefers Forwarded over
+    # X-Forwarded-For (Rack::Request.forwarded_priority), which would let anyone
+    # pick their own remote_ip and forge every per-IP rate-limit key.
+    config.middleware.insert_before ActionDispatch::RemoteIp, Rack::Config do |env|
+      env.delete("HTTP_CLIENT_IP")
+      env.delete("HTTP_FORWARDED")
+    end
   end
 end
