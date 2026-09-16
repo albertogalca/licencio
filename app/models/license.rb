@@ -42,12 +42,18 @@ class License < ApplicationRecord
       status.in?(%w[active expired]) && expires_at.present? && expires_at < RENEWAL_WINDOW.from_now
   end
 
-  # Renew at the product's dedicated renewal price when it has one (a cheaper "another year of
-  # updates" SKU), otherwise at the license's OWN purchased price. Always chosen server-side —
-  # never a client-supplied price_id, so nobody renews a paid tier through a cheaper checkout.
-  # Imported licenses (no stored price) fall back to the variant matching their seat count.
+  # Renew at the price this license's OWN purchase points to, if it names one; otherwise at the
+  # product's current renewal SKU, otherwise at what this license paid, otherwise at the variant
+  # matching its seat count. Always chosen server-side — never a client-supplied price_id, so
+  # nobody renews a paid tier through a cheaper checkout.
+  #
+  # The first step is the grandfather clause. A superseded price names the renewal SKU its own
+  # buyers keep, in `renewal_price` metadata, so repricing the product never reprices a renewal
+  # already sold. The column stays the answer for everybody the metadata says nothing about,
+  # which is how a cohort is grandfathered without the server knowing what anybody paid.
   def renewal_price_id
-    product.renewal_stripe_price_id.presence || stripe_price_id.presence || fallback_variant_price_id
+    grandfathered_renewal_price_id || product.renewal_stripe_price_id.presence ||
+      stripe_price_id.presence || fallback_variant_price_id
   end
 
   # Moving to the lifetime tier instead of buying another year. Open for the whole life of a
@@ -420,6 +426,10 @@ class License < ApplicationRecord
       when "expiry"   then expiry_reference
       else                 id
       end
+    end
+
+    def grandfathered_renewal_price_id
+      product.renewal_price_for(stripe_price_id) if stripe_price_id.present?
     end
 
     def fallback_variant_price_id

@@ -286,6 +286,40 @@ class LicenseTest < ActiveSupport::TestCase
     assert_raises(ActiveRecord::RecordNotFound) { license.renewal_checkout(kind: "forever") }
   end
 
+  test "a superseded price grandfathers its buyers onto their own renewal SKU" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew_current")
+    license = product.licenses.create!(status: "active", max_activations: 5,
+      expires_at: 1.day.ago, stripe_price_id: "price_old_era")
+
+    old_price = Struct.new(:metadata).new({ "renewal_price" => "price_renew_grandfathered" })
+    Stripe::Price.stub(:retrieve, ->(id, *_) { flunk "asked for #{id}" unless id == "price_old_era"; old_price }) do
+      assert_equal "price_renew_grandfathered", license.renewal_price_id
+    end
+  end
+
+  test "a price naming no renewal SKU leaves the product's current one in charge" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew_current")
+    license = product.licenses.create!(status: "active", max_activations: 5,
+      expires_at: 1.day.ago, stripe_price_id: "price_new_era")
+
+    Stripe::Price.stub(:retrieve, ->(*_) { Struct.new(:metadata).new({}) }) do
+      assert_equal "price_renew_current", license.renewal_price_id
+    end
+  end
+
+  test "Stripe being down falls back to the current SKU rather than refusing the renewal" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew_current")
+    license = product.licenses.create!(status: "active", max_activations: 5,
+      expires_at: 1.day.ago, stripe_price_id: "price_old_era")
+
+    Stripe::Price.stub(:retrieve, ->(*_) { raise Stripe::APIConnectionError, "down" }) do
+      assert_equal "price_renew_current", license.renewal_price_id
+    end
+  end
+
   test "renewal_options asks Stripe nothing — it renders on every portal page load" do
     product = products(:picmal)
     product.update!(lifetime_stripe_price_id: "price_forever")

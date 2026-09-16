@@ -156,6 +156,22 @@ class Product < ApplicationRecord
 
   def owner_only_price?(price) = renewal_price?(price) || price.metadata["upgrade_from_seats"].present?
 
+  # The renewal SKU that buyers of `price_id` keep, from its `renewal_price` metadata, or nil
+  # when it names none. Retrieve rather than read off active_stripe_prices: the prices that
+  # carry this are the superseded ones, and a superseded price is usually archived.
+  #
+  # Cached because it sits on the renewal path and only changes when somebody edits the price in
+  # Stripe. Stripe being down returns nil rather than raising, so a renewal falls back to the
+  # product's current SKU instead of failing: the wrong price is recoverable, a refused renewal
+  # in the last week before expiry is not.
+  def renewal_price_for(price_id)
+    Rails.cache.fetch([ "price-renewal-target", price_id ], expires_in: 5.minutes) do
+      Stripe::Price.retrieve(price_id, stripe_opts).metadata["renewal_price"].presence
+    end
+  rescue Stripe::StripeError
+    nil
+  end
+
   # What the storefront may sell. Renewal prices are deliberately excluded: they're discounted
   # "another year of updates" SKUs, and the cheapest prices on the product — left in, one would
   # headline the buy button and win License#fallback_variant_price_id's cheapest-variant

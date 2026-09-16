@@ -82,8 +82,18 @@ PRICES = [
 # Renewal SKUs that predate the `renewal` flag, keyed by price id because they carry no lookup
 # key of ours. `renewal_stripe_price_id` only ever names ONE price, so the moment it moves to the
 # $49-era SKU the $17 one would become an ordinary buyable price: a full license for $17. The
-# flag is what keeps a retired renewal price refused after the column has moved on.
+# flag is what keeps it refused as a license while it stays in service as a renewal.
 LEGACY_RENEWAL_PRICES = %w[price_1U0I8T8q5jdfnWu2gO7BbBMQ].freeze
+
+# Grandfathering, decided 2026-09-16: the $35 era keeps renewing at $17, everybody from the $49
+# era on renews at $24. A superseded price names the renewal SKU its own buyers keep, and
+# License#renewal_price_id reads it before falling back to the product's current column. So the
+# map is written once, here, and the repricing never touches a renewal already sold.
+#
+#   bought at  =>  renews at forever
+GRANDFATHERED_RENEWALS = {
+  "price_1Tqpdb8q5jdfnWu2XSanPdwF" => "price_1U0I8T8q5jdfnWu2gO7BbBMQ" # $35 "1 year updates" => $17
+}.freeze
 
 EDU_COUPON_ID = "cozy_edu_40"
 EDU_PROMO_CODE = "COZYEDU"
@@ -126,7 +136,8 @@ end
 # Metadata on prices that already exist. Only ever ADDS missing keys — an existing value is
 # left alone, so re-running can't rewrite a price's meaning under a license already sold.
 (PRICES.filter_map { |spec| [ existing[spec[:lookup_key]]&.id, spec[:metadata] ] if existing[spec[:lookup_key]] } +
-  LEGACY_RENEWAL_PRICES.map { |id| [ id, { "renewal" => "1" } ] }).each do |price_id, wanted|
+  LEGACY_RENEWAL_PRICES.map { |id| [ id, { "renewal" => "1" } ] } +
+  GRANDFATHERED_RENEWALS.map { |bought, renews| [ bought, { "renewal_price" => renews } ] }).each do |price_id, wanted|
   current = Stripe::Price.retrieve(price_id, OPTS).metadata.to_h.transform_keys(&:to_s)
   missing = wanted.reject { |k, _| current.key?(k) }
   next if missing.empty?
