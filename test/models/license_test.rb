@@ -298,6 +298,24 @@ class LicenseTest < ActiveSupport::TestCase
     end
   end
 
+  test "grandfathering survives the renewal that rewrites the license's price" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew_current")
+    license = product.licenses.create!(status: "active", max_activations: 5,
+      expires_at: 1.day.ago, stripe_price_id: "price_old_era")
+
+    # renew! stamps the price that was actually bought onto the license, so a second renewal
+    # asks the RENEWAL SKU what comes next, not the original purchase. It has to answer itself
+    # or the cohort quietly rejoins the current price a year later.
+    license.renew!(stripe_payment_id: "pi_1", price_id: "price_renew_grandfathered")
+    assert_equal "price_renew_grandfathered", license.reload.stripe_price_id
+
+    self_naming = Struct.new(:metadata).new({ "renewal_price" => "price_renew_grandfathered" })
+    Stripe::Price.stub(:retrieve, ->(*_) { self_naming }) do
+      assert_equal "price_renew_grandfathered", license.renewal_price_id
+    end
+  end
+
   test "a price naming no renewal SKU leaves the product's current one in charge" do
     product = products(:picmal)
     product.update!(renewal_stripe_price_id: "price_renew_current")
