@@ -68,6 +68,14 @@ PRICES = [
   # the email-unlock window: the unlock always reads the newest purchase for the address.
   { lookup_key: "cozy_renewal_usd", nickname: "Another year of updates (renew, $49 era)", amount: 2400,
     metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited",
+                "renewal" => "1" } },
+  # Moving a licence already sold to the lifetime tier. Goes on the cozy product's
+  # `lifetime_stripe_price_id`, which is what makes the portal offer it. $39 because
+  # 4900 + 3900 = 8800: any lower and buying standard then upgrading undercuts
+  # cozy_forever_usd on its own pricing card. `renewal` keeps it owner-only even before
+  # the column is set, and `update_policy` is what flips the licence on fulfillment.
+  { lookup_key: "cozy_forever_upgrade_usd", nickname: "Cozy Forever upgrade (from Standard)", amount: 3900,
+    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited",
                 "renewal" => "1" } }
 ].freeze
 

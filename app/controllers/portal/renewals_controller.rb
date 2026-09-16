@@ -12,18 +12,29 @@ class Portal::RenewalsController < Portal::BaseController
 
   def new
     @license = License.find_by_key(params[:license_key].to_s.strip)
-    @product = @license&.product # brands the layout
+    # Brands the layout. The storefront link carries ?product=<slug> so the page is branded
+    # before a key is typed, same as upgrades; a found license always wins.
+    @product = @license&.product || (Product.matching(params[:product]).first if params[:product].present?)
+    @options = @license&.renewal_options || []
   end
 
   def create
     license = License.find_by_key(params[:license_key].to_s.strip)
-    if license&.renewable? && license.renewal_price_id
-      redirect_to license.renewal_checkout(**attribution).url, allow_other_host: true, status: :see_other
+    if license
+      # `kind` names one of the license's own options; renewal_checkout refuses anything else,
+      # and a form that never posted one still means "another year" as it always did.
+      redirect_to license.renewal_checkout(kind: params[:kind], **attribution).url,
+        allow_other_host: true, status: :see_other
     else
       redirect_to new_portal_renewal_path(license_key: params[:license_key]),
-        alert: license ? "Renewal isn't available for that license." : "We couldn't find that license key."
+        alert: "We couldn't find that license key."
     end
-  rescue Product::CheckoutNotConfigured, ActiveRecord::RecordNotFound, Stripe::StripeError
+  rescue ActiveRecord::RecordNotFound
+    # An option this license doesn't have — a stale form or a forged `kind`, not an outage, so
+    # "try again" would be the wrong advice.
+    redirect_to new_portal_renewal_path(license_key: params[:license_key]),
+      alert: "Renewal isn't available for that license."
+  rescue Product::CheckoutNotConfigured, Stripe::StripeError
     redirect_to new_portal_renewal_path(license_key: params[:license_key]),
       alert: "Renewal is temporarily unavailable — please try again."
   end

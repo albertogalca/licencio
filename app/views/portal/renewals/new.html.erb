@@ -2,11 +2,33 @@
 
 <%= render layout: "portal/key_form", locals: {
       url: portal_renewals_path,
-      heading: "Renew your #{@product&.name || "license"}#{" license" if @product}",
-      subheading: @license&.renewable? ?
-        "Another year of updates. Your app keeps working either way. Only new versions stop." :
+      heading: @options.include?(:forever) ?
+        "Keep your #{@product&.name || "license"} up to date" :
+        "Renew your #{@product&.name || "license"}#{" license" if @product}",
+      subheading: @options.any? ?
+        "Another year of updates, or every version from here on. Your app keeps working either way. Only new versions stop." :
         "Enter the license key you'd like to renew.",
-      submit_label: "Renew license" } do |form| %>
+      submit_label: @options.any? ? "Continue to checkout" : "Renew license" } do |form| %>
+  <%# Only ever the license's own options, and the form posts the NAME of one, never a price:
+      what that name costs is decided server-side in renewal_checkout. A single option still
+      renders as a row, so nobody reaches Stripe without having seen what they picked. %>
+  <% if @options.any? %>
+    <fieldset class="space-y-2">
+      <legend class="field-label">Choose one</legend>
+      <% @options.each_with_index do |kind, i| %>
+        <label class="flex cursor-pointer items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-body has-[:checked]:border-accent-600 has-[:checked]:ring-1 has-[:checked]:ring-accent-600">
+          <span class="flex items-center gap-2">
+            <%= radio_button_tag :kind, kind, i.zero? %>
+            <%= kind == :forever ? "Every future version, for life" : "Another year of updates" %>
+          </span>
+          <% if kind == :forever %>
+            <span class="text-meta text-gray-500">Nothing to renew, ever</span>
+          <% end %>
+        </label>
+      <% end %>
+    </fieldset>
+  <% end %>
+
   <% if @license&.expires_at %>
     <p class="text-body text-gray-500">
       <% if @license.expires_at.past? %>

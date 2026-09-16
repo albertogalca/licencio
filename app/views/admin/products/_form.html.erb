@@ -74,6 +74,11 @@
       <p class="field-hint">Optional. A cheaper "another year of updates" Stripe price, charged on renewal instead of what they originally paid. Hidden from the storefront and refused outside a renewal.</p>
     </div>
     <div>
+      <%= form.label :lifetime_stripe_price_id, "Lifetime upgrade price ID", class: "field-label" %>
+      <%= form.text_field :lifetime_stripe_price_id, class: "field-input" %>
+      <p class="field-hint">Optional. A Stripe price that moves a time_limited license to the lifetime policy: same key, every future version, no expiry. Offered in the portal whenever it is set, hidden from the storefront, and refused to anyone who doesn't already own the product.</p>
+    </div>
+    <div>
       <%= form.label :trial_days, class: "field-label" %>
       <%= form.number_field :trial_days, class: "field-input" %>
     </div>

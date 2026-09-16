@@ -50,6 +50,34 @@ class License < ApplicationRecord
     product.renewal_stripe_price_id.presence || stripe_price_id.presence || fallback_variant_price_id
   end
 
+  # Moving to the lifetime tier instead of buying another year. Open for the whole life of a
+  # time_limited license rather than only inside RENEWAL_WINDOW: what it buys is never thinking
+  # about the expiry date again, which is worth most to somebody who isn't near it yet.
+  def lifetime_upgradable?
+    effective_update_policy == "time_limited" && product.stripe_product_id.present? &&
+      product.lifetime_stripe_price_id.present? && status.in?(%w[active expired]) && !trial?
+  end
+
+  # The ways this license can carry on, annual first so it is the option already selected when
+  # the page renders. The portal form sends back one of these names and never a price, so the
+  # same rule as upgrade_checkout holds: the client picks which of its OWN options, the server
+  # picks what that costs.
+  # Deliberately asks no question that needs Stripe: this runs on every portal page load, and
+  # renewal_price_id's last fallback lists the product's prices. Which price the annual option
+  # resolves to is settled in renewal_checkout, one step later, where a Stripe call is going to
+  # happen anyway.
+  def renewal_options
+    options = []
+    options << :annual if renewable?
+    options << :forever if lifetime_upgradable?
+    options
+  end
+
+  # The checkout-time guard's question, for a price that only an owner may buy. A lifetime
+  # upgrade is offered outside RENEWAL_WINDOW, so it cannot ask renewable? the way an annual
+  # renewal does.
+  def renewable_with?(price) = product.lifetime_price?(price) ? lifetime_upgradable? : renewable?
+
   # The renewal checkout. Prefilling the buyer's own email is load-bearing: Stripe locks the
   # field, so fulfillment matches this customer and renew! extends this license instead of
   # minting a second one. An unclaimed (imported) license has no email and gets claimed by
@@ -58,8 +86,14 @@ class License < ApplicationRecord
   # The attribution params ride along the same way they do on /api/checkout. Without them a
   # renewal reached Stripe with seline_visitor_id nil, so Seline could not match the charge to
   # a visit and every renewal landed in the revenue chart as unattributed.
-  def renewal_checkout(client_reference_id: nil, affonso_referral: nil)
-    product.create_checkout_session(price_id: renewal_price_id, email: customer&.email,
+  def renewal_checkout(kind: nil, client_reference_id: nil, affonso_referral: nil)
+    kind = (kind.presence || :annual).to_sym
+    raise ActiveRecord::RecordNotFound unless renewal_options.include?(kind)
+    price_id = kind == :forever ? product.lifetime_stripe_price_id : renewal_price_id
+    # A product with no renewal SKU, no price on the license and no variants to fall back on
+    # has nothing to charge. Same answer as an option this license never had.
+    raise ActiveRecord::RecordNotFound if price_id.blank?
+    product.create_checkout_session(price_id:, email: customer&.email,
       renew_license_key: license_key, client_reference_id:, affonso_referral:)
   end
 
@@ -194,7 +228,8 @@ class License < ApplicationRecord
         upgrading.upgrade!(stripe_payment_id:, to_seats: quantity, price_id:,
           buyer: customer, amount_cents:, currency:)
       elsif existing && (existing.customer_id.nil? || existing.customer_id == customer&.id)
-        existing.renew!(stripe_payment_id:, price_id:, buyer: customer)
+        existing.renew!(stripe_payment_id:, price_id:, buyer: customer, update_policy:,
+          amount_cents:, currency:)
       else
         product.issue_license!(customer:, quantity:, stripe_payment_id:, price_id:,
           stripe_customer_id:, amount_cents:, currency:, update_policy:)
@@ -204,17 +239,30 @@ class License < ApplicationRecord
     nil
   end
 
-  def renew!(stripe_payment_id:, price_id: nil, buyer: nil)
+  # `update_policy` comes off the purchased price. Only the lifetime-upgrade SKU names one that
+  # differs from what this license already has; an ordinary renewal passes nil or the same
+  # policy, so the license keeps inheriting from the product exactly as it did before. A policy
+  # change also clears expires_at, because license_expires_at returns nil for lifetime.
+  def renew!(stripe_payment_id:, price_id: nil, buyer: nil, update_policy: nil,
+             amount_cents: nil, currency: nil)
     with_lock do
       # Idempotent under Stripe's at-least-once retries: a duplicate delivery of the
       # same renewal carries the same payment id and must not extend the window twice.
       next self if self.stripe_payment_id == stripe_payment_id
+      # Unknown enum strings are dropped rather than raised on, same as issue_license!: a typo
+      # in Stripe must not wedge fulfillment on every retry.
+      policy = update_policy.presence_in(Product::UPDATE_POLICIES.values)
+      policy = nil if policy == effective_update_policy
       from = [ expires_at, Time.current ].compact.max
       update!(status: "active", stripe_payment_id:, reminded_at: nil,
         customer: customer || buyer,               # claim an unclaimed imported license on renewal
+        update_policy: policy || self.update_policy,
         stripe_price_id: price_id || stripe_price_id,
-        expires_at: product.license_expires_at(from:, policy: effective_update_policy))
-      payments.create!(stripe_payment_intent: stripe_payment_id, kind: "renewal")
+        expires_at: product.license_expires_at(from:, policy: policy || effective_update_policy))
+      # A policy change is not a renewal: it is bought once and never comes round again, and
+      # the revenue reports read this column.
+      payments.create!(stripe_payment_intent: stripe_payment_id,
+        kind: policy ? "upgrade" : "renewal", amount_cents:, currency:)
       self
     end
   end

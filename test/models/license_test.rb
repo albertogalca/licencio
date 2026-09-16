@@ -236,6 +236,66 @@ class LicenseTest < ActiveSupport::TestCase
     assert_equal 1, license.activations.active.count
   end
 
+  test "renewing at the lifetime price moves the license off expiry for good" do
+    product = products(:picmal) # time_limited, 365-day window
+    product.update!(lifetime_stripe_price_id: "price_forever")
+    license = product.licenses.create!(status: "active", max_activations: 5, expires_at: 10.days.from_now)
+    assert license.lifetime_upgradable?
+
+    license.renew!(stripe_payment_id: "pi_forever", price_id: "price_forever",
+      update_policy: "lifetime", amount_cents: 3900, currency: "usd")
+
+    license.reload
+    assert_equal "lifetime", license.effective_update_policy
+    assert_nil license.expires_at, "a lifetime license has nothing left to expire"
+    assert license.update_eligible?
+    assert_equal "upgrade", license.payments.last.kind, "bought once, so not a renewal"
+    assert_equal 3900, license.payments.last.amount_cents
+  end
+
+  test "an ordinary renewal still inherits its policy from the product" do
+    license = products(:picmal).licenses.create!(status: "active", max_activations: 5, expires_at: 1.day.ago)
+
+    # The annual SKU names the policy the license already has — that must stay an extension,
+    # and must not start writing a per-license override onto every renewed key.
+    license.renew!(stripe_payment_id: "pi_annual", update_policy: "time_limited")
+
+    license.reload
+    assert_nil license.update_policy, "no per-license override written"
+    assert license.expires_at.future?
+    assert_equal "renewal", license.payments.last.kind
+  end
+
+  test "the lifetime upgrade is offered outside the renewal window, another year is not" do
+    product = products(:picmal)
+    product.update!(lifetime_stripe_price_id: "price_forever")
+    license = product.licenses.create!(status: "active", max_activations: 5, expires_at: 300.days.from_now)
+
+    assert_not license.renewable?, "nowhere near expiry"
+    assert_equal [ :forever ], license.renewal_options
+
+    license.update!(expires_at: 10.days.from_now)
+    assert_equal [ :annual, :forever ], license.renewal_options
+  end
+
+  test "renewal_checkout refuses a kind this license was never offered" do
+    license = products(:picmal).licenses.create!(status: "active", max_activations: 5, expires_at: 1.day.ago)
+    assert_equal [ :annual ], license.renewal_options, "no lifetime price configured"
+
+    # Forged or stale `kind` from the portal form. Never reaches Stripe.
+    assert_raises(ActiveRecord::RecordNotFound) { license.renewal_checkout(kind: "forever") }
+  end
+
+  test "renewal_options asks Stripe nothing — it renders on every portal page load" do
+    product = products(:picmal)
+    product.update!(lifetime_stripe_price_id: "price_forever")
+    license = product.licenses.create!(status: "active", max_activations: 5, expires_at: 1.day.ago)
+
+    Stripe::Price.stub(:list, ->(*_) { raise "renewal_options must not list prices" }) do
+      assert_equal [ :annual, :forever ], license.renewal_options
+    end
+  end
+
   test "renew! is idempotent — a duplicate payment id does not extend twice" do
     license = products(:picmal).licenses.create!(status: "active", max_activations: 5) # 365-day window
     license.renew!(stripe_payment_id: "pi_renew")

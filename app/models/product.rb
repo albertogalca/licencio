@@ -145,8 +145,14 @@ class Product < ApplicationRecord
   # column has moved on from. Same reasoning as `upgrade_from_seats` on upgrade prices.
   def renewal_price?(price)
     (renewal_stripe_price_id.present? && price.id == renewal_stripe_price_id) ||
-      price.metadata["renewal"].present?
+      lifetime_price?(price) || price.metadata["renewal"].present?
   end
+
+  # The move to the lifetime tier: same license, every future version, nothing to renew again.
+  # A renewal price like any other (owner-only, kept off the storefront), told apart by the
+  # column rather than by price metadata so there is exactly one thing to configure — set it
+  # and the option appears, leave it blank and no product offers the upgrade at all.
+  def lifetime_price?(price) = lifetime_stripe_price_id.present? && price.id == lifetime_stripe_price_id
 
   def owner_only_price?(price) = renewal_price?(price) || price.metadata["upgrade_from_seats"].present?
 
@@ -238,7 +244,7 @@ class Product < ApplicationRecord
     # through to issue_license!, minting a full new license at the discounted price. The key has
     # to resolve to a license of this product that is actually due for renewal.
     if renewal_price?(price) &&
-        !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable?
+        !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable_with?(price)
       raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key"
     end
     # Same reasoning for upgrade prices: they're pay-the-difference discounts, so the key has to
@@ -279,7 +285,10 @@ class Product < ApplicationRecord
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
       metadata: { licencio_product_id: id, price_id: price.id, quantity: seats_for(price),
-                  update_policy: price.metadata["update_policy"].presence,
+                  # The lifetime price IS the policy change, so it names one whether or not
+                  # anybody remembered to put `update_policy` on the price in Stripe. Getting
+                  # this from two places is how somebody pays the upgrade and gets a year.
+                  update_policy: (lifetime_price?(price) ? "lifetime" : price.metadata["update_policy"].presence),
                   renew_license_key: renew_license_key.presence,
                   upgrade_license_key: upgrade_license_key.presence,
                   # The storefronts send Seline's visitor id as client_reference_id, but Seline

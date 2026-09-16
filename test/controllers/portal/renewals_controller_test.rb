@@ -40,6 +40,39 @@ class Portal::RenewalsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "price_renew", captured[:line_items].first[:price]
   end
 
+  test "kind=forever checks out at the product's lifetime price and tags the session" do
+    license = licenses(:picmal_expired)
+    license.update!(stripe_price_id: "price_orig", max_activations: 5)
+    products(:picmal).update!(lifetime_stripe_price_id: "price_forever")
+
+    captured = nil
+    price = Stub.new(id: "price_forever", product: products(:picmal).stripe_product_id, metadata: { "seats" => "5" })
+    Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+      Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; Stub.new(url: "https://stripe.test/checkout") }) do
+        post portal_renewals_path, params: { license_key: license.license_key, kind: "forever" }
+      end
+    end
+
+    assert_redirected_to "https://stripe.test/checkout"
+    assert_equal "price_forever", captured[:line_items].first[:price]
+    assert_equal "lifetime", captured[:metadata][:update_policy],
+      "the column names the policy, so a price missing its metadata still upgrades"
+    assert_equal license.license_key, captured[:metadata][:renew_license_key]
+    assert_empty captured[:custom_fields], "an owner already answered how they found us"
+  end
+
+  test "kind=forever is refused when the product offers no lifetime upgrade" do
+    license = licenses(:picmal_expired)
+    license.update!(stripe_price_id: "price_orig", max_activations: 5)
+
+    Stripe::Checkout::Session.stub(:create, ->(*_) { flunk "must not reach Stripe" }) do
+      post portal_renewals_path, params: { license_key: license.license_key, kind: "forever" }
+    end
+
+    assert_redirected_to new_portal_renewal_path(license_key: license.license_key)
+    assert_equal "Renewal isn't available for that license.", flash[:alert]
+  end
+
   test "a renewal carries the storefront's attribution params into the session" do
     license = licenses(:picmal_expired)
     license.update!(stripe_price_id: "price_orig", max_activations: 5)
