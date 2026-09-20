@@ -25,17 +25,22 @@ class V1::UnlocksController < Api::PublicController
   # The `name:` on each limiter matters: without it Rails keys both counters as
   # "rate-limit:v1/unlocks:<ip>", so requesting a code would eat the verify budget under
   # whichever TTL was written first — three requests and a few typos locked an address out.
+  # Cozy for iPhone posts from capacitor://localhost and the marketing site from the web, so
+  # both preflight. Wildcard is honest: public, rate limited, and no cookie or API key rides
+  # along, so there's no credential for another origin to borrow.
+  #
+  # Declared BEFORE the limiters: `rate_limit` is a before_action too, and the chain runs in
+  # declaration order, so a limiter that halts first returns a 429 with no Allow-Origin and
+  # the browser blocks it. Worst here, where the app would tell someone mid-unlock that the
+  # server is unreachable when the real answer is "wait a minute".
+  before_action :set_cors_headers
+
   rate_limit to: 10, within: 1.hour, only: :request_code, name: "request",
     with: -> { head :too_many_requests }
   # Guessing budget belongs to the code (LoginCode::MAX_ATTEMPTS); this just stops one host
   # from grinding many codes at once.
   rate_limit to: 10, within: 1.minute, only: :verify, name: "verify",
     with: -> { head :too_many_requests }
-
-  # Cozy for iPhone posts from capacitor://localhost and the marketing site from the web, so
-  # both preflight. Wildcard is honest: public, rate limited, and no cookie or API key rides
-  # along, so there's no credential for another origin to borrow.
-  before_action :set_cors_headers
 
   def preflight
     head :no_content

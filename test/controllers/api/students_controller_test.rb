@@ -50,6 +50,22 @@ class Api::StudentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "*", response.headers["Access-Control-Allow-Origin"]
   end
 
+  # Regression: `rate_limit` is a before_action, so a limiter declared above the CORS
+  # filter halts the chain first and the 429 goes out with no Allow-Origin. The browser
+  # then blocks a reply it was meant to read, `fetch` rejects, and the storefront can
+  # only say "I couldn't reach the server" — a throttle read as a dead connection.
+  # The test store is a NullStore whose `increment` returns nil, so the limiter can
+  # never trip on its own; stubbing the count is the only way to reach the 429.
+  test "a throttled request still carries the CORS header" do
+    assert_no_enqueued_jobs do
+      Rails.cache.stub :increment, 99 do
+        ask(email: "a@gmail.com")
+      end
+    end
+    assert_response :too_many_requests
+    assert_equal "*", response.headers["Access-Control-Allow-Origin"]
+  end
+
   test "the same address only gets one code a day" do
     perform_enqueued_jobs do
       Loops.stub :send_transactional, ->(**) { :sent } do

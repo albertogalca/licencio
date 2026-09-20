@@ -4,13 +4,17 @@
 class Api::ValidationsController < Api::PublicController
   # Confirms whether a key exists, so it's the obvious thing to grind against. Same ceiling
   # as the recovery form. Scoped to :create so preflights don't spend the budget.
-  rate_limit to: 5, within: 1.minute, only: :create, with: -> { head :too_many_requests }
-
   # The only endpoint a browser origin ever calls: an iOS WKWebView posts from
   # capacitor://localhost, and JSON isn't a CORS-safelisted content type, so it preflights.
   # Wildcard is honest here — public, read-only, rate limited, and no cookie or API key rides
   # along, so there's no credential for another origin to borrow.
+  #
+  # Declared BEFORE the limiter: `rate_limit` is a before_action too, and the chain runs in
+  # declaration order, so a limiter that halts first returns a 429 with no Allow-Origin and
+  # the browser blocks it. The caller sees a dead connection instead of a throttle.
   before_action :set_cors_headers
+
+  rate_limit to: 5, within: 1.minute, only: :create, with: -> { head :too_many_requests }
 
   def preflight
     head :no_content
