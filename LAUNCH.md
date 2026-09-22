@@ -7,7 +7,7 @@ The license-key system stays live throughout. Every existing key keeps working, 
 existing endpoint keeps answering. This adds a second way in, it does not replace one.
 
 **Where this stands (2026-08-14).** Everything on Stripe is already done — both prices,
-the `COZYEDU` promotion code, and the 24 PPP currencies on the standard price. Step 4
+the `COZYEDU` promotion code, and the 24 PPP currencies on every price. Step 4
 below is a record of what exists, not work to run again. Steps 1, 2, 3, 5, 6 and 7 are
 still to do, in that order.
 
@@ -130,9 +130,11 @@ email-unlock window — no extra wiring. Cozy Forever never renews; renewal only
 the standard tier.
 
 Also live: the `COZYEDU` promotion code (40% off), and PPP as `currency_options` **on**
-the standard price — 24 per-currency amounts (band A ≈ $29 of value, band B ≈ $19) that
-Stripe Checkout picks automatically from the buyer's location. One price ID, nothing to
-leak.
+every price — 24 per-currency amounts that Stripe Checkout picks automatically from the
+buyer's location. One price ID, nothing to leak. Since 2026-09-22 the amounts are a
+percentage of each price rather than a hand-set figure: tier 2 pays 65%, tier 3 pays 35%,
+and tier 1 (US, UK, Canada, Australia, Japan, Western Europe) pays the full price. The
+tiers are per currency, so Spain and Italy sit in EUR with tier 1 and pay full price.
 
 Three things to know:
 
@@ -143,7 +145,7 @@ Three things to know:
 - Stripe scopes a coupon by product, not by price, so `COZYEDU` would also discount the
   forever tier if someone found it there. Only offer the promo field on the standard
   checkout.
-- To add currencies later, edit `PPP_BANDS` in the script and re-run it. It is idempotent
+- To add currencies later, edit `PPP_TIERS` in the script and re-run it. It is idempotent
   — it only adds what is missing, and leaves every existing price and currency alone:
 
   ```bash

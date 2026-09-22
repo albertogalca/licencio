@@ -16,41 +16,43 @@
 # Safe to re-run after a partial failure.
 
 require "stripe" unless defined?(Stripe)
+require "json"
+require "net/http"
 
 APPLY = ARGV.include?("--apply")
 SLUG  = ENV.fetch("PRODUCT_SLUG", "cozy")
 
-# ── Purchasing-power-parity bands ────────────────────────────────────────────────
-# EDIT THESE. They're a judgement call, not a formula: two bands is as much complexity
-# as this is worth, and the currency list is the whole policy.
+# ── Purchasing-power-parity tiers ────────────────────────────────────────────────
+# EDIT THESE. They're a judgement call, not a formula.
 #
-# PPP rides as `currency_options` ON the standard price — per-currency amounts that
-# Stripe Checkout picks automatically from the buyer's location. One price ID, no
-# separate discounted link to leak. Every band country has its own currency, which is
-# what makes this mapping clean (a shared currency like EUR could not be banded).
-# A currency_options entry is WRITE-ONCE on Stripe: the script only ever adds
-# currencies that are missing, and the amounts below must be right the first time.
-PPP_BANDS = {
-  # ~upper-middle-income → target $29 of value
-  "a" => { target_usd: 29, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR COP PEN] },
-  # ~lower-income → target $19 of value
-  "b" => { target_usd: 19, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR] }
+# Three tiers by income, applied to EVERY price as a percentage of its USD amount, so a
+# repricing carries the discount with it instead of stranding a hand-set number from the
+# era before. Tier 1 (US, UK, Canada, Australia, Japan, Western Europe) pays full price and
+# has no entry here.
+#
+# PPP rides as `currency_options` on each price — per-currency amounts Stripe Checkout picks
+# from the buyer's location. One price ID, no separate discounted link to leak. The mapping is
+# per CURRENCY, not per country: Spain and Italy belong in tier 2 by income but share EUR with
+# Germany and France, so they stay at full price. Everything below has a currency of its own.
+#
+# Currencies not listed fall through to Stripe Adaptive Pricing, which is a plain FX conversion
+# of the USD amount, no discount.
+PPP_TIERS = {
+  # Mid income → 65% of full price
+  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN] },
+  # Low income → 35% of full price
+  3 => { pct: 0.35, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR COP] }
 }.freeze
 
 # Stripe treats these as zero-decimal: unit_amount is whole currency units.
 ZERO_DECIMAL = %w[CLP VND].freeze
 
-# Round DOWN to a clean local number — Cozy sells round prices, not .99 charm.
+# Round to two significant figures, so a converted price reads as a decision rather than as
+# arithmetic: 1,600 rupees, not 1,588.
 def round_price(x)
-  step = case x
-  when 0...50 then 1
-  when 50...200 then 5
-  when 200...1_000 then 10
-  when 1_000...10_000 then 100
-  when 10_000...100_000 then 1_000
-  else 10_000
-  end
-  (x / step).floor * step
+  return 0 if x <= 0
+  mag = 10**(Math.log10(x).floor - 1)
+  (x / mag).round * mag
 end
 
 # `seats` is required by Product#create_checkout_session, and Cozy's whole promise is
@@ -163,33 +165,52 @@ end
 
 puts
 
-# ── PPP currency_options on the standard price ──────────────────────────────────
-standard = existing["cozy_standard_usd"] ||
-  Stripe::Price.list({ product: stripe_product_id, active: true, lookup_keys: [ "cozy_standard_usd" ] }, OPTS).data.first
-if standard
-  full = Stripe::Price.retrieve({ id: standard.id, expand: [ "currency_options" ] }, OPTS)
-  present = (full.currency_options&.keys || []).map(&:to_s).map(&:upcase)
-  fx = JSON.parse(Net::HTTP.get(URI("https://open.er-api.com/v6/latest/USD"))).fetch("rates")
+# ── PPP currency_options on every price ─────────────────────────────────────────
+#
+# A currency_options entry is WRITE-ONCE on Stripe: adding a currency that is missing is
+# fine, changing the amount of one already there is refused ("attempting to update an
+# immutable field"). So this only ever adds, and prints the drift it cannot fix. Repricing
+# an existing band means creating a NEW price with the right amounts, moving the lookup key
+# to it (transfer_lookup_key), archiving the old one, and updating src/config/pricing.ts in
+# cozy-marketing — which is exactly what happened on 2026-09-22 when the $35-era bands were
+# still riding on the $49 standard price.
+all_prices = Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100 }, OPTS).data
+fx = JSON.parse(Net::HTTP.get(URI("https://open.er-api.com/v6/latest/USD"))).fetch("rates")
+
+all_prices.each do |price|
+  next if price.unit_amount.nil?
+
+  usd = price.unit_amount / 100.0
+  label = price.lookup_key || price.id
+  full = Stripe::Price.retrieve({ id: price.id, expand: [ "currency_options" ] }, OPTS)
+  present = (full.currency_options&.to_h || {}).transform_keys { |k| k.to_s.upcase }
   additions = {}
-  PPP_BANDS.each do |band, config|
+
+  PPP_TIERS.each do |tier, config|
     config[:currencies].each do |cur|
-      next if present.include?(cur)
       rate = fx[cur] or (warn "  ! no FX rate for #{cur}, skipped"; next)
-      local = round_price(config[:target_usd] * rate)
+      local = round_price(usd * config[:pct] * rate)
       minor = ZERO_DECIMAL.include?(cur) ? local : local * 100
+
+      if (have = present[cur])
+        next if have.unit_amount == minor
+        warn format("  ! %s %s is %s, tier %d wants %s — needs a NEW price, Stripe refuses the edit",
+          label, cur, have.unit_amount, tier, minor)
+        next
+      end
+
       additions[cur.downcase] = { unit_amount: minor }
-      report("add currency", format("%s %s ≈ $%.2f (band %s, target $%d)",
-        cur, local, local / rate.to_f, band.upcase, config[:target_usd]))
+      report("add currency", format("%s %s %s ≈ $%.2f (tier %d, %d%% of $%.2f)",
+        label, cur, local, local / rate.to_f, tier, config[:pct] * 100, usd))
     end
   end
+
   if additions.empty?
-    report("keep", "currency_options already complete on #{standard.id}")
+    report("keep", "currency_options already complete on #{label}")
   elsif APPLY
-    Stripe::Price.update(standard.id, { currency_options: additions }, OPTS)
-    puts "  → #{additions.size} currencies added to #{standard.id}"
+    Stripe::Price.update(price.id, { currency_options: additions }, OPTS)
+    puts "  → #{additions.size} currencies added to #{price.id}"
   end
-else
-  report("skip", "currency_options — standard price not found (create it first)")
 end
 
 puts
