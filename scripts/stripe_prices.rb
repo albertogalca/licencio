@@ -39,7 +39,7 @@ SLUG  = ENV.fetch("PRODUCT_SLUG", "cozy")
 # of the USD amount, no discount.
 PPP_TIERS = {
   # Mid income → 65% of full price
-  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN] },
+  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN CNY] },
   # Low income → 35% of full price
   3 => { pct: 0.35, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR COP] }
 }.freeze
