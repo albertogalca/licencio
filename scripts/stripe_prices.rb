@@ -39,9 +39,11 @@ SLUG  = ENV.fetch("PRODUCT_SLUG", "cozy")
 # of the USD amount, no discount.
 PPP_TIERS = {
   # Mid income → 65% of full price
-  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN CNY] },
-  # Low income → 35% of full price
-  3 => { pct: 0.35, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR COP] }
+  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN] },
+  # Low income → 35% of full price. China sits here, not in tier 2, since 2026-09-24: a
+  # student wrote that ¥126, the tier 2 price after the education discount, was four days
+  # of food. Market FX overstates what a yuan buys, so income alone put it a tier too high.
+  3 => { pct: 0.35, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR COP CNY] }
 }.freeze
 
 # Stripe treats these as zero-decimal: unit_amount is whole currency units.
@@ -173,7 +175,9 @@ puts
 # an existing band means creating a NEW price with the right amounts, moving the lookup key
 # to it (transfer_lookup_key), archiving the old one, and updating src/config/pricing.ts in
 # cozy-marketing — which is exactly what happened on 2026-09-22 when the $35-era bands were
-# still riding on the $49 standard price.
+# still riding on the $49 standard price, and on 2026-09-24 when CNY moved to tier 3 and all
+# four prices were minted again (the renewal and upgrade ones also move the product's
+# renewal_stripe_price_id and lifetime_stripe_price_id columns).
 all_prices = Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100 }, OPTS).data
 fx = JSON.parse(Net::HTTP.get(URI("https://open.er-api.com/v6/latest/USD"))).fetch("rates")
 
