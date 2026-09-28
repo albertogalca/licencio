@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
+  BROWSER = { "User-Agent" => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Safari/605.1.15" }.freeze
+
   setup do
     @product = products(:picmal) # stripe_product_id: prod_picmal_stripe
     ENV["CHECKOUT_SUCCESS_URL"] ||= "https://example.com/success"
@@ -30,7 +32,7 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     captured = nil
     Stripe::Price.stub(:retrieve, price) do
       Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
-        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", client_reference_id: "ph_abc" }
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", client_reference_id: "ph_abc" }, headers: BROWSER
       end
     end
 
@@ -45,7 +47,7 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     captured = nil
     Stripe::Price.stub(:retrieve, price) do
       Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
-        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", affonso_referral: "aff_123" }
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", affonso_referral: "aff_123" }, headers: BROWSER
       end
     end
     assert_redirected_to "https://stripe.test/session"
@@ -77,10 +79,32 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     price = fake_price("price_old", @product.stripe_product_id, { "seats" => "1" })
     Stripe::Price.stub(:retrieve, price) do
       Stripe::Checkout::Session.stub(:create, ->(*) { raise Stripe::InvalidRequestError.new("The price specified is inactive.", "line_items") }) do
-        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_old" }
+        get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_old" }, headers: BROWSER
       end
     end
     assert_redirected_to @product.checkout_cancel_url
+  end
+
+  test "GET from a crawler goes to the pricing page and never creates a session" do
+    Stripe::Checkout::Session.stub(:create, ->(*) { flunk "a crawler must not create a Stripe session" }) do
+      get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" },
+        headers: { "User-Agent" => "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" }
+    end
+    assert_redirected_to @product.checkout_cancel_url
+  end
+
+  test "GET with no user agent never creates a session" do
+    Stripe::Checkout::Session.stub(:create, ->(*) { flunk "a request with no user agent must not create a Stripe session" }) do
+      get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" }
+    end
+    assert_redirected_to @product.checkout_cancel_url
+  end
+
+  test "HEAD from a browser never creates a session" do
+    Stripe::Checkout::Session.stub(:create, ->(*) { flunk "a HEAD probe must not create a Stripe session" }) do
+      head "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" }, headers: BROWSER
+    end
+    assert_response :see_other
   end
 
   test "missing price_id is a bad request" do

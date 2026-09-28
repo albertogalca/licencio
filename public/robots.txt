@@ -1,1 +1,5 @@
 # See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+
+# Buy links create a Stripe Checkout Session on every GET. Crawlers stay out.
+User-agent: *
+Disallow: /api/

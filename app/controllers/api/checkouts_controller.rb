@@ -10,6 +10,15 @@ class Api::CheckoutsController < Api::PublicController
   # CheckoutNotConfigured above.
   rescue_from Stripe::InvalidRequestError, with: :price_not_found
 
+  # Every GET here spends a Stripe Checkout Session, and the buy link is a bare
+  # <a href> that crawlers and link previews follow too. In the week of 21 Sep 2026,
+  # 92 of Cozy's 131 sessions arrived without the visitor id a real click carries.
+  # Those requests go to the pricing page and never reach Stripe. Only explicit bot
+  # tokens match: a false match would turn a buyer away.
+  BOT_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|embedly|headless|python-requests|curl|wget|go-http-client|axios|node-fetch|scrapy|okhttp/i
+
+  before_action :keep_bots_out_of_stripe, only: :new
+
   # GET — a storefront buy button lands here and is 302'd straight to Stripe
   # Checkout. Keeps the marketing site a plain static page (a bare <a href>, no
   # CORS, no JS) while the session (seats/metadata/success URLs) is built here.
@@ -23,6 +32,18 @@ class Api::CheckoutsController < Api::PublicController
   end
 
   private
+    # A HEAD probe or a bot gets the same answer a lost buyer gets: the pricing page.
+    def keep_bots_out_of_stripe
+      return unless request.head? || request.user_agent.blank? || request.user_agent.match?(BOT_USER_AGENT)
+
+      cancel_url = Product.find_by(slug: params[:product_slug])&.checkout_cancel_url
+      if cancel_url.present?
+        redirect_to cancel_url, status: :see_other, allow_other_host: true
+      else
+        head :no_content
+      end
+    end
+
     # A GET is a human who followed a buy link, so send them to the storefront's
     # pricing section rather than showing them JSON — a stale bookmark then still has
     # a chance of converting. checkout_cancel_url is already that page (it's where
