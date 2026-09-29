@@ -445,6 +445,45 @@ class ProductTest < ActiveSupport::TestCase
     assert_nil Product.matching("nobody").first
   end
 
+
+  test "trial_report counts a trial as bought when its Mac activates a paid license" do
+    product = products(:picmal)
+    product.update!(trial_days: 7)
+    now = Time.zone.parse("2026-09-30 12:00")
+
+    travel_to now - 20.days do # week of 7 Sep: three ended trials, one bought on day 3
+      product.trial_for(hardware_id: "HW-BUY")
+      product.trial_for(hardware_id: "HW-MISS")
+      product.trial_for(hardware_id: "HW-REFUND")
+    end
+    paid = lambda do |hardware_id, at, status: "active"|
+      travel_to(at) { product.licenses.create!(status:, max_activations: 1).activate!(hardware_id:) }
+    end
+    paid.call("HW-BUY", now - 17.days)
+    paid.call("HW-REFUND", now - 16.days, status: "refunded") # refunded is not a sale
+    paid.call("HW-MISS", now - 30.days) # bought before the trial: not this trial's sale
+
+    travel_to(now - 2.days) { product.trial_for(hardware_id: "HW-NEW") } # still running
+
+    report = product.trial_report(now:)
+    assert_equal [ Date.new(2026, 9, 28), Date.new(2026, 9, 7) ], report.weeks.map(&:week)
+
+    running, ended = report.weeks
+    assert_equal [ 1, 1, 0, nil ], [ running.started, running.running, running.converted, running.rate ]
+    assert_equal [ 3, 0, 1 ], [ ended.started, ended.running, ended.converted ]
+    assert_in_delta 1.0 / 3, ended.rate
+    assert_in_delta 3.0, ended.median_days
+
+    # The total is the whole window as one cohort, so its rate skips the running trial too.
+    assert_equal [ 4, 1, 3, 1 ], [ report.total.started, report.total.running,
+      report.total.decided, report.total.converted ]
+    assert_in_delta 1.0 / 3, report.total.rate
+  end
+
+  test "trial_report is empty for a product without a trial" do
+    assert_predicate products(:cozy).trial_report, :empty?
+    assert_not_includes Product.with_trial, products(:cozy)
+  end
   private
     def fake_price(id, nickname, unit_amount, metadata)
       # Trailing currency defaults to nil for the callers that don't care.

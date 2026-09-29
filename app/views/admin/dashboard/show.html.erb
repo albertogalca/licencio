@@ -58,4 +58,42 @@
   <span aria-hidden="true" class="px-1 text-gray-300">·</span>
   <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(@active_devices) %></span> devices
 </p>
+
+<%# Trial to paid, per product that offers a trial. The rate reads decided trials only (ended,
+    or bought), so the newest week isn't dragged down by trials that still have days left. %>
+<% @trials.each do |product, report| %>
+  <h2 class="section-title mt-12 mb-1"><%= product.name %> trials</h2>
+  <p class="mb-3 text-body text-gray-600">
+    <span class="tabular-nums font-medium text-gray-900"><%= report.total.converted %></span> of
+    <span class="tabular-nums"><%= report.total.decided %></span> ended trials bought
+    <% if report.total.rate %>(<span class="tabular-nums"><%= number_to_percentage(100 * report.total.rate, precision: 1) %></span>)<% end %>
+    <span class="text-gray-500">· last <%= Product::TRIAL_COHORT_WEEKS %> weeks · matched by Mac, so a key activated on another Mac is missed</span>
+  </p>
+  <div class="card overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Week of</th>
+          <th class="text-right">Started</th>
+          <th class="text-right">Running</th>
+          <th class="text-right">Bought</th>
+          <th class="text-right">Rate</th>
+          <th class="text-right">Median days to buy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% report.weeks.each do |c| %>
+          <tr>
+            <td class="whitespace-nowrap"><%= c.week.strftime("%-d %b %Y") %></td>
+            <td class="text-right tabular-nums"><%= c.started %></td>
+            <td class="text-right tabular-nums text-gray-500"><%= c.running.positive? ? c.running : "–" %></td>
+            <td class="text-right tabular-nums"><%= c.converted %></td>
+            <td class="text-right tabular-nums"><%= c.rate ? number_to_percentage(100 * c.rate, precision: 1) : "–" %></td>
+            <td class="text-right tabular-nums"><%= c.median_days ? number_with_precision(c.median_days, precision: 1) : "–" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
 <% end %>

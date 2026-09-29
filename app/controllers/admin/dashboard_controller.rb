@@ -25,5 +25,8 @@ class Admin::DashboardController < Admin::BaseController
         devices:  devices.fetch(product.id, 0)
       }
     end
+
+    @trials = Product.with_trial.order(:name).map { [ _1, _1.trial_report ] }
+      .reject { |_, report| report.empty? }
   end
 end

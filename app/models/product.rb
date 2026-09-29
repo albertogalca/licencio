@@ -1,6 +1,8 @@
 require "ed25519"
 
 class Product < ApplicationRecord
+  include Trialable
+
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
   UpgradeVariant = Data.define(:price_id, :name, :amount_cents, :currency, :seats, :from_seats)
 
@@ -315,14 +317,6 @@ class Product < ApplicationRecord
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
-  end
-
-  def trial_for(hardware_id:)
-    return unless trial_days
-    licenses.trials.joins(:activations).find_by(activations: { hardware_id: }) ||
-      licenses.create!(status: "active", trial: true, max_activations: 1,
-        expires_at: trial_days.days.from_now,
-        licensed_version: (current_version if versioned?)).tap { |l| l.activate!(hardware_id:) }
   end
 
   # Offline license token: authenticity only. The server signs but never re-checks a token
