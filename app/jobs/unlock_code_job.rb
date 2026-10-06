@@ -7,6 +7,9 @@
 class UnlockCodeJob < ApplicationJob
   def perform(product, raw_email)
     return if product.nil?
+    # App Review unlocks with the fixed code and the address has no inbox: every code
+    # mailed there was a hard bounce on the sending domain.
+    return if review_address?(raw_email)
 
     purchase = Purchase.for_email(product, raw_email).live.order(:purchased_at).last
     return if purchase.nil?
@@ -27,4 +30,10 @@ class UnlockCodeJob < ApplicationJob
     )
     record
   end
+
+  private
+    def review_address?(raw_email)
+      review_email = ENV["REVIEW_UNLOCK_EMAIL"].to_s
+      review_email.present? && Purchase.normalize_email(raw_email) == Purchase.normalize_email(review_email)
+    end
 end

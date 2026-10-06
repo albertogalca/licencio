@@ -117,4 +117,15 @@ class V1::UnlocksRequestTest < ActionDispatch::IntegrationTest
     assert_match(/\A\d{6}\z/, sent[:data][:code])
     assert_equal @product.name, sent[:data][:product_name]
   end
+
+  test "the job mails nothing to the App Review address" do
+    ENV["REVIEW_UNLOCK_EMAIL"] = "AnaPerez@gmail.com"
+    Loops.stub :send_transactional, ->(**) { flunk "mailed the review address" } do
+      assert_no_difference "LoginCode.count" do
+        assert_nil UnlockCodeJob.perform_now(@product, "anaperez@gmail.com")
+      end
+    end
+  ensure
+    ENV.delete("REVIEW_UNLOCK_EMAIL")
+  end
 end
