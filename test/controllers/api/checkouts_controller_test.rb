@@ -100,6 +100,21 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to @product.checkout_cancel_url
   end
 
+  test "GET from the fake iOS 13 user agent never creates a session" do
+    Stripe::Checkout::Session.stub(:create, ->(*) { flunk "the fake iOS 13 agent must not create a Stripe session" }) do
+      get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" },
+        headers: { "User-Agent" => "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1" }
+    end
+    assert_redirected_to @product.checkout_cancel_url
+  end
+
+  test "GET with a sorted query string goes to the pricing page and never creates a session" do
+    Stripe::Checkout::Session.stub(:create, ->(*) { flunk "a sorted query string must not create a Stripe session" }) do
+      get "/api/checkout?price_id=price_3&product_slug=#{@product.slug}", headers: BROWSER
+    end
+    assert_redirected_to @product.checkout_cancel_url
+  end
+
   test "HEAD from a browser never creates a session" do
     Stripe::Checkout::Session.stub(:create, ->(*) { flunk "a HEAD probe must not create a Stripe session" }) do
       head "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3" }, headers: BROWSER

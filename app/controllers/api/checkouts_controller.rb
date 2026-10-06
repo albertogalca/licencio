@@ -15,7 +15,14 @@ class Api::CheckoutsController < Api::PublicController
   # 92 of Cozy's 131 sessions arrived without the visitor id a real click carries.
   # Those requests go to the pricing page and never reach Stripe. Only explicit bot
   # tokens match: a false match would turn a buyer away.
-  BOT_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|embedly|headless|python-requests|curl|wget|go-http-client|axios|node-fetch|scrapy|okhttp/i
+  #
+  # Two more came through in the week of 28 Sep 2026, both seen in the request log.
+  # "iPhone OS 13_2_3 ... Version/13.0" is a fixed fake user agent sent from Tencent
+  # Cloud addresses, never a real phone in 2026. And a scraper on rotating residential
+  # IPs fetches the buy links daily with a browser user agent, but with the query
+  # sorted (price_id before product_slug) and with prices retired months ago. Every
+  # storefront writes product_slug first, so that order never comes from a real click.
+  BOT_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|embedly|headless|python-requests|curl|wget|go-http-client|axios|node-fetch|scrapy|okhttp|iPhone OS 13_2_3 /i
 
   before_action :keep_bots_out_of_stripe, only: :new
 
@@ -34,7 +41,8 @@ class Api::CheckoutsController < Api::PublicController
   private
     # A HEAD probe or a bot gets the same answer a lost buyer gets: the pricing page.
     def keep_bots_out_of_stripe
-      return unless request.head? || request.user_agent.blank? || request.user_agent.match?(BOT_USER_AGENT)
+      return unless request.head? || request.user_agent.blank? || request.user_agent.match?(BOT_USER_AGENT) ||
+        request.query_string.start_with?("price_id=")
 
       cancel_url = Product.find_by(slug: params[:product_slug])&.checkout_cancel_url
       if cancel_url.present?
