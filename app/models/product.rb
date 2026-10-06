@@ -243,6 +243,8 @@ class Product < ApplicationRecord
       { label: "A newsletter or blog", value: "newsletterblog" },
       { label: "Search",               value: "search" },
       { label: "A friend",             value: "friend" },
+      { label: "An AI assistant",      value: "aiassistant" },
+      { label: "A bundle or deal",     value: "bundledeal" },
       { label: "Somewhere else",       value: "other" } ] }
   }.freeze
 

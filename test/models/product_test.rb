@@ -337,6 +337,8 @@ class ProductTest < ActiveSupport::TestCase
     assert_equal "source", field[:key]
     assert field[:optional], "a required question at the pay button is a conversion tax"
     assert_equal "How did you find us?", field[:label][:custom]
+    assert field[:dropdown][:options].all? { |o| o[:value].match?(/\A[a-z0-9]+\z/) },
+      "Stripe rejects option values that are not alphanumeric"
 
     # Neither owner-only price is reachable without a license key the guards above accepted,
     # so both are existing owners who answered this once already.
