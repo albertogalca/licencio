@@ -396,6 +396,27 @@ class License < ApplicationRecord
 
   def expired? = expires_at&.past? || false
 
+  # A second install on a machine that already had this trial joins it, with its window. It
+  # takes a seat of its own, because the first install may still be in use (two macOS accounts
+  # on one Mac share the machine id). An expired trial takes no seat: the controller refuses it
+  # as license_expired.
+  def join_trial!(hardware_id:)
+    with_lock do
+      unless expired? || activations.active.exists?(hardware_id:)
+        increment!(:max_activations) if max_activations
+        activate!(hardware_id:)
+      end
+    end
+  end
+
+  # A trial from before machine_id takes it on. If another trial won the machine meanwhile,
+  # this one stays without it.
+  def adopt_machine(machine_id)
+    transaction(requires_new: true) { update!(machine_id:) }
+  rescue ActiveRecord::RecordNotUnique
+    self.machine_id = nil
+  end
+
   # The activation gate. Expiry ends the update window, not the app: a lapsed annual
   # license keeps activating and simply carries update_eligible: false in its token, so
   # the client stops offering updates while everything already installed keeps working.

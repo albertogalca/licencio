@@ -214,6 +214,60 @@ class Api::ActivationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  # A fresh installation id on the same machine used to buy a fresh trial.
+  test "a new installation on a known machine gets the same trial window, not a new one" do
+    @product.update!(trial_days: 7)
+    machine_id = "c" * 64
+    travel_to 3.days.ago do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T1", machine_id:, nonce: "n" },
+        headers: @headers, as: :json
+    end
+    first_end = decode_claims(response.parsed_body["jwt"])["expires_at"]
+
+    assert_no_difference "License.count" do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T2", machine_id:, nonce: "n" },
+        headers: @headers, as: :json
+    end
+    assert_response :ok
+    claims = decode_claims(response.parsed_body["jwt"])
+    assert_equal "HW-T2", claims["hardware_id"]
+    assert_equal first_end, claims["expires_at"]
+  end
+
+  test "a new installation on a machine whose trial ran out is told it expired" do
+    @product.update!(trial_days: 7)
+    machine_id = "c" * 64
+    travel_to 8.days.ago do
+      post "/api/licenses/activate", params: { hardware_id: "HW-T1", machine_id:, nonce: "n" },
+        headers: @headers, as: :json
+    end
+
+    post "/api/licenses/activate", params: { hardware_id: "HW-T2", machine_id:, nonce: "n" },
+      headers: @headers, as: :json
+    assert_response :forbidden
+    assert_equal "license_expired", response.parsed_body["code"]
+  end
+
+  test "too many new trials from one IP in a day answer trial_unavailable" do
+    @product.update!(trial_days: 7)
+    Rails.stub(:cache, ActiveSupport::Cache::MemoryStore.new) do
+      Product::Trialable::TRIAL_STARTS_PER_IP_PER_DAY.times do |i|
+        post "/api/licenses/activate", params: { hardware_id: "HW-#{i}", nonce: "n" }, headers: @headers, as: :json
+        assert_response :ok
+      end
+
+      assert_no_difference "License.count" do
+        post "/api/licenses/activate", params: { hardware_id: "HW-MORE", nonce: "n" }, headers: @headers, as: :json
+      end
+      assert_response :forbidden
+      assert_equal "trial_unavailable", response.parsed_body["code"]
+
+      # Somebody already on a trial is never caught by the cap.
+      post "/api/licenses/activate", params: { hardware_id: "HW-0", nonce: "n" }, headers: @headers, as: :json
+      assert_response :ok
+    end
+  end
+
   test "activation without a license key returns trial_unavailable when the product has no trial" do
     assert_no_difference "License.count" do
       post "/api/licenses/activate", params: { hardware_id: "HW-T", nonce: "n" }, headers: @headers, as: :json

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -49,6 +49,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_120000) do
     t.datetime "expires_at"
     t.string "license_key", null: false
     t.integer "licensed_version"
+    t.string "machine_id"
     t.integer "max_activations"
     t.string "migration_source"
     t.uuid "product_id", null: false
@@ -62,6 +63,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_120000) do
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_licenses_on_customer_id"
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
+    t.index ["product_id", "machine_id"], name: "index_licenses_on_product_and_machine_id", unique: true, where: "(machine_id IS NOT NULL)"
     t.index ["product_id", "stripe_payment_id"], name: "index_licenses_on_product_and_stripe_payment", unique: true, where: "(stripe_payment_id IS NOT NULL)"
     t.index ["product_id"], name: "index_licenses_on_product_id"
   end

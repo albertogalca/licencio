@@ -12,7 +12,8 @@ class Api::ActivationsController < Api::BaseController
       if params[:license_key].present?
         @product.licenses.find_by!(license_key: params[:license_key])
       else
-        @product.trial_for(hardware_id: params[:hardware_id]) or return render_api_error(:trial_unavailable)
+        @product.trial_for(hardware_id: params[:hardware_id], machine_id: params[:machine_id]) or
+          return render_api_error(:trial_unavailable)
       end
     if license.activatable?
       license.activate!(hardware_id: params[:hardware_id], device_name: params[:device_name])

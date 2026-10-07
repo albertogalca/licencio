@@ -46,6 +46,8 @@ class Api::PublicController < ActionController::API
                           "different one, try that address — or reply to your receipt and I'll sort it out." ]
   }.freeze
 
+  before_action { Current.ip_address = request.remote_ip }
+
   rescue_from ActiveRecord::RecordNotFound, with: -> { render_api_error(:license_not_found) }
 
   private
