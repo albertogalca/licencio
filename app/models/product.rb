@@ -226,16 +226,18 @@ class Product < ApplicationRecord
   # mint a license that unlocks a whole office.
   MAX_ISSUED_SEATS = 10
 
-  # Seat count for a license minted by a bundle store. An asked-for count must be a whole number
-  # from 1 to MAX_ISSUED_SEATS and is refused otherwise, never clamped: a silent clamp hands the
-  # buyer a different license from the one they paid for. With no count, the product default
-  # applies, which an admin set and is trusted as is.
-  def issued_seats(requested)
-    if requested.present?
-      seats = Integer(requested.to_s, exception: false)
-      seats&.between?(1, MAX_ISSUED_SEATS) ? seats : raise(InvalidSeats, requested.to_s)
-    else
-      max_activations_default or raise CheckoutNotConfigured, "#{slug} has no max_activations_default"
+  # A license sold by a bundle store, which hands over only the buyer's email, name and seats.
+  # Seats are checked before the customer upsert, so a refusal writes nothing.
+  #
+  # ponytail: no idempotency key. The store repeats one order number across every license in
+  # a multi-license order, so it can't dedupe on that, and a retried call mints a spare key.
+  # Add a bundle order id + line index column if a wasted key ever costs more than the column.
+  def issue_bundle_license!(email:, name:, seats:)
+    quantity = issued_seats(seats)
+    customer = Customer.upsert!(email:, name:)
+    issue_license!(customer:, quantity:, stripe_payment_id: nil).tap do |license|
+      license.deliver_later                        # portal link, so they can move devices later
+      customer.subscribe_to_loops_later(product: self)
     end
   end
 
@@ -397,6 +399,24 @@ class Product < ApplicationRecord
     end
 
     def b64url(bytes) = Base64.urlsafe_encode64(bytes, padding: false)
+
+    # An asked-for count must be a whole number from 1 to MAX_ISSUED_SEATS and is refused
+    # otherwise, never clamped: a silent clamp hands the buyer a different license from the one
+    # they paid for. Base 10, because Ruby's literal rules would read "010" as 8 and accept "0x0A".
+    # With no count, the product default applies, which an admin set and is trusted as is.
+    def issued_seats(requested)
+      if requested.present?
+        seats = Integer(requested.to_s, 10, exception: false)
+
+        if seats&.between?(1, MAX_ISSUED_SEATS)
+          seats
+        else
+          raise InvalidSeats, requested.to_s
+        end
+      else
+        max_activations_default or raise CheckoutNotConfigured, "#{slug} has no max_activations_default"
+      end
+    end
 
     def rotate!(attribute, prefix)
       new_key(prefix).tap { |key| update!(attribute => key) }

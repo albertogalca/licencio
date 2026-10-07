@@ -57,8 +57,15 @@ class Api::IssuancesControllerTest < ActionDispatch::IntegrationTest
     assert_equal Product::MAX_ISSUED_SEATS, @product.licenses.sole.max_activations
   end
 
+  # Base 10: Ruby's literal rules would read a leading zero as octal and hand over 8 seats.
+  test "a leading zero is still base 10" do
+    issue(seats: "010")
+    assert_response :ok
+    assert_equal 10, @product.licenses.sole.max_activations
+  end
+
   test "refuses seats above the ceiling, below one, or not a number" do
-    [ Product::MAX_ISSUED_SEATS + 1, 1_000_000, 0, -3, "lots" ].each do |seats|
+    [ Product::MAX_ISSUED_SEATS + 1, 1_000_000, 0, -3, "lots", "0x0A", "0b11", "2.5" ].each do |seats|
       assert_no_difference [ "License.count", "Customer.count" ], "seats=#{seats.inspect}" do
         issue(seats:)
       end

@@ -26,15 +26,7 @@ class Api::IssuancesController < Api::PublicController
       render_api_error(:unauthorized) unless @product
     end
 
-    # ponytail: no idempotency key. The store repeats one order number across every license in
-    # a multi-license order, so it can't dedupe on that, and a retried call mints a spare key.
-    # Add a bundle order id + line index column if a wasted key ever costs more than the column.
     def issue
-      quantity = @product.issued_seats(params[:seats]) # before the upsert, so a refusal writes nothing
-      customer = Customer.upsert!(email: params[:email].strip, name: params[:name].presence)
-      @product.issue_license!(customer:, quantity:, stripe_payment_id: nil).tap do |license|
-        license.deliver_later                        # portal link, so they can move devices later
-        customer.subscribe_to_loops_later(product: @product)
-      end
+      @product.issue_bundle_license!(email: params[:email].strip, name: params[:name].presence, seats: params[:seats])
     end
 end
