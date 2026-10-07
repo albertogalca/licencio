@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_084800) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -132,6 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_084800) do
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
+    t.string "issuance_api_key"
     t.string "license_prefix", null: false
     t.string "lifetime_stripe_price_id"
     t.string "logo_url"
@@ -157,6 +158,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_084800) do
     t.datetime "updated_at", null: false
     t.index ["api_key"], name: "index_products_on_api_key", unique: true
     t.index ["bundle_identifier"], name: "index_products_on_bundle_identifier", unique: true
+    t.index ["issuance_api_key"], name: "index_products_on_issuance_api_key", unique: true
     t.index ["license_prefix"], name: "index_products_on_license_prefix", unique: true
     t.index ["slug"], name: "index_products_on_slug", unique: true
   end

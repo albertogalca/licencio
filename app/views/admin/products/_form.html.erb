@@ -230,6 +230,12 @@
         <div>
           <span class="field-label">API key</span>
           <input type="text" readonly value="<%= product.api_key %>" class="field-readonly">
+          <p class="field-hint">Ships inside the app, so treat it as public. Rotate with <code>bin/rails "products:rotate_api_key[<%= product.slug %>]"</code>.</p>
+        </div>
+        <div>
+          <span class="field-label">Issuance key</span>
+          <input type="text" readonly value="<%= product.issuance_api_key? ? "Set, hidden" : "Not set, bundle stores can't issue" %>" class="field-readonly">
+          <p class="field-hint">Mints licenses for a bundle store. Mint or rotate with <code>bin/rails "products:rotate_issuance_key[<%= product.slug %>]"</code>.</p>
         </div>
         <div>
           <span class="field-label">EdDSA public key</span>

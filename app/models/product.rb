@@ -36,6 +36,10 @@ class Product < ApplicationRecord
   # (Api::BaseController finds the product by it) and carries a unique index, both of which
   # need the same plaintext to always produce the same ciphertext.
   encrypts :api_key, deterministic: true
+  # Same treatment, same reason. This is the key that mints licenses (Api::IssuancesController),
+  # so unlike api_key it never ships in a client. nil until someone rotates one in, and nil
+  # means the product cannot issue through the API at all.
+  encrypts :issuance_api_key, deterministic: true
 
   enum :update_policy, UPDATE_POLICIES
 
@@ -44,6 +48,7 @@ class Product < ApplicationRecord
   validates :name, :update_policy, presence: true
   validates :slug, :bundle_identifier, :license_prefix, :api_key,
     presence: true, uniqueness: true
+  validates :issuance_api_key, uniqueness: true, allow_nil: true
   validates :eddsa_private_key, :eddsa_public_key, presence: true
   # time_limited licenses compute expires_at from update_duration_days; without it,
   # fulfillment hits nil.days and 500s. current_version pins versioned eligibility.
@@ -214,6 +219,30 @@ class Product < ApplicationRecord
   def student_discount? = student_transactional_id.present? && student_discount_code.present?
 
   CheckoutNotConfigured = Class.new(StandardError)
+  InvalidSeats = Class.new(StandardError)
+
+  # The most seats a bundle store may put on one license. Bundles sell single and family packs,
+  # so 10 covers every real order with room to spare, and a leaked issuance key can no longer
+  # mint a license that unlocks a whole office.
+  MAX_ISSUED_SEATS = 10
+
+  # Seat count for a license minted by a bundle store. An asked-for count must be a whole number
+  # from 1 to MAX_ISSUED_SEATS and is refused otherwise, never clamped: a silent clamp hands the
+  # buyer a different license from the one they paid for. With no count, the product default
+  # applies, which an admin set and is trusted as is.
+  def issued_seats(requested)
+    if requested.present?
+      seats = Integer(requested.to_s, exception: false)
+      seats&.between?(1, MAX_ISSUED_SEATS) ? seats : raise(InvalidSeats, requested.to_s)
+    else
+      max_activations_default or raise CheckoutNotConfigured, "#{slug} has no max_activations_default"
+    end
+  end
+
+  # Both rotations return the new key, so a rake task can print it once. The old key stops
+  # working the moment this saves.
+  def rotate_api_key! = rotate!(:api_key, "prod")
+  def rotate_issuance_api_key! = rotate!(:issuance_api_key, "iss")
 
   # The one question every new sale carries. Seline only ever sees the browser side of a
   # purchase, and the channels that actually sell (a forum post, a newsletter, a friend)
@@ -369,8 +398,14 @@ class Product < ApplicationRecord
 
     def b64url(bytes) = Base64.urlsafe_encode64(bytes, padding: false)
 
+    def rotate!(attribute, prefix)
+      new_key(prefix).tap { |key| update!(attribute => key) }
+    end
+
+    def new_key(prefix) = "#{prefix}_#{SecureRandom.alphanumeric(32)}"
+
     def generate_credentials
-      self.api_key ||= "prod_#{SecureRandom.alphanumeric(32)}"
+      self.api_key ||= new_key("prod")
       generate_eddsa_keypair if eddsa_private_key.blank?
     end
 

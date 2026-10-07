@@ -19,6 +19,7 @@ class Api::PublicController < ActionController::API
     not_academic_email: [ :unprocessable_entity, "That isn't a school address I recognise." ],
     student_discount_unavailable: [ :service_unavailable, "Student pricing isn't set up for this product." ],
     product_not_found:  [ :not_found,    "No product matches that name." ],
+    invalid_seats:      [ :unprocessable_entity, "Seats must be a whole number from 1 to #{Product::MAX_ISSUED_SEATS}." ],
     # Unlock flow. These are read by a person, inside the app, at the one moment they're
     # trying to get in — so each says what happened AND what to do next. There are no
     # accounts here, only a purchase and an inbox, so the wording never implies one, and

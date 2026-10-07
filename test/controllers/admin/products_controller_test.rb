@@ -19,6 +19,26 @@ class Admin::ProductsControllerTest < ActionDispatch::IntegrationTest
     assert product.eddsa_public_key.present?
   end
 
+  test "the edit page says whether an issuance key is set, never the key itself" do
+    sign_in
+    product = products(:picmal)
+
+    get edit_admin_product_path(product)
+    assert_includes response.body, "Not set"
+
+    key = product.rotate_issuance_api_key!
+    get edit_admin_product_path(product)
+    assert_includes response.body, "Set, hidden"
+    assert_not_includes response.body, key
+  end
+
+  test "the issuance key can't be set from the form" do
+    sign_in
+    product = products(:picmal)
+    patch admin_product_path(product), params: { product: { issuance_api_key: "iss_chosen" } }
+    assert_nil product.reload.issuance_api_key
+  end
+
   private
     def sign_in
       post admin_session_path, params: { email: "admin@licencio.example", password: "secret123" }

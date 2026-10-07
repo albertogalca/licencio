@@ -4,7 +4,7 @@ class Api::IssuancesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @product = Product.create!(name: "Testy", slug: "testy", bundle_identifier: "com.test.app",
       license_prefix: "TEST", update_policy: "lifetime", max_activations_default: 2)
-    @headers = { "X-Api-Key" => @product.api_key }
+    @headers = { "X-Api-Key" => @product.rotate_issuance_api_key! }
   end
 
   def issue(headers: @headers, **params)
@@ -51,6 +51,22 @@ class Api::IssuancesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, @product.licenses.sole.max_activations
   end
 
+  test "seats up to the ceiling are accepted" do
+    issue(seats: Product::MAX_ISSUED_SEATS)
+    assert_response :ok
+    assert_equal Product::MAX_ISSUED_SEATS, @product.licenses.sole.max_activations
+  end
+
+  test "refuses seats above the ceiling, below one, or not a number" do
+    [ Product::MAX_ISSUED_SEATS + 1, 1_000_000, 0, -3, "lots" ].each do |seats|
+      assert_no_difference [ "License.count", "Customer.count" ], "seats=#{seats.inspect}" do
+        issue(seats:)
+      end
+      assert_response :unprocessable_entity
+      assert_equal "invalid_seats", response.parsed_body["code"]
+    end
+  end
+
   test "rejects a bad address without minting" do
     assert_no_difference "License.count" do
       issue(email: "not-an-email")
@@ -62,6 +78,44 @@ class Api::IssuancesControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference "License.count" do
       issue(headers: {})
     end
+    assert_response :unauthorized
+  end
+
+  # The client key ships inside every desktop build, so it is public. It must never mint.
+  test "rejects the product's client api key" do
+    assert_no_difference "License.count" do
+      issue(headers: { "X-Api-Key" => @product.api_key })
+    end
+    assert_response :unauthorized
+    assert_equal "unauthorized", response.parsed_body["code"]
+  end
+
+  test "a product with no issuance key cannot issue at all" do
+    @product.update!(issuance_api_key: nil)
+
+    assert_no_difference "License.count" do
+      issue(headers: { "X-Api-Key" => "" })
+      issue(headers: { "X-Api-Key" => @product.api_key })
+    end
+    assert_response :unauthorized
+  end
+
+  test "a rotated issuance key stops working" do
+    old_key = @headers["X-Api-Key"]
+    @product.rotate_issuance_api_key!
+
+    assert_no_difference "License.count" do
+      issue(headers: { "X-Api-Key" => old_key })
+    end
+    assert_response :unauthorized
+  end
+
+  test "the issuance key does not open the client endpoints" do
+    license = @product.licenses.create!(status: "active", max_activations: 2)
+
+    post "/api/licenses/activate", headers: @headers, as: :json,
+      params: { license_key: license.license_key, hardware_id: "HW-1", device_name: "Mac", nonce: "n" }
+
     assert_response :unauthorized
   end
 

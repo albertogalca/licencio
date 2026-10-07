@@ -183,6 +183,45 @@ class ProductTest < ActiveSupport::TestCase
     assert_equal product, Product.find_by(api_key: product.api_key)
   end
 
+  test "a new product has no issuance key, so it cannot mint through the API" do
+    assert_nil create_product.issuance_api_key
+  end
+
+  test "rotate_issuance_api_key! returns a fresh key, stored encrypted, that resolves the product" do
+    product = products(:picmal)
+    first = product.rotate_issuance_api_key!
+    second = product.rotate_issuance_api_key!
+
+    assert first.start_with?("iss_")
+    assert_not_equal first, second
+    assert_not_equal product.api_key, second
+    assert_equal product, Product.find_by(issuance_api_key: second)
+    assert_nil Product.find_by(issuance_api_key: first)
+
+    stored = Product.connection.select_value(
+      Product.sanitize_sql([ "SELECT issuance_api_key FROM products WHERE id = ?", product.id ]))
+    assert_not_equal second, stored, "issuance_api_key is sitting in the clear"
+  end
+
+  test "rotate_api_key! replaces the client key and the old one stops resolving" do
+    product = products(:picmal)
+    old_key = product.api_key
+    new_key = product.rotate_api_key!
+
+    assert new_key.start_with?("prod_")
+    assert_not_equal old_key, new_key
+    assert_equal product, Product.find_by(api_key: new_key)
+    assert_nil Product.find_by(api_key: old_key)
+  end
+
+  test "issuance_api_key is unique across products" do
+    key = products(:picmal).rotate_issuance_api_key!
+    other = products(:cozy)
+    other.issuance_api_key = key
+    assert_not other.valid?
+    assert_includes other.errors.attribute_names, :issuance_api_key
+  end
+
   # The renewal SKU is a discount for existing owners and the cheapest price on the product —
   # left in, it would headline the storefront and win the cheapest-variant fallback.
   test "variants hides the renewal price from the storefront" do
