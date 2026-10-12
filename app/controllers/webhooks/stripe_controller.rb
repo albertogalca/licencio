@@ -22,6 +22,8 @@ class Webhooks::StripeController < ActionController::API
       # alongside the license it just minted — the same sale grants both. A price with no
       # tier (picmal's) records nothing.
       Purchase.record_stripe!(product, session, price: product.session_price(session))
+    when "checkout.session.expired"
+      enqueue_checkout_recovery(product, event.data.object)
     when "charge.refunded"
       charge = event.data.object
       # Full refunds only revoke the license; partial refunds — and uncaptured charges, where
@@ -45,4 +47,18 @@ class Webhooks::StripeController < ActionController::API
 
   private
     def find_product = Product.find_by(id: params[:product_id])
+
+    # Only a buyer who ticked the promotions box may be written to, and Stripe only mints a
+    # recovery link when the session asked for one. Read through to_hash because a session
+    # created without recovery can omit these keys entirely.
+    def enqueue_checkout_recovery(product, session)
+      return unless product.checkout_recovery?
+      data = session.to_hash
+      email = data.dig(:customer_details, :email)
+      recovery = data.dig(:after_expiration, :recovery) || {}
+      return unless data.dig(:consent, :promotions) == "opt_in" && email.present? && recovery[:url].present?
+
+      CheckoutRecoveryJob.perform_later(product, email:, recovery_url: recovery[:url],
+        expires_at: recovery[:expires_at] && Time.zone.at(recovery[:expires_at]))
+    end
 end

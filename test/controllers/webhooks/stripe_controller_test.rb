@@ -265,7 +265,46 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "an expired session the buyer opted into enqueues one recovery email" do
+    @product.update!(checkout_recovery_transactional_id: "tmpl_recovery")
+    expires_at = 30.days.from_now.to_i
+
+    assert_enqueued_with(job: CheckoutRecoveryJob, args: [ @product, {
+      email: "buyer@example.com", recovery_url: "https://pay.example/r/abc",
+      expires_at: Time.zone.at(expires_at) } ]) do
+      post_event expired_event(expires_at:)
+    end
+    assert_response :ok
+  end
+
+  test "an expired session enqueues nothing unless every recovery condition holds" do
+    {
+      "recovery is off for the product" => [ nil, {} ],
+      "the buyer opted out" => [ "tmpl_recovery", { promotions: "opt_out" } ],
+      "the session collected no consent" => [ "tmpl_recovery", { consent: nil } ],
+      "Stripe never collected an email" => [ "tmpl_recovery", { email: nil } ],
+      "Stripe minted no recovery link" => [ "tmpl_recovery", { recovery_url: nil } ]
+    }.each do |reason, (template, event)|
+      @product.update!(checkout_recovery_transactional_id: template)
+      post_event expired_event(**event)
+      assert_response :ok
+      assert_empty enqueued_jobs.select { it["job_class"] == "CheckoutRecoveryJob" }, reason
+    end
+  end
+
   private
+    # A key passed as nil is left out of the payload, the way Stripe omits a block it never
+    # collected.
+    def expired_event(email: "buyer@example.com", promotions: "opt_in", consent: :default,
+                      recovery_url: "https://pay.example/r/abc", expires_at: 30.days.from_now.to_i)
+      consent = { promotions: } if consent == :default
+      object = { id: "cs_expired", metadata: { licencio_product_id: @product.id, price_id: "price_test" } }
+      object[:consent] = consent if consent
+      object[:customer_details] = { email: } if email
+      object[:after_expiration] = { recovery: { url: recovery_url, expires_at: } } if recovery_url
+      { type: "checkout.session.expired", data: { object: } }.to_json
+    end
+
     def dispute_event(payment_intent:)
       { type: "charge.dispute.created", data: { object: { payment_intent: } } }.to_json
     end
