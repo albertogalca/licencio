@@ -6,7 +6,9 @@ class CheckoutRecoveryJob < ApplicationJob
     # email would sell them.
     return if product.licenses.joins(:customer).where("lower(customers.email) = ?", email.downcase).exists?
 
-    customer = Customer.upsert!(email:)
+    # Keyed on the address case-insensitively, so BUYER@ and buyer@ share one limit.
+    customer = Customer.where("lower(email) = ?", email.downcase).order(:created_at).first ||
+      Customer.upsert!(email: email.downcase)
 
     # One per address per product, ever. Consent to promotions is not consent to a reminder
     # every time somebody opens checkout and walks away.

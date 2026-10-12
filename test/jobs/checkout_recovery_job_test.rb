@@ -29,6 +29,16 @@ class CheckoutRecoveryJobTest < ActiveJob::TestCase
     assert_equal 1, sends
   end
 
+  test "a different spelling of the same address shares the limit" do
+    sends = 0
+    Loops.stub(:send_transactional, ->(**) { sends += 1 }) do
+      recover("buyer@example.com")
+      recover("BUYER@example.com")
+    end
+
+    assert_equal 1, sends
+  end
+
   test "a buyer who already owns a license for the product gets nothing" do
     owner = customers(:nameless) # holds an expired picmal license
     assert @product.licenses.exists?(customer: owner)
