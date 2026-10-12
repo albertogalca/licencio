@@ -5,7 +5,8 @@
 <% sections = {
      stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret checkout_success_url checkout_cancel_url],
      email:    %w[sender_email loops_transactional_id purchase_transactional_id refund_transactional_id
-                  expiry_reminder_transactional_id loops_api_key loops_mailing_list_id],
+                  expiry_reminder_transactional_id checkout_recovery_transactional_id loops_api_key
+                  loops_mailing_list_id],
      branding: %w[logo_url accent_color background_color]
    } %>
 <% filled = ->(key) { sections[key].count { |f| product.public_send(f).present? } } %>
@@ -179,6 +180,11 @@
         <%= form.label :expiry_reminder_transactional_id, "Expiry reminder transactional ID", class: "field-label" %>
         <%= form.text_field :expiry_reminder_transactional_id, class: "field-input" %>
         <p class="field-hint">Sent ~7 days before a time-limited license expires.</p>
+      </div>
+      <div>
+        <%= form.label :checkout_recovery_transactional_id, "Checkout recovery transactional ID", class: "field-label" %>
+        <%= form.text_field :checkout_recovery_transactional_id, class: "field-input" %>
+        <p class="field-hint">Sent once to a buyer who left checkout and agreed to promotional email. Leave blank to turn it off. Accept the promotions terms in the Stripe dashboard first.</p>
       </div>
       <div>
         <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>
