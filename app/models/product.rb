@@ -290,7 +290,7 @@ class Product < ApplicationRecord
   }.freeze
 
   def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
-      client_reference_id: nil, affonso_referral: nil)
+      client_reference_id: nil, affonso_referral: nil, promo: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -332,12 +332,15 @@ class Product < ApplicationRecord
     # that, because the email is blank whenever the caller did not prefill one and Stripe has
     # not collected it yet. The price is known now and is already validated.
     owner_only_price = owner_only_price?(price)
+    promotion_code = active_promotion_code(promo)
     params = {
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
       # remits global VAT/sales tax (no registrations on our end).
       # MoR owns tax config, so do NOT set automatic_tax here.
-      allow_promotion_codes: true,          # show the coupon field at checkout
+      # A code from the buy link arrives already applied. Stripe takes `discounts` or the
+      # coupon field, never both, so a link with a code trades the field for it.
+      **(promotion_code ? { discounts: [ { promotion_code: promotion_code.id } ] } : { allow_promotion_codes: true }),
       # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
       # who answered this once already, and asking again would double-count the channel
       # that actually brought them.
@@ -361,7 +364,15 @@ class Product < ApplicationRecord
                   affonso_referral: affonso_referral.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }
     params.merge!(CHECKOUT_RECOVERY) if checkout_recovery?
-    Stripe::Checkout::Session.create(params, stripe_opts)
+    begin
+      Stripe::Checkout::Session.create(params, stripe_opts)
+    rescue Stripe::InvalidRequestError => e
+      raise unless params.key?(:discounts)
+      # A discount Stripe refuses (spent redemptions, a coupon that doesn't cover this price)
+      # must not cost the sale. Open the plain checkout, coupon field included.
+      Rails.logger.warn("checkout: #{slug} dropped promo #{promo.inspect}: #{e.message}")
+      Stripe::Checkout::Session.create(params.except(:discounts).merge(allow_promotion_codes: true), stripe_opts)
+    end
   end
 
   # Offline license token: authenticity only. The server signs but never re-checks a token
@@ -405,6 +416,18 @@ class Product < ApplicationRecord
 
   private
     def stripe_opts = { api_key: stripe_secret_key }
+
+    # The `promo` param is public, so it only ever names a code this Stripe account already
+    # runs. An expired, unknown or mistyped one is ignored: the buyer reaches a full-price
+    # checkout with the coupon field, the same page they'd get with no code at all. A failed
+    # lookup is treated the same way: the code is optional, the sale is not.
+    def active_promotion_code(code)
+      return if code.blank?
+      Stripe::PromotionCode.list({ code: code.to_s.strip, active: true, limit: 1 }, stripe_opts).data.first
+    rescue Stripe::StripeError => e
+      Rails.logger.warn("checkout: #{slug} promo lookup failed for #{code.inspect}: #{e.message}")
+      nil
+    end
 
     def active_stripe_prices
       Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data

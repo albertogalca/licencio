@@ -55,6 +55,80 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "aff_123", captured[:metadata][:affonso_referral]
   end
 
+  test "a promo code from the link is applied up front, in place of the coupon field" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    looked_up = nil
+    codes = ->(params, _opts = {}) { looked_up = params; Struct.new(:data).new([ Struct.new(:id).new("promo_123") ]) }
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, codes) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", promo: "PRODUCTHUNT30" }
+        end
+      end
+    end
+
+    assert_response :ok
+    assert_equal({ code: "PRODUCTHUNT30", active: true, limit: 1 }, looked_up)
+    assert_equal [ { promotion_code: "promo_123" } ], captured[:discounts]
+    assert_not captured.key?(:allow_promotion_codes)
+  end
+
+  test "an unknown or expired promo code leaves a normal checkout with the coupon field" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, Struct.new(:data).new([])) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", promo: "EXPIRED" }
+        end
+      end
+    end
+
+    assert_response :ok
+    assert_equal true, captured[:allow_promotion_codes]
+    assert_not captured.key?(:discounts)
+  end
+
+  test "a failed promo lookup still opens a normal checkout with the coupon field" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    lookup = ->(*) { raise Stripe::APIConnectionError, "connection reset" }
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, lookup) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", promo: "PRODUCTHUNT30" }
+        end
+      end
+    end
+
+    assert_response :ok
+    assert_equal true, captured[:allow_promotion_codes]
+    assert_not captured.key?(:discounts)
+  end
+
+  test "a promo Stripe refuses falls back to a plain checkout instead of losing the buyer" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    calls = []
+    create = lambda do |params, _opts = {}|
+      calls << params
+      raise Stripe::InvalidRequestError.new("This promotion code cannot be redeemed.", "discounts") if params.key?(:discounts)
+      fake_session
+    end
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, Struct.new(:data).new([ Struct.new(:id).new("promo_123") ])) do
+        Stripe::Checkout::Session.stub(:create, create) do
+          get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", promo: "PRODUCTHUNT30" }, headers: BROWSER
+        end
+      end
+    end
+
+    assert_redirected_to "https://stripe.test/session"
+    assert_equal 2, calls.size
+    assert_equal true, calls.last[:allow_promotion_codes]
+    assert_not calls.last.key?(:discounts)
+  end
+
   test "rejects a price that belongs to a different Stripe product" do
     price = fake_price("price_x", "prod_someone_else", { "seats" => "1" })
     Stripe::Price.stub(:retrieve, price) do
