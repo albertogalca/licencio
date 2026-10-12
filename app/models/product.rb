@@ -218,6 +218,16 @@ class Product < ApplicationRecord
   # with no code would mail an empty discount.
   def student_discount? = student_transactional_id.present? && student_discount_code.present?
 
+  # Off unless the template is set, because the session params below are only valid on a
+  # Stripe account that has accepted the promotions terms in its dashboard. Picmal's has
+  # not, and sending consent_collection there fails every one of its checkouts.
+  def checkout_recovery? = checkout_recovery_transactional_id.present?
+
+  CHECKOUT_RECOVERY = {
+    consent_collection: { promotions: "auto" },
+    after_expiration: { recovery: { enabled: true, allow_promotion_codes: true } }
+  }.freeze
+
   CheckoutNotConfigured = Class.new(StandardError)
   InvalidSeats = Class.new(StandardError)
 
@@ -322,7 +332,7 @@ class Product < ApplicationRecord
     # that, because the email is blank whenever the caller did not prefill one and Stripe has
     # not collected it yet. The price is known now and is already validated.
     owner_only_price = owner_only_price?(price)
-    Stripe::Checkout::Session.create({
+    params = {
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
       # remits global VAT/sales tax (no registrations on our end).
@@ -349,7 +359,9 @@ class Product < ApplicationRecord
                   # Affonso attributes commissions by reading exactly this key off the
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence }.compact,
-      success_url: checkout_success_url, cancel_url: checkout_cancel_url }, stripe_opts)
+      success_url: checkout_success_url, cancel_url: checkout_cancel_url }
+    params.merge!(CHECKOUT_RECOVERY) if checkout_recovery?
+    Stripe::Checkout::Session.create(params, stripe_opts)
   end
 
   # Offline license token: authenticity only. The server signs but never re-checks a token

@@ -400,6 +400,30 @@ class ProductTest < ActiveSupport::TestCase
       "somebody else's key mints a new license, so it is a first-time sale"
   end
 
+  test "checkout asks for promotions consent and a recovery link only when recovery is configured" do
+    product = products(:picmal)
+    price = Struct.new(:id, :product, :metadata).new("price_full", product.stripe_product_id, { "seats" => "1" })
+    create = lambda do
+      captured = nil
+      Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+        Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; :session }) do
+          product.create_checkout_session(price_id: price.id, email: "a@b.com")
+        end
+      end
+      captured
+    end
+
+    off = create.call
+    assert_not off.key?(:consent_collection), "Picmal's Stripe account rejects consent_collection"
+    assert_not off.key?(:after_expiration)
+
+    product.update!(checkout_recovery_transactional_id: "tmpl_recovery")
+    on = create.call
+    assert_equal({ promotions: "auto" }, on[:consent_collection])
+    assert_equal({ recovery: { enabled: true, allow_promotion_codes: true } }, on[:after_expiration])
+    assert_equal off, on.except(:consent_collection, :after_expiration)
+  end
+
   test "variants falls back to max_activations_default when seats metadata is absent" do
     list = Struct.new(:data).new([ fake_price("price_x", "Studio", 12000, {}) ])
     Stripe::Price.stub(:list, list) do
