@@ -49,7 +49,7 @@ class Admin::LicensesController < Admin::BaseController
 
     def update_params
       params.require(:license).permit(:max_activations, :status, :expires_at,
-        :update_policy, :licensed_version)
+        :update_policy, :licensed_version, :internal)
     end
 
     def find_or_create_customer

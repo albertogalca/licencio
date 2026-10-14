@@ -32,6 +32,13 @@
         <%= form.number_field :licensed_version, class: "field-input" %>
         <p class="field-hint">Bump to grant a v2+ upgrade.</p>
       </div>
+      <div>
+        <label class="flex items-center gap-2 text-body">
+          <%= form.check_box :internal %>
+          Internal (exclude from reports)
+        </label>
+        <p class="field-hint">A license you made for yourself, to test the app.</p>
+      </div>
 
       <div class="flex items-center gap-3 border-t border-gray-100 pt-4">
         <%= form.submit "Save changes", class: "btn-primary" %>

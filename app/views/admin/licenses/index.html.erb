@@ -40,7 +40,8 @@
             </td>
             <td class="text-gray-600"><%= license.product.name %></td>
             <td class="text-gray-600"><%= license.customer&.email %></td>
-            <td><%= status_badge(license.status) %></td>
+            <td class="whitespace-nowrap"><%= status_badge(license.status) %>
+              <% if license.internal? %><span class="text-meta text-gray-500">internal</span><% end %></td>
             <td class="text-gray-600 tabular-nums"><%= license.max_activations || "∞" %></td>
             <td class="whitespace-nowrap text-gray-600 tabular-nums"><%= license.expires_at&.to_date %></td>
           </tr>

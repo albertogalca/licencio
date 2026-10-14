@@ -26,6 +26,7 @@ Rails.application.routes.draw do
 
     namespace :admin do
       post "migrations/import" => "migrations#import"
+      get  "products/:product_slug/trials" => "trials#index"
     end
   end
 

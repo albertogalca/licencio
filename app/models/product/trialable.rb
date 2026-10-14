@@ -15,12 +15,15 @@ module Product::Trialable
     def days_to_buy = ((bought_at - started_at) / 1.day if bought?)
   end
 
+  def self.median_days_to_buy(trials)
+    days = trials.filter_map(&:days_to_buy).sort
+    (days[(days.size - 1) / 2] + days[days.size / 2]) / 2 if days.any?
+  end
+
   TrialCohort = Data.define(:week, :started, :running, :converted, :median_days) do
     def self.from(trials, week:, now:)
-      days = trials.filter_map(&:days_to_buy).sort
-      median = (days[(days.size - 1) / 2] + days[days.size / 2]) / 2 if days.any?
       new(week:, started: trials.size, running: trials.count { _1.running?(now) },
-        converted: days.size, median_days: median)
+        converted: trials.count(&:bought?), median_days: Product::Trialable.median_days_to_buy(trials))
     end
 
     # Only trials that ended or bought are decided. A running trial is neither a sale nor a
@@ -32,6 +35,22 @@ module Product::Trialable
   # The whole window as one cohort, plus each week of it, newest first.
   TrialReport = Data.define(:total, :weeks) do
     def empty? = weeks.empty?
+  end
+
+  # What happened to trials over whole UTC days, from and to inclusive. Each count asks its own
+  # question of every trial, so a trial started weeks ago can still be bought or expire in range.
+  # running is as of the end of the range: not bought by then and not yet expired.
+  TrialWindow = Data.define(:from, :to, :started, :bought, :expired, :running, :median_days_to_buy) do
+    def self.from(trials, from:, to:, range:)
+      bought = trials.select { range.cover?(_1.bought_at) }
+      new(from:, to:,
+        started: trials.count { range.cover?(_1.started_at) },
+        bought: bought.size,
+        expired: trials.count { range.cover?(_1.expires_at) && !(_1.bought? && _1.bought_at <= _1.expires_at) },
+        running: trials.count { _1.started_at < range.end && _1.expires_at > range.end &&
+          !(_1.bought? && _1.bought_at < range.end) },
+        median_days_to_buy: Product::Trialable.median_days_to_buy(bought)&.round(1))
+    end
   end
 
   included do
@@ -62,10 +81,17 @@ module Product::Trialable
   end
 
   def trial_report(now: Time.current)
-    trials = trial_days ? trials_started_since((now - TRIAL_COHORT_WEEKS.weeks).beginning_of_week) : []
+    trials = trial_days ? trials_started((now - TRIAL_COHORT_WEEKS.weeks).beginning_of_week..) : []
     weeks = trials.group_by { _1.started_at.to_date.beginning_of_week }.sort.reverse
       .map { |week, cohort| TrialCohort.from(cohort, week:, now:) }
     TrialReport.new(total: TrialCohort.from(trials, week: nil, now:), weeks:)
+  end
+
+  # Every trial started up to the end of `to`: one bought this week may have started months ago.
+  def trial_window(from:, to:)
+    range = from.in_time_zone("UTC").beginning_of_day...(to + 1).in_time_zone("UTC").beginning_of_day
+    trials = trial_days ? trials_started(...range.end) : []
+    TrialWindow.from(trials, from:, to:, range:)
   end
 
   private
@@ -108,9 +134,9 @@ module Product::Trialable
     def count_trial_start(ip) = Rails.cache.increment(trial_start_key(ip), 1, expires_in: 2.days)
 
     # Two queries for the whole window, not one per trial: every trial's Macs, then every paid
-    # activation on any of those Macs.
-    def trials_started_since(since)
-      rows = licenses.trials.joins(:activations).where(created_at: since..)
+    # activation on any of those Macs. The owner's own internal trials are left out.
+    def trials_started(range)
+      rows = licenses.trials.where(internal: false).joins(:activations).where(created_at: range)
         .pluck("licenses.id", "licenses.created_at", "licenses.expires_at", "activations.hardware_id")
       paid = activations.where(hardware_id: rows.map(&:last).uniq, licenses: { trial: false })
         .where.not(licenses: { status: "refunded" })

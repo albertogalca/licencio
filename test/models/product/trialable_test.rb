@@ -137,6 +137,34 @@ class Product::TrialableTest < ActiveSupport::TestCase
     end
   end
 
+  test "an internal trial is still the trial of its install and its machine" do
+    trial = @product.trial_for(hardware_id: "HW-1", machine_id: MACHINE)
+    trial.update!(internal: true)
+
+    assert_no_difference("License.count") do
+      assert_equal trial, @product.trial_for(hardware_id: "HW-1", machine_id: MACHINE)
+      assert_equal trial, @product.trial_for(hardware_id: "HW-2", machine_id: MACHINE)
+    end
+  end
+
+  test "reports leave out internal trials" do
+    travel_to(Time.utc(2026, 10, 6, 12)) do
+      @product.trial_for(hardware_id: "HW-OWNER").update!(internal: true)
+      @product.trial_for(hardware_id: "HW-REAL")
+    end
+    paid = @product.licenses.create!(status: "active", max_activations: 2)
+    travel_to(Time.utc(2026, 10, 7, 12)) do
+      paid.activate!(hardware_id: "HW-OWNER")
+      paid.activate!(hardware_id: "HW-REAL")
+    end
+
+    report = @product.trial_report(now: Time.utc(2026, 10, 14))
+    assert_equal [ 1, 1 ], [ report.total.started, report.total.converted ]
+
+    window = @product.trial_window(from: Date.new(2026, 10, 5), to: Date.new(2026, 10, 11))
+    assert_equal [ 1, 1, 0, 0 ], [ window.started, window.bought, window.expired, window.running ]
+  end
+
   private
     # The test env uses a null cache store, which would make the per-IP counter forget.
     def with_cache(&)

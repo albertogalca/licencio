@@ -27,6 +27,20 @@ class Admin::LicensesControllerTest < ActionDispatch::IntegrationTest
     assert_select "span", /deactivated/
   end
 
+  test "marking a license internal shows it in the list" do
+    sign_in
+    license = licenses(:cozy_active)
+
+    get edit_admin_license_path(license)
+    assert_select "input[type=checkbox][name=?]", "license[internal]"
+
+    patch admin_license_path(license), params: { license: { internal: "1" } }
+    assert_predicate license.reload, :internal?
+
+    get admin_licenses_path
+    assert_select "td", /internal/
+  end
+
   private
     def sign_in
       post admin_session_path, params: { email: "admin@licencio.example", password: "secret123" }
