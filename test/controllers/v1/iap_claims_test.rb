@@ -130,7 +130,16 @@ class V1::IapClaimsTest < ActionDispatch::IntegrationTest
     claim(jws: @signing.jws(AppStoreSigning.transaction("environment" => "Sandbox")))
 
     assert_response :ok
-    assert @product.licenses.find_by!(app_store_original_transaction_id: "2000000111").app_store_sandbox?
+    license = @product.licenses.find_by!(app_store_original_transaction_id: "2000000111")
+    assert license.app_store_sandbox?
+    assert license.internal?, "a sandbox claim is internal, so it never counts as a sale"
+  end
+
+  test "a Production purchase is not internal" do
+    claim(jws: @signing.jws(AppStoreSigning.transaction("environment" => "Production")))
+
+    assert_response :ok
+    assert_not @product.licenses.find_by!(app_store_original_transaction_id: "2000000111").internal?
   end
 
   test "the app's preflight is answered with open CORS" do

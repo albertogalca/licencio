@@ -252,6 +252,8 @@ class License < ApplicationRecord
       product.issue_license!(customer:, quantity: grant[:seats], stripe_payment_id: nil,
         update_policy: grant[:update_policy], app_store_original_transaction_id: original_transaction_id,
         app_store_environment: store_transaction.environment,
+        # App Review and device testing buy in the sandbox; those keys work but never count as sales.
+        internal: store_transaction.environment == "sandbox",
         regional_band: (band unless band == Product::RegionalPricing::FULL_BAND)).tap do |issued|
         issued.payments.create!(stripe_payment_intent: "app_store:#{original_transaction_id}", kind: "purchase",
           amount_cents: store_transaction.amount_cents, currency: store_transaction.currency, regional_country: country)
