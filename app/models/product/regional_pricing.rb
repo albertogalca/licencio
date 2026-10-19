@@ -53,6 +53,13 @@ module Product::RegionalPricing
   # nil leaves the choice to Stripe.
   def regional_currency(country) = regional_table.dig("currencies", country.to_s)
 
+  # The one country that pays in `currency`, when there is exactly one. The backfill uses it:
+  # before bands, a discount followed the currency, so a license paid in BRL was Brazilian.
+  def country_for_currency(currency)
+    countries = regional_table.fetch("currencies", {}).select { |_, cur| cur == currency.to_s.downcase }.keys
+    countries.first if countries.one?
+  end
+
   def band_lookup_key(sku, band) = "#{slug}_#{sku}_band#{band}"
 
   # nil when Stripe has no such price, or does not answer. Every caller then falls back to the

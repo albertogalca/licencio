@@ -24,4 +24,16 @@ namespace :licenses do
     warn "Put it in a password manager or on paper. Never in a repo, never in email.\n\n"
     puts product.eddsa_private_key
   end
+
+  # Run once, after the band prices exist in Stripe and before the product's renewal column moves
+  # to the band 1 renewal price. Dry run unless APPLY=1.
+  desc "Give licenses sold under the old per-currency discount their band: rake licenses:backfill_regional_bands[cozy] APPLY=1"
+  task :backfill_regional_bands, [ :slug ] => :environment do |_, args|
+    product = Product.find_by!(slug: args[:slug].presence || "cozy")
+    apply = ENV["APPLY"] == "1"
+    counts = License.backfill_regional_bands!(product, dry_run: !apply)
+    puts "#{apply ? "Backfilled" : "Dry run, would backfill"} #{product.slug}:"
+    counts.sort.each { |band, n| puts "  #{band}: #{n}" }
+    puts "Band 1 licenses keep regional_band nil and renew at the product's column." if counts.key?("band 1")
+  end
 end

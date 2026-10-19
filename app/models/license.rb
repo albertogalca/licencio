@@ -208,6 +208,27 @@ class License < ApplicationRecord
     license
   end
 
+  # Before bands, a discount followed the currency (scripts/stripe_prices.rb, PPP_TIERS until
+  # 2026-10-19): a license paid in BRL got Brazil's price, and so did its renewal. The band 1
+  # prices that replace those carry no discount, so without this every one of those licenses
+  # would renew at full price. Each takes the band its currency's country sits in now.
+  # A license paid in any other currency paid full price then and stays band 1.
+  OLD_PPP_CURRENCIES = %w[brl mxn try pln ron ars clp myr thb zar pen
+                          inr idr php vnd egp pkr ngn bdt uah mad kes lkr cop cny].freeze
+
+  # Idempotent: a license that has a band is never touched again. Returns a tally to print.
+  def self.backfill_regional_bands!(product, dry_run: true)
+    counts = Hash.new(0)
+    product.licenses.where(regional_band: nil, trial: false).includes(:payments).find_each do |license|
+      currency = license.payments.min_by(&:created_at)&.currency.to_s.downcase
+      country = product.country_for_currency(currency) if currency.in?(OLD_PPP_CURRENCIES)
+      band = country ? product.band_for(country) : Product::RegionalPricing::FULL_BAND
+      counts["band #{band}"] += 1
+      license.update_column(:regional_band, band) if country && !dry_run
+    end
+    counts
+  end
+
   # Look the license up through its payment history (not licenses.stripe_payment_id, which a
   # renewal overwrites) so refunding the ORIGINAL purchase after a renewal still finds it.
   # Scoped to the refunding product's own licenses. Idempotent: a Stripe redelivery of

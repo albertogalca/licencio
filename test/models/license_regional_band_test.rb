@@ -101,10 +101,40 @@ class LicenseRegionalBandTest < ActiveSupport::TestCase
     assert_equal 3, license.reload.regional_band
   end
 
+  test "the backfill gives a license paid in an old discount currency its country's band" do
+    brl = paid(currency: "brl")
+    inr = paid(currency: "inr")
+    eur = paid(currency: "eur")
+    usd = paid(currency: "usd")
+    set = paid(currency: "brl", regional_band: 1)
+
+    counts = License.backfill_regional_bands!(@product, dry_run: true)
+    assert_nil brl.reload.regional_band, "a dry run writes nothing"
+    assert_equal 1, counts["band 3"]
+
+    License.backfill_regional_bands!(@product, dry_run: false)
+    assert_equal 3, brl.reload.regional_band
+    assert_equal 5, inr.reload.regional_band
+    assert_nil eur.reload.regional_band, "the euro was never discounted"
+    assert_nil usd.reload.regional_band
+    assert_equal 1, set.reload.regional_band, "a license with a band is never touched"
+
+    assert_no_changes -> { License.where.not(regional_band: nil).count } do
+      License.backfill_regional_bands!(@product, dry_run: false)
+    end
+  end
+
   private
     def annual(regional_band:, stripe_price_id: "price_standard_1", max_activations: nil)
       @product.licenses.create!(status: "active", update_policy: "time_limited", max_activations:,
         expires_at: 1.day.ago, regional_band:, stripe_price_id:, customer: customers(:alberto))
+    end
+
+    def paid(currency:, regional_band: nil)
+      annual(regional_band:).tap do |license|
+        license.payments.create!(stripe_payment_intent: "pi_#{SecureRandom.hex(4)}", kind: "purchase",
+          amount_cents: 1000, currency:)
+      end
     end
 
     def with_stripe(create: ->(*) { :session }, &)
