@@ -433,8 +433,10 @@ class Product < ApplicationRecord
       nil
     end
 
+    # Stripe pages a list at 10 by default, and Cozy's band prices alone are 20, so the variants
+    # and upgrade SKUs past the first page went missing. 100 is Stripe's ceiling for one page.
     def active_stripe_prices
-      Stripe::Price.list({ product: stripe_product_id, active: true }, stripe_opts).data
+      Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100 }, stripe_opts).data
     end
 
     def b64url(bytes) = Base64.urlsafe_encode64(bytes, padding: false)

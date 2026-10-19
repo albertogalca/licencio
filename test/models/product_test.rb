@@ -224,6 +224,13 @@ class ProductTest < ActiveSupport::TestCase
 
   # The renewal SKU is a discount for existing owners and the cheapest price on the product —
   # left in, it would headline the storefront and win the cheapest-variant fallback.
+  test "variants asks Stripe for a full page, not its default of 10" do
+    asked = nil
+    list = ->(params, *_) { asked = params; Struct.new(:data).new([]) }
+    Stripe::Price.stub(:list, list) { products(:picmal).variants }
+    assert_equal 100, asked[:limit]
+  end
+
   test "variants hides the renewal price from the storefront" do
     product = products(:picmal)
     product.update!(renewal_stripe_price_id: "price_renew")
