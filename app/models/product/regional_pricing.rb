@@ -71,6 +71,12 @@ module Product::RegionalPricing
   # button and win License#fallback_variant_price_id's cheapest-variant tiebreak.
   def regional_variant?(price) = (price_band(price) || FULL_BAND) != FULL_BAND
 
+  # nil for a payment that was not a card (a wallet reports its card too, a bank debit does not).
+  def card_country(payment_intent)
+    intent = Stripe::PaymentIntent.retrieve({ id: payment_intent, expand: [ "latest_charge" ] }, stripe_opts)
+    intent.to_hash.dig(:latest_charge, :payment_method_details, :card, :country)
+  end
+
   private
     def regional_table = TABLES.fetch(slug, {})
 

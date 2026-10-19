@@ -18,6 +18,7 @@ class Webhooks::StripeController < ActionController::API
       # was minted, so there is nothing to revoke.
       return head :ok unless session.payment_status.to_s.in?(%w[paid no_payment_required])
       License.fulfill_from_stripe_session(product, session)
+      CardCountryJob.perform_later(product, session.payment_intent) if product.regional_pricing? && session.payment_intent
       # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
       # alongside the license it just minted — the same sale grants both. A price with no
       # tier (picmal's) records nothing.

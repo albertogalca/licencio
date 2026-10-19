@@ -132,6 +132,17 @@ class Product::RegionalPricingTest < ActiveSupport::TestCase
     assert @product.lifetime_price?(Price.new("price_column", "prod_cozy", {}))
   end
 
+  test "the card country is read off the payment's charge" do
+    intent = Stripe::PaymentIntent.construct_from(
+      id: "pi_1", latest_charge: { payment_method_details: { card: { country: "DE" } } })
+    Stripe::PaymentIntent.stub(:retrieve, ->(params, *_) { params[:expand] == [ "latest_charge" ] ? intent : nil }) do
+      assert_equal "DE", @product.card_country("pi_1")
+    end
+
+    bank = Stripe::PaymentIntent.construct_from(id: "pi_2", latest_charge: { payment_method_details: { type: "sepa_debit" } })
+    Stripe::PaymentIntent.stub(:retrieve, bank) { assert_nil @product.card_country("pi_2") }
+  end
+
   private
     def add_price(sku, band, amount)
       metadata = { "sku" => sku, "band" => band.to_s, "seats" => "unlimited",

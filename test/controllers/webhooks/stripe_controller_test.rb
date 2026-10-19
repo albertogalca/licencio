@@ -9,6 +9,19 @@ class Webhooks::StripeControllerTest < ActionDispatch::IntegrationTest
     @product.update!(stripe_webhook_secret: @secret)
   end
 
+  test "a sale of a product with regional prices looks up the card's country, others do not" do
+    assert_no_enqueued_jobs(only: CardCountryJob) { post_event completed_event(payment_intent: "pi_picmal") }
+
+    @product = products(:cozy)
+    @product.update!(stripe_product_id: "prod_cozy", stripe_secret_key: "sk_test_cozy", stripe_webhook_secret: @secret,
+      checkout_success_url: "https://cozy.example/thanks", checkout_cancel_url: "https://cozy.example/",
+      region_token_secret: "shared-with-the-site")
+    assert_enqueued_with(job: CardCountryJob, args: [ @product, "pi_cozy" ]) do
+      post_event completed_event(payment_intent: "pi_cozy")
+    end
+    assert_response :ok
+  end
+
   test "invalid signature is rejected and fulfills nothing" do
     payload = completed_event
     assert_no_difference "License.count" do
