@@ -129,6 +129,43 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_not calls.last.key?(:discounts)
   end
 
+  test "a renewal takes no code, from the link or the coupon field" do
+    license = @product.licenses.create!(status: "active", max_activations: 5, expires_at: 1.day.ago)
+    price = fake_price("price_renew", @product.stripe_product_id, { "seats" => "5", "renewal" => "1" })
+    captured = nil
+    lookup = ->(*) { flunk "a renewal must not look up a promo code" }
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, lookup) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_renew",
+            renew_license_key: license.license_key, promo: "BLACKFRIDAY" }
+        end
+      end
+    end
+
+    assert_response :ok
+    assert_not captured.key?(:discounts)
+    assert_not captured.key?(:allow_promotion_codes)
+  end
+
+  test "the lifetime upgrade still takes a code from the link" do
+    @product.update!(lifetime_stripe_price_id: "price_forever")
+    license = @product.licenses.create!(status: "active", max_activations: 5, expires_at: 10.days.from_now)
+    price = fake_price("price_forever", @product.stripe_product_id, { "seats" => "5", "renewal" => "true" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::PromotionCode.stub(:list, Struct.new(:data).new([ Struct.new(:id).new("promo_bf") ])) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_forever",
+            renew_license_key: license.license_key, promo: "BLACKFRIDAY" }
+        end
+      end
+    end
+
+    assert_response :ok
+    assert_equal [ { promotion_code: "promo_bf" } ], captured[:discounts]
+  end
+
   test "rejects a price that belongs to a different Stripe product" do
     price = fake_price("price_x", "prod_someone_else", { "seats" => "1" })
     Stripe::Price.stub(:retrieve, price) do

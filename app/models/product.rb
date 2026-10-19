@@ -332,7 +332,11 @@ class Product < ApplicationRecord
     # that, because the email is blank whenever the caller did not prefill one and Stripe has
     # not collected it yet. The price is known now and is already validated.
     owner_only_price = owner_only_price?(price)
-    promotion_code = active_promotion_code(promo)
+    # Another year of updates stays at its own price through every offer (decided 2026-10-19,
+    # for Cozy's Black Friday): it takes no code from the link and shows no coupon field. The
+    # lifetime upgrade is a purchase like any other and keeps both.
+    takes_codes = !renewal_price?(price) || lifetime_price?(price)
+    promotion_code = active_promotion_code(promo) if takes_codes
     params = {
       mode: "payment", customer_creation: "always",
       managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
@@ -340,7 +344,7 @@ class Product < ApplicationRecord
       # MoR owns tax config, so do NOT set automatic_tax here.
       # A code from the buy link arrives already applied. Stripe takes `discounts` or the
       # coupon field, never both, so a link with a code trades the field for it.
-      **(promotion_code ? { discounts: [ { promotion_code: promotion_code.id } ] } : { allow_promotion_codes: true }),
+      **(promotion_code ? { discounts: [ { promotion_code: promotion_code.id } ] } : { allow_promotion_codes: takes_codes || nil }.compact),
       # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
       # who answered this once already, and asking again would double-count the channel
       # that actually brought them.
@@ -363,7 +367,7 @@ class Product < ApplicationRecord
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence }.compact,
       success_url: checkout_success_url, cancel_url: checkout_cancel_url }
-    params.merge!(CHECKOUT_RECOVERY) if checkout_recovery?
+    params.merge!(CHECKOUT_RECOVERY.deep_merge(after_expiration: { recovery: { allow_promotion_codes: takes_codes } })) if checkout_recovery?
     begin
       Stripe::Checkout::Session.create(params, stripe_opts)
     rescue Stripe::InvalidRequestError => e
