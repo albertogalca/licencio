@@ -73,6 +73,8 @@ class Api::CheckoutsController < Api::PublicController
         upgrade_license_key: params[:upgrade_license_key],
         client_reference_id: params[:client_reference_id],
         affonso_referral: params[:affonso_referral],
-        promo: params[:promo])
+        promo: params[:promo],
+        # The site's signed visitor country. Anything wrong with it is full price.
+        region: params[:region])
     end
 end

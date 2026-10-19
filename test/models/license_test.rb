@@ -573,7 +573,7 @@ class LicenseTest < ActiveSupport::TestCase
   private
     def fake_session(metadata:, id:, client_reference_id: nil)
       meta = Struct.new(:licencio_product_id, :quantity, :price_id, :update_policy, :renew_license_key,
-        :upgrade_license_key, keyword_init: true).new(**metadata)
+        :upgrade_license_key, :regional_band, :regional_country, keyword_init: true).new(**metadata)
       Struct.new(:metadata, :id, :customer_details, :payment_intent, :customer, :amount_total,
         :amount_subtotal, :currency, :client_reference_id, keyword_init: true).new(metadata: meta, id:,
         customer_details: Struct.new(:email, :name).new("buyer-#{id}@example.com", "Ada Lovelace"),

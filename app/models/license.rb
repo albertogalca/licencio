@@ -51,10 +51,17 @@ class License < ApplicationRecord
   # buyers keep, in `renewal_price` metadata, so repricing the product never reprices a renewal
   # already sold. The column stays the answer for everybody the metadata says nothing about,
   # which is how a cohort is grandfathered without the server knowing what anybody paid.
+  #
+  # A license bought in a band renews in that band, after the grandfather clause and before the
+  # product's column, which is band 1's price. Never by where the owner is at renewal time: the
+  # portal is reached from an email with no country in it, and the band is part of what was sold.
   def renewal_price_id
-    grandfathered_renewal_price_id || product.renewal_stripe_price_id.presence ||
-      stripe_price_id.presence || fallback_variant_price_id
+    grandfathered_renewal_price_id || band_price_id("renewal") ||
+      product.renewal_stripe_price_id.presence || stripe_price_id.presence || fallback_variant_price_id
   end
+
+  # The band this license pays in. A license from before bands pays band 1.
+  def band = regional_band || Product::RegionalPricing::FULL_BAND
 
   # Moving to the lifetime tier instead of buying another year. Open for the whole life of a
   # time_limited license rather than only inside RENEWAL_WINDOW: what it buys is never thinking
@@ -82,7 +89,13 @@ class License < ApplicationRecord
   # The checkout-time guard's question, for a price that only an owner may buy. A lifetime
   # upgrade is offered outside RENEWAL_WINDOW, so it cannot ask renewable? the way an annual
   # renewal does.
-  def renewable_with?(price) = product.lifetime_price?(price) ? lifetime_upgradable? : renewable?
+  #
+  # A band price must be this license's own band, or a band 1 owner could renew or upgrade
+  # through a band 5 price id.
+  def renewable_with?(price)
+    return false if product.price_band(price) && product.price_band(price) != band
+    product.lifetime_price?(price) ? lifetime_upgradable? : renewable?
+  end
 
   # The renewal checkout. Prefilling the buyer's own email is load-bearing: Stripe locks the
   # field, so fulfillment matches this customer and renew! extends this license instead of
@@ -95,7 +108,7 @@ class License < ApplicationRecord
   def renewal_checkout(kind: nil, client_reference_id: nil, affonso_referral: nil)
     kind = (kind.presence || :annual).to_sym
     raise ActiveRecord::RecordNotFound unless renewal_options.include?(kind)
-    price_id = kind == :forever ? product.lifetime_stripe_price_id : renewal_price_id
+    price_id = kind == :forever ? (band_price_id("forever_upgrade") || product.lifetime_stripe_price_id) : renewal_price_id
     # A product with no renewal SKU, no price on the license and no variants to fall back on
     # has nothing to charge. Same answer as an option this license never had.
     raise ActiveRecord::RecordNotFound if price_id.blank?
@@ -183,6 +196,8 @@ class License < ApplicationRecord
       stripe_customer_id: session.customer,
       amount_cents: session.amount_total,
       currency: session.currency,
+      regional_band: (meta[:regional_band].presence || (price.metadata["band"] if price)).presence&.to_i,
+      regional_country: meta[:regional_country].presence,
       update_policy: meta[:update_policy].presence || (price.metadata["update_policy"] if price),
       renew_key: meta[:renew_license_key],
       upgrade_key: meta[:upgrade_license_key])
@@ -220,7 +235,8 @@ class License < ApplicationRecord
 
   def self.fulfill!(product:, customer:, quantity:, stripe_payment_id:, price_id: nil,
                     stripe_customer_id: nil, amount_cents: nil, currency: nil,
-                    renew_key: nil, upgrade_key: nil, update_policy: nil)
+                    renew_key: nil, upgrade_key: nil, update_policy: nil,
+                    regional_band: nil, regional_country: nil)
     # Idempotency backbone: one Payment per Stripe intent. Catches redelivery of the original
     # purchase even after a renewal has overwritten the license's own stripe_payment_id.
     return if Payment.exists?(stripe_payment_intent: stripe_payment_id)
@@ -238,7 +254,7 @@ class License < ApplicationRecord
           amount_cents:, currency:)
       else
         product.issue_license!(customer:, quantity:, stripe_payment_id:, price_id:,
-          stripe_customer_id:, amount_cents:, currency:, update_policy:)
+          stripe_customer_id:, amount_cents:, currency:, update_policy:, regional_band:, regional_country:)
       end
     end
   rescue ActiveRecord::RecordNotUnique
@@ -447,6 +463,12 @@ class License < ApplicationRecord
       when "expiry"   then expiry_reference
       else                 id
       end
+    end
+
+    # This license's band price for `sku`, or nil for band 1 and for a band price Stripe lacks,
+    # which leaves the caller on the product's band 1 price.
+    def band_price_id(sku)
+      product.band_price(sku, band)&.id if band != Product::RegionalPricing::FULL_BAND
     end
 
     def grandfathered_renewal_price_id

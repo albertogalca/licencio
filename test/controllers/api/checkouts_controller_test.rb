@@ -27,6 +27,29 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, captured[:allow_promotion_codes]
   end
 
+  test "the site's signed country picks the band price" do
+    cozy = products(:cozy)
+    cozy.update!(stripe_product_id: "prod_cozy", stripe_secret_key: "sk_test_cozy", stripe_webhook_secret: "whsec",
+      checkout_success_url: "https://cozy.example/thanks", checkout_cancel_url: "https://cozy.example/",
+      region_token_secret: "shared-with-the-site")
+    full = fake_price("price_standard_1", "prod_cozy", { "sku" => "standard", "band" => "1", "seats" => "unlimited" })
+    band = fake_price("price_standard_2", "prod_cozy", { "sku" => "standard", "band" => "2", "seats" => "unlimited" })
+    payload = "ES.#{Time.current.to_i}"
+    region = "#{payload}.#{Base64.urlsafe_encode64(OpenSSL::HMAC.digest("SHA256", "shared-with-the-site", payload), padding: false)}"
+    captured = nil
+    Stripe::Price.stub(:retrieve, full) do
+      Stripe::Price.stub(:list, ->(params, *_) { Struct.new(:data).new(params[:lookup_keys] == [ "cozy_standard_band2" ] ? [ band ] : []) }) do
+        Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+          get "/api/checkout", params: { product_slug: "cozy", price_id: "price_standard_1", region: }, headers: BROWSER
+        end
+      end
+    end
+
+    assert_redirected_to "https://stripe.test/session"
+    assert_equal "price_standard_2", captured[:line_items].first[:price]
+    assert_equal "eur", captured[:currency]
+  end
+
   test "GET redirects the buyer straight to Stripe Checkout and forwards client_reference_id" do
     price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
     captured = nil

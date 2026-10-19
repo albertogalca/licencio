@@ -39,6 +39,7 @@ class Admin::ProductsController < Admin::BaseController
     def product_params
       permitted = %i[name update_policy current_version max_activations_default trial_days
         update_duration_days renewal_stripe_price_id lifetime_stripe_price_id sender_email stripe_product_id stripe_secret_key stripe_webhook_secret
+        region_token_secret
         checkout_success_url checkout_cancel_url download_url loops_transactional_id purchase_transactional_id
         refund_transactional_id expiry_reminder_transactional_id checkout_recovery_transactional_id
         loops_api_key loops_mailing_list_id
@@ -46,7 +47,7 @@ class Admin::ProductsController < Admin::BaseController
       permitted += %i[slug bundle_identifier license_prefix] if @product.nil? || @product.new_record?
       attrs = params.require(:product).permit(*permitted)
       # blank secret = leave existing key untouched
-      %i[loops_api_key stripe_secret_key stripe_webhook_secret].each do |k|
+      %i[loops_api_key stripe_secret_key stripe_webhook_secret region_token_secret].each do |k|
         attrs.delete(k) if attrs[k].blank?
       end
       attrs

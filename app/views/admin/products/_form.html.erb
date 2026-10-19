@@ -3,7 +3,7 @@
     that says whether they're filled in. A section holding a validation error is forced open —
     otherwise a rejected save hides the field that caused it. %>
 <% sections = {
-     stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret checkout_success_url checkout_cancel_url],
+     stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret region_token_secret checkout_success_url checkout_cancel_url],
      email:    %w[sender_email loops_transactional_id purchase_transactional_id refund_transactional_id
                   expiry_reminder_transactional_id checkout_recovery_transactional_id loops_api_key
                   loops_mailing_list_id],
@@ -138,6 +138,11 @@
         <% else %>
           <p class="field-hint">Leave blank to keep current.</p>
         <% end %>
+      </div>
+      <div>
+        <%= form.label :region_token_secret, "Regional pricing secret", class: "field-label" %>
+        <%= form.password_field :region_token_secret, value: nil, autocomplete: "off", class: "field-input" %>
+        <p class="field-hint">The same value as the site's REGION_TOKEN_SECRET. It turns regional prices on for a product with a band table. Leave blank to keep current.</p>
       </div>
       <div>
         <%= form.label :checkout_success_url, "Checkout success URL", class: "field-label" %>

@@ -2,6 +2,7 @@ require "ed25519"
 
 class Product < ApplicationRecord
   include Trialable
+  include RegionalPricing
 
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
   UpgradeVariant = Data.define(:price_id, :name, :amount_cents, :currency, :seats, :from_seats)
@@ -111,17 +112,18 @@ class Product < ApplicationRecord
   end
 
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil,
-                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil)
+                     price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil,
+                     regional_band: nil, regional_country: nil)
     # Ignore an unrecognized policy from price metadata (falls back to the product's) rather than
     # letting a bad enum string raise ArgumentError and wedge fulfillment on Stripe's retries.
     update_policy = update_policy.presence_in(UPDATE_POLICIES.values)
     effective = update_policy || self.update_policy
     license = licenses.create!(customer:, status: "active", max_activations: quantity,
-      update_policy:, stripe_payment_id:, stripe_price_id: price_id, stripe_customer_id:,
+      update_policy:, stripe_payment_id:, stripe_price_id: price_id, stripe_customer_id:, regional_band:,
       expires_at: license_expires_at(policy: effective),
       licensed_version: (current_version if effective == "versioned"))
     license.payments.create!(stripe_payment_intent: stripe_payment_id, kind: "purchase",
-      amount_cents:, currency:) if stripe_payment_id
+      amount_cents:, currency:, regional_country:) if stripe_payment_id
     license
   end
 
@@ -156,10 +158,14 @@ class Product < ApplicationRecord
   end
 
   # The move to the lifetime tier: same license, every future version, nothing to renew again.
-  # A renewal price like any other (owner-only, kept off the storefront), told apart by the
-  # column rather than by price metadata so there is exactly one thing to configure — set it
-  # and the option appears, leave it blank and no product offers the upgrade at all.
-  def lifetime_price?(price) = lifetime_stripe_price_id.present? && price.id == lifetime_stripe_price_id
+  # A renewal price like any other (owner-only, kept off the storefront). The column is the one
+  # thing to configure: set it and the option appears, leave it blank and no product offers the
+  # upgrade at all (License#lifetime_upgradable? reads it). The band upgrades are the same move
+  # at a band's price, so their `sku` marks them too.
+  def lifetime_price?(price)
+    (lifetime_stripe_price_id.present? && price.id == lifetime_stripe_price_id) ||
+      price.metadata["sku"] == "forever_upgrade"
+  end
 
   def owner_only_price?(price) = renewal_price?(price) || price.metadata["upgrade_from_seats"].present?
 
@@ -183,11 +189,12 @@ class Product < ApplicationRecord
   # "another year of updates" SKUs, and the cheapest prices on the product — left in, one would
   # headline the buy button and win License#fallback_variant_price_id's cheapest-variant
   # tiebreak. Upgrade prices are excluded for the same reason: they're discounts against a
-  # license the buyer already owns, not licenses for sale.
+  # license the buyer already owns, not licenses for sale. Band prices other than band 1 are
+  # excluded too: checkout swaps to them, nobody picks one.
   def variants
     Rails.cache.fetch([ "product-variants", stripe_product_id, renewal_stripe_price_id ], expires_in: 5.minutes) do
       active_stripe_prices
-        .reject { |p| owner_only_price?(p) }
+        .reject { |p| owner_only_price?(p) || regional_variant?(p) }
         .map do |p|
           Variant.new(price_id: p.id, name: p.nickname, amount_cents: p.unit_amount, seats: seats_for(p))
         end.sort_by(&:amount_cents)
@@ -290,7 +297,7 @@ class Product < ApplicationRecord
   }.freeze
 
   def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
-      client_reference_id: nil, affonso_referral: nil, promo: nil)
+      client_reference_id: nil, affonso_referral: nil, promo: nil, region: nil)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -298,6 +305,13 @@ class Product < ApplicationRecord
     end
     price = Stripe::Price.retrieve(price_id, stripe_opts)
     raise ActiveRecord::RecordNotFound unless price.product == stripe_product_id
+    # The visitor's band picks the storefront price. Owner-only prices are left as asked: the
+    # license guards below hold them to the license's own band.
+    country = region_country(region)
+    price = regional_storefront_price(price, band_for(country)) unless owner_only_price?(price)
+    # Only when the band's price carries the currency, so the amount the site showed is the one
+    # charged. Anything else is left to Stripe, which converts the USD amount.
+    currency = regional_currency(country) if country && (price_band(price) || FULL_BAND) > FULL_BAND
     # The renewal price is a discount for people who already bought — /api/checkout takes any
     # price_id belonging to this product, so without this guard anyone could buy a brand-new
     # license at the renewal rate. Checking that the key is merely *present* did not achieve
@@ -365,17 +379,30 @@ class Product < ApplicationRecord
                   seline_visitor_id: client_reference_id.presence,
                   # Affonso attributes commissions by reading exactly this key off the
                   # completed session; the storefront forwards its cookie as this param.
-                  affonso_referral: affonso_referral.presence }.compact,
-      success_url: checkout_success_url, cancel_url: checkout_cancel_url }
+                  affonso_referral: affonso_referral.presence,
+                  # Read back at fulfilment: the band goes on the license, the country on the
+                  # payment, next to the card's country once Stripe reports it.
+                  regional_band: price_band(price),
+                  regional_country: country }.compact,
+      success_url: checkout_success_url, cancel_url: checkout_cancel_url, currency: }.compact
     params.merge!(CHECKOUT_RECOVERY.deep_merge(after_expiration: { recovery: { allow_promotion_codes: takes_codes } })) if checkout_recovery?
     begin
       Stripe::Checkout::Session.create(params, stripe_opts)
     rescue Stripe::InvalidRequestError => e
-      raise unless params.key?(:discounts)
-      # A discount Stripe refuses (spent redemptions, a coupon that doesn't cover this price)
-      # must not cost the sale. Open the plain checkout, coupon field included.
-      Rails.logger.warn("checkout: #{slug} dropped promo #{promo.inspect}: #{e.message}")
-      Stripe::Checkout::Session.create(params.except(:discounts).merge(allow_promotion_codes: true), stripe_opts)
+      # Neither of these may cost the sale. A pinned currency Stripe refuses goes first: without
+      # it Stripe still picks the price's own amount for the buyer's location. Then a discount
+      # Stripe refuses (spent redemptions, a coupon that doesn't cover this price): open the
+      # plain checkout, coupon field included.
+      if params.key?(:currency)
+        Rails.logger.warn("checkout: #{slug} dropped currency #{params[:currency]}: #{e.message}")
+        params = params.except(:currency)
+      elsif params.key?(:discounts)
+        Rails.logger.warn("checkout: #{slug} dropped promo #{promo.inspect}: #{e.message}")
+        params = params.except(:discounts).merge(allow_promotion_codes: true)
+      else
+        raise
+      end
+      retry
     end
   end
 
