@@ -74,6 +74,18 @@ class LoopsContactJobTest < ActiveJob::TestCase
     assert lifetime.persisted?
   end
 
+  test "a purchase adds the buyer to the mailing list unless newsletter is false" do
+    product = products(:cozy)
+    product.update!(loops_mailing_list_id: "list_cozy_news")
+    lists = []
+    Loops.stub(:upsert_contact, ->(mailing_lists:, **) { lists << mailing_lists }) do
+      LoopsContactJob.perform_now(customers(:alberto), product, subscribed: true)
+      LoopsContactJob.perform_now(customers(:alberto), product, subscribed: true, newsletter: false)
+    end
+
+    assert_equal [ { "list_cozy_news" => true }, nil ], lists
+  end
+
   test "does nothing when the product has no Loops API key" do
     product = products(:cozy)
     called = false

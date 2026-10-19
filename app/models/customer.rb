@@ -57,8 +57,8 @@ class Customer < ApplicationRecord
               renew_url: renew_url_for(license) })
   end
 
-  def subscribe_to_loops_later(product:)
-    LoopsContactJob.perform_later(self, product, subscribed: true)
+  def subscribe_to_loops_later(product:, newsletter: true)
+    LoopsContactJob.perform_later(self, product, subscribed: true, newsletter:)
   end
 
   # The license that decides what this customer is entitled to for a product, when they hold

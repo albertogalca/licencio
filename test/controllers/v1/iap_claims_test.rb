@@ -6,19 +6,21 @@ class V1::IapClaimsTest < ActionDispatch::IntegrationTest
 
   setup do
     @product = products(:cozy)
-    @product.update!(purchase_transactional_id: "tmpl_cozy_purchase", update_duration_days: 365)
+    @product.update!(purchase_transactional_id: "tmpl_cozy_purchase", update_duration_days: 365,
+      loops_mailing_list_id: "list_cozy_news")
     @signing = AppStoreSigning.new
     AppStoreTransaction.trusted_root = @signing.root
     @sent_to = []
+    @contacts = []
   end
 
   teardown { AppStoreTransaction.trusted_root = nil }
 
-  def claim(email: "ana@example.com", jws: @signing.jws, slug: @product.slug)
+  def claim(email: "ana@example.com", jws: @signing.jws, slug: @product.slug, **extra)
     Loops.stub :send_transactional, ->(email:, **) { @sent_to << email } do
-      Loops.stub :upsert_contact, ->(**) { :ok } do
+      Loops.stub :upsert_contact, ->(**contact) { @contacts << contact.slice(:email, :subscribed, :mailing_lists) } do
         perform_enqueued_jobs do
-          post "/v1/iap/claim", params: { product_slug: slug, email:, jws: }, as: :json
+          post "/v1/iap/claim", params: { product_slug: slug, email:, jws:, **extra }, as: :json
         end
       end
     end
@@ -61,6 +63,37 @@ class V1::IapClaimsTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal first_response, response.parsed_body, "a repeat claim looks like a first one"
     assert_equal [ "ana@example.com", "ana@example.com" ], @sent_to
+  end
+
+  test "a claim with newsletter true adds the buyer to the product's mailing list" do
+    claim(newsletter: true)
+
+    assert_response :ok
+    assert_equal [ { email: "ana@example.com", subscribed: true, mailing_lists: { "list_cozy_news" => true } } ],
+      @contacts
+  end
+
+  test "a claim without a JSON true for newsletter upserts the buyer with no mailing list" do
+    { "absent" => {}, "false" => { newsletter: false }, "string" => { newsletter: "true" },
+      "number" => { newsletter: 1 } }.each_with_index do |(label, extra), index|
+      @contacts.clear
+      claim(jws: @signing.jws(AppStoreSigning.transaction("originalTransactionId" => "300000000#{index}")), **extra)
+
+      assert_response :ok, label
+      assert_equal [ { email: "ana@example.com", subscribed: true, mailing_lists: nil } ], @contacts, label
+    end
+  end
+
+  test "a repeat claim with newsletter true adds the first claimant, and false touches no contact" do
+    claim(email: "ana@example.com")
+    @contacts.clear
+
+    claim(email: "someone.else@example.com", newsletter: false)
+    assert_empty @contacts, "a repeat claim without consent never changes a contact"
+
+    claim(email: "someone.else@example.com", newsletter: true)
+    assert_equal [ { email: "ana@example.com", subscribed: true, mailing_lists: { "list_cozy_news" => true } } ],
+      @contacts
   end
 
   test "a transaction this server will not honour is refused and records nothing" do

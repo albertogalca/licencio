@@ -234,12 +234,13 @@ class License < ApplicationRecord
   # An iPhone purchase claimed for the desktop: the same license the Stripe Standard price
   # mints, recorded against its App Store transaction. Claiming a transaction again mints
   # nothing and re-sends the key to whoever claimed it first, so the caller learns nothing
-  # about that address and a second claimant gets nothing.
-  def self.claim_from_app_store!(product, store_transaction, email:)
+  # about that address and a second claimant gets nothing. newsletter: true is the claimant's
+  # consent to the product's mailing list; a repeat claim may add the first customer, never remove.
+  def self.claim_from_app_store!(product, store_transaction, email:, newsletter: false)
     grant = store_transaction.grant_for(product) or raise AppStoreTransaction::Invalid, "grant"
     original_transaction_id = store_transaction.original_transaction_id
     if (claimed = product.licenses.find_by(app_store_original_transaction_id: original_transaction_id))
-      return claimed.tap { |license| license.redeliver_email_later("purchase") }
+      return claimed.tap { |license| redeliver_claim(license, newsletter:) }
     end
 
     customer = Customer.upsert!(email:)
@@ -253,13 +254,19 @@ class License < ApplicationRecord
       end
     end
     customer.send_purchase_email_later(license:, amount: store_transaction.amount_cents, currency: store_transaction.currency)
-    customer.subscribe_to_loops_later(product:)
+    customer.subscribe_to_loops_later(product:, newsletter:)
     license
   rescue ActiveRecord::RecordNotUnique
     # A concurrent claim of the same transaction won the race; answer as a repeat claim.
     product.licenses.find_by!(app_store_original_transaction_id: original_transaction_id)
-      .tap { |license| license.redeliver_email_later("purchase") }
+      .tap { |license| redeliver_claim(license, newsletter:) }
   end
+
+  def self.redeliver_claim(license, newsletter:)
+    license.redeliver_email_later("purchase")
+    license.customer&.subscribe_to_loops_later(product: license.product, newsletter: true) if newsletter
+  end
+  private_class_method :redeliver_claim
 
   # Look the license up through its payment history (not licenses.stripe_payment_id, which a
   # renewal overwrites) so refunding the ORIGINAL purchase after a renewal still finds it.

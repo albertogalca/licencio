@@ -18,7 +18,9 @@ class V1::IapClaimsController < Api::PublicController
     email = params[:email].to_s.strip
     return render_api_error(:invalid_email) unless email.match?(EMAIL_SHAPE)
 
-    License.claim_from_app_store!(product, AppStoreTransaction.verify(params[:jws]), email:)
+    # Only a JSON true is consent; "true", 1 or a missing key all mean no.
+    newsletter = params[:newsletter] == true
+    License.claim_from_app_store!(product, AppStoreTransaction.verify(params[:jws]), email:, newsletter:)
     render json: { ok: true }
   rescue AppStoreTransaction::Invalid => error
     Rails.logger.info("iap.claim_refused reason=#{error.message} product=#{product.slug}")
