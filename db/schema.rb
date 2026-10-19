@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_14_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -54,6 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_120000) do
     t.integer "max_activations"
     t.string "migration_source"
     t.uuid "product_id", null: false
+    t.integer "regional_band"
     t.datetime "reminded_at"
     t.string "status", null: false
     t.string "stripe_customer_id"
@@ -96,10 +97,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_120000) do
 
   create_table "payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "amount_cents"
+    t.string "card_country"
     t.datetime "created_at", null: false
     t.string "currency"
     t.string "kind", null: false
     t.uuid "license_id", null: false
+    t.string "regional_country"
     t.string "stripe_payment_intent", null: false
     t.datetime "updated_at", null: false
     t.index ["license_id"], name: "index_payments_on_license_id"
@@ -147,6 +150,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_14_120000) do
     t.string "name", null: false
     t.string "purchase_transactional_id"
     t.string "refund_transactional_id"
+    t.string "region_token_secret"
     t.string "renewal_stripe_price_id"
     t.string "sender_email"
     t.string "slug", null: false
