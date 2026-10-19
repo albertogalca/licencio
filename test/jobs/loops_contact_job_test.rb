@@ -86,6 +86,56 @@ class LoopsContactJobTest < ActiveJob::TestCase
     assert_equal [ { "list_cozy_news" => true }, nil ], lists
   end
 
+  # Loops sends campaigns to every subscribed contact, so an App Store claimant who did not
+  # consent must not become one. Driven through the real Loops calls, faking only HTTP.
+  def loops_requests(responses, product: products(:cozy), **job_args)
+    requests = []
+    http = Object.new
+    http.define_singleton_method(:request) { |req| requests << req; responses.shift }
+    Net::HTTP.stub(:start, ->(*_a, **_k, &blk) { blk.call(http) }) do
+      LoopsContactJob.perform_now(customers(:alberto), product, **job_args)
+    end
+    requests.map { |req| [ req.path, JSON.parse(req.body) ] }
+  end
+
+  def ok       = Net::HTTPOK.new("1.1", "200", "OK")
+  def conflict = Net::HTTPConflict.new("1.1", "409", "Conflict")
+
+  test "a claim without consent creates a new contact unsubscribed" do
+    requests = loops_requests([ ok ], subscribed: true, newsletter: false)
+
+    assert_equal [ "/api/v1/contacts/create" ], requests.map(&:first)
+    assert_equal false, requests[0][1]["subscribed"]
+    assert_not requests[0][1].key?("mailingLists")
+  end
+
+  test "a claim without consent leaves an existing contact's subscription alone" do
+    requests = loops_requests([ conflict, ok ], subscribed: true, newsletter: false)
+
+    assert_equal [ "/api/v1/contacts/create", "/api/v1/contacts/update" ], requests.map(&:first)
+    update = requests[1][1]
+    assert_not update.key?("subscribed"), "an existing subscriber stays subscribed"
+    assert_not update.key?("mailingLists")
+    assert_equal "lifetime", update["licenseTier"], "the license fields still sync"
+  end
+
+  test "a claim with consent, or a Stripe purchase, subscribes new and existing contacts" do
+    product = products(:cozy)
+    product.update!(loops_mailing_list_id: "list_cozy_news")
+    [ { newsletter: true }, {} ].each do |args|
+      requests = loops_requests([ conflict, ok ], product:, subscribed: true, **args)
+      requests.each do |_path, body|
+        assert_equal true, body["subscribed"]
+        assert_equal({ "list_cozy_news" => true }, body["mailingLists"])
+      end
+    end
+  end
+
+  test "a refund unsubscribes an existing contact" do
+    requests = loops_requests([ conflict, ok ], subscribed: false)
+    assert_equal [ false, false ], requests.map { |_path, body| body["subscribed"] }
+  end
+
   test "does nothing when the product has no Loops API key" do
     product = products(:cozy)
     called = false

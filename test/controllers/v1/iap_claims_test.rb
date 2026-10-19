@@ -73,14 +73,14 @@ class V1::IapClaimsTest < ActionDispatch::IntegrationTest
       @contacts
   end
 
-  test "a claim without a JSON true for newsletter upserts the buyer with no mailing list" do
+  test "a claim without a JSON true for newsletter upserts the buyer unsubscribed, with no mailing list" do
     { "absent" => {}, "false" => { newsletter: false }, "string" => { newsletter: "true" },
       "number" => { newsletter: 1 } }.each_with_index do |(label, extra), index|
       @contacts.clear
       claim(jws: @signing.jws(AppStoreSigning.transaction("originalTransactionId" => "300000000#{index}")), **extra)
 
       assert_response :ok, label
-      assert_equal [ { email: "ana@example.com", subscribed: true, mailing_lists: nil } ], @contacts, label
+      assert_equal [ { email: "ana@example.com", subscribed: false, mailing_lists: nil } ], @contacts, label
     end
   end
 

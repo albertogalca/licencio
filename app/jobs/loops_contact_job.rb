@@ -1,6 +1,7 @@
 class LoopsContactJob < ApplicationJob
-  # newsletter: false upserts the contact without the mailing list: an App Store claim adds
-  # the buyer to it only on consent. Defaults true so Stripe purchases keep their list add.
+  # newsletter: false is an App Store claim without consent. It skips the mailing list, and a
+  # contact new to Loops is created unsubscribed so campaigns skip it; an existing contact
+  # keeps its subscription. Defaults true so Stripe purchases keep their list add.
   def perform(customer, product, subscribed:, newsletter: true)
     api_key = product.loops_api_key_or_default
     if api_key.blank?
@@ -13,7 +14,8 @@ class LoopsContactJob < ApplicationJob
     # (subscribed: false) — Loops rejects list adds for unsubscribed contacts anyway.
     mailing_lists = { product.loops_mailing_list_id => true } if subscribed && newsletter && product.loops_mailing_list_id.present?
     Loops.upsert_contact(api_key:, email: customer.email, source: "Stripe",
-      subscribed:, first_name: first, last_name: last, mailing_lists:,
+      subscribed: subscribed && newsletter, keep_existing_subscription: !newsletter,
+      first_name: first, last_name: last, mailing_lists:,
       properties: license_properties(customer, product))
   end
 

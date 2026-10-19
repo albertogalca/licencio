@@ -17,12 +17,16 @@ module Loops
   # properties (optional) are Loops custom fields, which ride along as top-level keys and are
   # created on first send (e.g. updatesUntil, licenseTier). Blank values are dropped rather
   # than sent as null, so a lifetime contact simply has no updatesUntil.
-  def self.upsert_contact(api_key:, email:, source:, subscribed: true, first_name: nil, last_name: nil,
-                          mailing_lists: nil, properties: {})
+  # keep_existing_subscription applies `subscribed` only to a new contact: the 409 update then
+  # omits it, because Loops subscribes every new contact by default but leaves an omitted field
+  # alone on update. The create's 409 is the existence check, made at send time.
+  def self.upsert_contact(api_key:, email:, source:, subscribed: true, keep_existing_subscription: false,
+                          first_name: nil, last_name: nil, mailing_lists: nil, properties: {})
     body = { email:, firstName: first_name, lastName: last_name, source:, subscribed:,
              mailingLists: mailing_lists }.compact.merge(properties.compact)
     response = request(Net::HTTP::Post, CONTACTS_CREATE, api_key:, body:, allow: [ "409" ])
     return response unless response.code == "409"
+    body = body.except(:subscribed) if keep_existing_subscription
     request(Net::HTTP::Put, CONTACTS_UPDATE, api_key:, body:)
   end
 
