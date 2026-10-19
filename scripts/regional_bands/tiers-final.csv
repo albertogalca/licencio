@@ -1,0 +1,234 @@
+iso2,name,ratio,tier,app_store
+AD,Andorra,0.681,2,no
+AE,United Arab Emirates,0.634,1,yes
+AF,Afghanistan,0.200,5,yes
+AG,Antigua and Barbuda,0.693,2,yes
+AI,Anguilla,0.697,1,yes
+AL,Albania,0.461,3,yes
+AM,Armenia,0.383,4,yes
+AO,Angola,0.354,4,yes
+AR,Argentina,0.457,3,yes
+AS,American Samoa,0.679,1,no
+AT,Austria,0.820,1,yes
+AU,Australia,0.901,1,yes
+AW,Aruba,0.746,1,no
+AX,,,1,
+AZ,Azerbaijan,0.284,5,yes
+BA,Bosnia and Herzegovina,0.402,4,yes
+BB,Barbados,1.095,1,yes
+BD,Bangladesh,0.254,5,no
+BE,Belgium,0.814,1,yes
+BF,Burkina Faso,0.374,4,yes
+BG,Bulgaria,0.458,3,yes
+BH,Bahrain,0.431,3,yes
+BI,Burundi,0.340,4,no
+BJ,Benin,0.344,4,yes
+BL,,,1,
+BM,Bermuda,1.198,1,yes
+BN,Brunei Darussalam,0.349,4,yes
+BO,Bolivia,0.400,4,yes
+BQ,,,1,
+BR,Brazil,0.457,3,yes
+BS,"Bahamas, The",0.956,1,yes
+BT,Bhutan,0.229,5,yes
+BW,Botswana,0.376,4,yes
+BY,Belarus,0.296,5,yes
+BZ,Belize,0.526,3,yes
+CA,Canada,0.834,1,yes
+CD,"Congo, Dem. Rep.",0.418,4,yes
+CF,Central African Republic,0.423,3,no
+CG,"Congo, Rep.",0.347,4,yes
+CH,Switzerland,1.120,1,yes
+CI,Cote d'Ivoire,0.372,4,yes
+CL,Chile,0.476,3,yes
+CM,Cameroon,0.341,4,yes
+CN,China,0.473,3,yes
+CO,Colombia,0.378,4,yes
+CR,Costa Rica,0.591,2,yes
+CU,Cuba,0.457,3,no
+CV,Cabo Verde,0.476,3,yes
+CW,Curacao,0.697,1,no
+CY,Cyprus,0.647,2,yes
+CZ,Czechia,0.594,2,yes
+DE,Germany,0.802,1,yes
+DJ,Djibouti,0.462,3,no
+DK,Denmark,0.925,1,yes
+DM,Dominica,0.484,3,yes
+DO,Dominican Republic,0.385,4,yes
+DZ,Algeria,0.326,4,yes
+EC,Ecuador,0.425,3,yes
+EE,Estonia,0.661,2,yes
+EG,"Egypt, Arab Rep.",0.154,5,yes
+ER,Eritrea,0.328,4,no
+ES,Spain,0.645,2,yes
+ET,Ethiopia,0.328,4,no
+FI,Finland,0.852,1,yes
+FJ,Fiji,0.407,4,yes
+FK,,,1,
+FM,"Micronesia, Fed. Sts.",0.959,4,yes
+FO,Faroe Islands,0.904,1,no
+FR,France,0.766,1,yes
+GA,Gabon,0.372,4,yes
+GB,United Kingdom,0.892,1,yes
+GD,Grenada,0.567,2,yes
+GE,Georgia,0.329,4,yes
+GF,,,1,
+GG,,,1,
+GH,Ghana,0.378,4,yes
+GI,Gibraltar,0.690,1,no
+GL,Greenland,0.741,1,no
+GM,"Gambia, The",0.250,5,yes
+GN,Guinea,0.316,4,no
+GP,,,1,
+GQ,Equatorial Guinea,0.410,4,no
+GR,Greece,0.595,2,yes
+GT,Guatemala,0.434,3,yes
+GU,Guam,0.679,1,no
+GW,Guinea-Bissau,0.341,4,yes
+GY,Guyana,0.331,4,yes
+HK,"Hong Kong SAR, China",0.709,1,yes
+HN,Honduras,0.457,3,yes
+HR,Croatia,0.532,3,yes
+HT,Haiti,0.860,5,no
+HU,Hungary,0.520,3,yes
+ID,Indonesia,0.287,5,yes
+IE,Ireland,0.848,1,yes
+IL,Israel,1.010,1,yes
+IM,Isle of Man,0.690,1,no
+IN,India,0.230,5,yes
+IQ,Iraq,0.379,4,yes
+IR,"Iran, Islamic Rep.",0.385,4,no
+IS,Iceland,1.178,1,yes
+IT,Italy,0.690,2,yes
+JE,,,1,
+JG,Channel Islands,0.690,2,no
+JM,Jamaica,0.602,2,yes
+JO,Jordan,0.423,3,yes
+JP,Japan,0.649,2,yes
+KE,Kenya,0.337,4,yes
+KG,Kyrgyz Republic,0.334,4,yes
+KH,Cambodia,0.336,4,yes
+KI,Kiribati,0.650,2,no
+KM,Comoros,0.486,3,no
+KN,St. Kitts and Nevis,0.686,2,yes
+KP,"Korea, Dem. People's Rep.",0.579,2,no
+KR,"Korea, Rep.",0.574,2,yes
+KW,Kuwait,0.572,1,yes
+KY,Cayman Islands,1.131,1,yes
+KZ,Kazakhstan,0.332,4,yes
+LA,Lao PDR,0.224,5,yes
+LB,Lebanon,0.375,4,yes
+LC,St. Lucia,0.514,3,yes
+LI,Liechtenstein,0.690,2,no
+LK,Sri Lanka,0.293,5,yes
+LR,Liberia,0.341,4,yes
+LS,Lesotho,0.342,4,no
+LT,Lithuania,0.580,2,yes
+LU,Luxembourg,0.941,1,yes
+LV,Latvia,0.570,2,yes
+LY,Libya,0.391,4,yes
+MA,Morocco,0.421,3,yes
+MC,Monaco,0.690,2,no
+MD,Moldova,0.431,3,yes
+ME,Montenegro,0.417,4,yes
+MF,St. Martin (French part),0.697,1,no
+MG,Madagascar,0.307,4,yes
+MH,Marshall Islands,0.947,1,no
+MK,North Macedonia,0.374,4,yes
+ML,Mali,0.341,4,yes
+MM,Myanmar,0.257,5,yes
+MN,Mongolia,0.342,4,yes
+MO,"Macao SAR, China",0.554,1,yes
+MP,Northern Mariana Islands,0.679,1,no
+MQ,,,1,
+MR,Mauritania,0.306,4,yes
+MS,Montserrat,0.457,1,yes
+MT,Malta,0.663,2,yes
+MU,Mauritius,0.386,4,yes
+MV,Maldives,0.512,3,yes
+MW,Malawi,0.346,4,yes
+MX,Mexico,0.537,3,yes
+MY,Malaysia,0.316,4,yes
+MZ,Mozambique,0.385,4,yes
+NA,Namibia,0.407,4,yes
+NC,New Caledonia,0.679,1,no
+NE,Niger,0.356,4,yes
+NG,Nigeria,0.128,5,yes
+NI,Nicaragua,0.342,4,yes
+NL,Netherlands,0.844,1,yes
+NO,Norway,0.909,1,yes
+NP,Nepal,0.244,5,yes
+NR,Naoero,1.026,4,yes
+NZ,New Zealand,0.856,1,yes
+OM,Oman,0.472,3,yes
+PA,Panama,0.451,3,yes
+PE,Peru,0.515,3,yes
+PF,French Polynesia,0.679,1,no
+PG,Papua New Guinea,0.579,2,yes
+PH,Philippines,0.332,4,yes
+PK,Pakistan,0.241,5,yes
+PL,Poland,0.524,3,yes
+PM,,,1,
+PR,Puerto Rico (US),0.778,1,no
+PS,West Bank and Gaza,0.340,4,no
+PT,Portugal,0.604,2,yes
+PW,Palau,0.847,4,yes
+PY,Paraguay,0.348,4,yes
+QA,Qatar,0.563,1,yes
+RE,,,1,
+RO,Romania,0.443,3,yes
+RS,Serbia,0.450,3,yes
+RU,Russian Federation,0.354,4,yes
+RW,Rwanda,0.270,5,yes
+SA,Saudi Arabia,0.468,3,yes
+SB,Solomon Islands,0.748,2,yes
+SC,Seychelles,0.542,3,yes
+SD,Sudan,0.317,4,no
+SE,Sweden,0.870,1,yes
+SG,Singapore,0.605,1,yes
+SI,Slovenia,0.631,2,yes
+SK,Slovak Republic,0.579,2,yes
+SL,Sierra Leone,0.225,5,yes
+SM,San Marino,0.760,1,no
+SN,Senegal,0.358,4,yes
+SO,"Somalia, Fed. Rep.",0.320,4,no
+SR,Suriname,0.312,4,yes
+SS,South Sudan,0.414,4,no
+ST,Sao Tome and Principe,0.638,2,yes
+SV,El Salvador,0.409,4,yes
+SX,Sint Maarten (Dutch part),0.761,1,no
+SY,Syrian Arab Republic,0.322,4,no
+SZ,Eswatini,0.328,4,yes
+TC,Turks and Caicos Islands,0.987,1,yes
+TD,Chad,0.352,4,yes
+TG,Togo,0.339,4,no
+TH,Thailand,0.307,4,yes
+TJ,Tajikistan,0.276,5,yes
+TL,Timor-Leste,0.279,5,no
+TM,Turkmenistan,0.392,4,yes
+TN,Tunisia,0.306,4,yes
+TO,Tonga,0.750,4,yes
+TR,Turkiye,0.411,4,yes
+TT,Trinidad and Tobago,0.511,3,yes
+TV,Tuvalu,0.894,1,no
+TW,Taiwan,0.679,2,yes
+TZ,Tanzania,0.282,5,yes
+UA,Ukraine,0.310,4,yes
+UG,Uganda,0.353,4,yes
+US,United States,1.000,1,yes
+UY,Uruguay,0.658,2,yes
+UZ,Uzbekistan,0.292,5,yes
+VC,St. Vincent and the Grenadines,0.551,2,yes
+VE,"Venezuela, RB",0.429,3,yes
+VG,British Virgin Islands,0.697,1,yes
+VI,Virgin Islands (U.S.),0.890,1,no
+VN,Viet Nam,0.288,5,yes
+VU,Vanuatu,0.892,4,yes
+WF,,,1,
+WS,Samoa,0.628,2,no
+XK,Kosovo,0.409,4,yes
+YE,"Yemen, Rep.",0.422,3,yes
+YT,,,1,
+ZA,South Africa,0.415,4,yes
+ZM,Zambia,0.299,5,yes
+ZW,Zimbabwe,0.558,2,yes

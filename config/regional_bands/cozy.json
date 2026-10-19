@@ -1,0 +1,505 @@
+{
+  "generated_by": "scripts/regional_bands.rb, from scripts/regional_bands/{tiers-final,stripe}.csv",
+  "countries": {
+    "AD": 2,
+    "AF": 5,
+    "AG": 2,
+    "AL": 3,
+    "AM": 4,
+    "AO": 4,
+    "AR": 3,
+    "AZ": 5,
+    "BA": 4,
+    "BD": 5,
+    "BF": 4,
+    "BG": 3,
+    "BH": 3,
+    "BI": 4,
+    "BJ": 4,
+    "BN": 4,
+    "BO": 4,
+    "BR": 3,
+    "BT": 5,
+    "BW": 4,
+    "BY": 5,
+    "BZ": 3,
+    "CD": 4,
+    "CF": 3,
+    "CG": 4,
+    "CI": 4,
+    "CL": 3,
+    "CM": 4,
+    "CN": 3,
+    "CO": 4,
+    "CR": 2,
+    "CU": 3,
+    "CV": 3,
+    "CY": 2,
+    "CZ": 2,
+    "DJ": 3,
+    "DM": 3,
+    "DO": 4,
+    "DZ": 4,
+    "EC": 3,
+    "EE": 2,
+    "EG": 5,
+    "ER": 4,
+    "ES": 2,
+    "ET": 4,
+    "FJ": 4,
+    "FM": 4,
+    "GA": 4,
+    "GD": 2,
+    "GE": 4,
+    "GH": 4,
+    "GM": 5,
+    "GN": 4,
+    "GQ": 4,
+    "GR": 2,
+    "GT": 3,
+    "GW": 4,
+    "GY": 4,
+    "HN": 3,
+    "HR": 3,
+    "HT": 5,
+    "HU": 3,
+    "ID": 5,
+    "IN": 5,
+    "IQ": 4,
+    "IR": 4,
+    "IT": 2,
+    "JG": 2,
+    "JM": 2,
+    "JO": 3,
+    "JP": 2,
+    "KE": 4,
+    "KG": 4,
+    "KH": 4,
+    "KI": 2,
+    "KM": 3,
+    "KN": 2,
+    "KP": 2,
+    "KR": 2,
+    "KZ": 4,
+    "LA": 5,
+    "LB": 4,
+    "LC": 3,
+    "LI": 2,
+    "LK": 5,
+    "LR": 4,
+    "LS": 4,
+    "LT": 2,
+    "LV": 2,
+    "LY": 4,
+    "MA": 3,
+    "MC": 2,
+    "MD": 3,
+    "ME": 4,
+    "MG": 4,
+    "MK": 4,
+    "ML": 4,
+    "MM": 5,
+    "MN": 4,
+    "MR": 4,
+    "MT": 2,
+    "MU": 4,
+    "MV": 3,
+    "MW": 4,
+    "MX": 3,
+    "MY": 4,
+    "MZ": 4,
+    "NA": 4,
+    "NE": 4,
+    "NG": 5,
+    "NI": 4,
+    "NP": 5,
+    "NR": 4,
+    "OM": 3,
+    "PA": 3,
+    "PE": 3,
+    "PG": 2,
+    "PH": 4,
+    "PK": 5,
+    "PL": 3,
+    "PS": 4,
+    "PT": 2,
+    "PW": 4,
+    "PY": 4,
+    "RO": 3,
+    "RS": 3,
+    "RU": 4,
+    "RW": 5,
+    "SA": 3,
+    "SB": 2,
+    "SC": 3,
+    "SD": 4,
+    "SI": 2,
+    "SK": 2,
+    "SL": 5,
+    "SN": 4,
+    "SO": 4,
+    "SR": 4,
+    "SS": 4,
+    "ST": 2,
+    "SV": 4,
+    "SY": 4,
+    "SZ": 4,
+    "TD": 4,
+    "TG": 4,
+    "TH": 4,
+    "TJ": 5,
+    "TL": 5,
+    "TM": 4,
+    "TN": 4,
+    "TO": 4,
+    "TR": 4,
+    "TT": 3,
+    "TW": 2,
+    "TZ": 5,
+    "UA": 4,
+    "UG": 4,
+    "UY": 2,
+    "UZ": 5,
+    "VC": 2,
+    "VE": 3,
+    "VN": 5,
+    "VU": 4,
+    "WS": 2,
+    "XK": 4,
+    "YE": 3,
+    "ZA": 4,
+    "ZM": 5,
+    "ZW": 2
+  },
+  "currencies": {
+    "AD": "eur",
+    "AR": "ars",
+    "BD": "bdt",
+    "BG": "eur",
+    "BR": "brl",
+    "CL": "clp",
+    "CN": "cny",
+    "CO": "cop",
+    "CY": "eur",
+    "CZ": "czk",
+    "EE": "eur",
+    "EG": "egp",
+    "ES": "eur",
+    "GR": "eur",
+    "HR": "eur",
+    "HU": "huf",
+    "ID": "idr",
+    "IN": "inr",
+    "IT": "eur",
+    "JP": "jpy",
+    "KE": "kes",
+    "KI": "aud",
+    "KR": "krw",
+    "LI": "chf",
+    "LK": "lkr",
+    "LT": "eur",
+    "LV": "eur",
+    "MA": "mad",
+    "MC": "eur",
+    "ME": "eur",
+    "MT": "eur",
+    "MX": "mxn",
+    "MY": "myr",
+    "NG": "ngn",
+    "NR": "aud",
+    "PE": "pen",
+    "PH": "php",
+    "PK": "pkr",
+    "PL": "pln",
+    "PT": "eur",
+    "RO": "ron",
+    "SA": "sar",
+    "SI": "eur",
+    "SK": "eur",
+    "TH": "thb",
+    "TR": "try",
+    "TW": "twd",
+    "UA": "uah",
+    "VN": "vnd",
+    "XK": "eur",
+    "ZA": "zar"
+  },
+  "bands": {
+    "1": {
+      "discount": 0.0,
+      "usd": {
+        "standard": 4900,
+        "forever": 8900,
+        "renewal": 2400,
+        "forever_upgrade": 3900
+      },
+      "currency_options": {}
+    },
+    "2": {
+      "discount": 0.2,
+      "usd": {
+        "standard": 3900,
+        "forever": 6900,
+        "renewal": 1900,
+        "forever_upgrade": 3000
+      },
+      "currency_options": {
+        "aud": {
+          "standard": 5500,
+          "forever": 9900,
+          "renewal": 2900,
+          "forever_upgrade": 4400
+        },
+        "chf": {
+          "standard": 3500,
+          "forever": 5900,
+          "renewal": 1600,
+          "forever_upgrade": 2400
+        },
+        "czk": {
+          "standard": 84900,
+          "forever": 149900,
+          "renewal": 41900,
+          "forever_upgrade": 65000
+        },
+        "eur": {
+          "standard": 3500,
+          "forever": 6500,
+          "renewal": 1700,
+          "forever_upgrade": 3000
+        },
+        "jpy": {
+          "standard": 6200,
+          "forever": 11000,
+          "renewal": 3000,
+          "forever_upgrade": 4800
+        },
+        "krw": {
+          "standard": 52000,
+          "forever": 95000,
+          "renewal": 26000,
+          "forever_upgrade": 43000
+        },
+        "twd": {
+          "standard": 130000,
+          "forever": 230000,
+          "renewal": 62000,
+          "forever_upgrade": 100000
+        }
+      }
+    },
+    "3": {
+      "discount": 0.4,
+      "usd": {
+        "standard": 2900,
+        "forever": 5500,
+        "renewal": 1400,
+        "forever_upgrade": 2600
+      },
+      "currency_options": {
+        "ars": {
+          "standard": 4499900,
+          "forever": 8099900,
+          "renewal": 2199900,
+          "forever_upgrade": 3600000
+        },
+        "brl": {
+          "standard": 14900,
+          "forever": 26900,
+          "renewal": 7500,
+          "forever_upgrade": 12000
+        },
+        "clp": {
+          "standard": 29000,
+          "forever": 52000,
+          "renewal": 14000,
+          "forever_upgrade": 23000
+        },
+        "cny": {
+          "standard": 19900,
+          "forever": 35900,
+          "renewal": 9500,
+          "forever_upgrade": 16000
+        },
+        "eur": {
+          "standard": 2500,
+          "forever": 4900,
+          "renewal": 1300,
+          "forever_upgrade": 2400
+        },
+        "huf": {
+          "standard": 950000,
+          "forever": 1700000,
+          "renewal": 470000,
+          "forever_upgrade": 750000
+        },
+        "mad": {
+          "standard": 28900,
+          "forever": 51900,
+          "renewal": 13900,
+          "forever_upgrade": 23000
+        },
+        "mxn": {
+          "standard": 53900,
+          "forever": 98900,
+          "renewal": 26900,
+          "forever_upgrade": 45000
+        },
+        "pen": {
+          "standard": 9900,
+          "forever": 17900,
+          "renewal": 4900,
+          "forever_upgrade": 8000
+        },
+        "pln": {
+          "standard": 11900,
+          "forever": 20900,
+          "renewal": 5500,
+          "forever_upgrade": 9000
+        },
+        "ron": {
+          "standard": 13900,
+          "forever": 24900,
+          "renewal": 6900,
+          "forever_upgrade": 11000
+        },
+        "sar": {
+          "standard": 10900,
+          "forever": 19900,
+          "renewal": 5500,
+          "forever_upgrade": 9000
+        }
+      }
+    },
+    "4": {
+      "discount": 0.6,
+      "usd": {
+        "standard": 1900,
+        "forever": 3500,
+        "renewal": 900,
+        "forever_upgrade": 1600
+      },
+      "currency_options": {
+        "aud": {
+          "standard": 2900,
+          "forever": 4900,
+          "renewal": 1400,
+          "forever_upgrade": 2000
+        },
+        "cop": {
+          "standard": 6200000,
+          "forever": 11000000,
+          "renewal": 3000000,
+          "forever_upgrade": 4800000
+        },
+        "eur": {
+          "standard": 1700,
+          "forever": 2900,
+          "renewal": 900,
+          "forever_upgrade": 1200
+        },
+        "kes": {
+          "standard": 249900,
+          "forever": 459900,
+          "renewal": 119900,
+          "forever_upgrade": 210000
+        },
+        "myr": {
+          "standard": 7900,
+          "forever": 14900,
+          "renewal": 3900,
+          "forever_upgrade": 7000
+        },
+        "php": {
+          "standard": 119900,
+          "forever": 219900,
+          "renewal": 60900,
+          "forever_upgrade": 100000
+        },
+        "thb": {
+          "standard": 65900,
+          "forever": 119900,
+          "renewal": 31900,
+          "forever_upgrade": 54000
+        },
+        "try": {
+          "standard": 96900,
+          "forever": 179900,
+          "renewal": 47900,
+          "forever_upgrade": 83000
+        },
+        "uah": {
+          "standard": 87900,
+          "forever": 159900,
+          "renewal": 42900,
+          "forever_upgrade": 72000
+        },
+        "zar": {
+          "standard": 31900,
+          "forever": 58900,
+          "renewal": 15900,
+          "forever_upgrade": 27000
+        }
+      }
+    },
+    "5": {
+      "discount": 0.75,
+      "usd": {
+        "standard": 1200,
+        "forever": 2200,
+        "renewal": 600,
+        "forever_upgrade": 1000
+      },
+      "currency_options": {
+        "bdt": {
+          "standard": 149900,
+          "forever": 269900,
+          "renewal": 73900,
+          "forever_upgrade": 120000
+        },
+        "egp": {
+          "standard": 65900,
+          "forever": 119900,
+          "renewal": 31900,
+          "forever_upgrade": 54000
+        },
+        "idr": {
+          "standard": 22000000,
+          "forever": 40000000,
+          "renewal": 11000000,
+          "forever_upgrade": 18000000
+        },
+        "inr": {
+          "standard": 119900,
+          "forever": 209900,
+          "renewal": 56900,
+          "forever_upgrade": 90000
+        },
+        "lkr": {
+          "standard": 409900,
+          "forever": 739900,
+          "renewal": 199900,
+          "forever_upgrade": 330000
+        },
+        "ngn": {
+          "standard": 1599900,
+          "forever": 2999900,
+          "renewal": 799900,
+          "forever_upgrade": 1400000
+        },
+        "pkr": {
+          "standard": 339900,
+          "forever": 619900,
+          "renewal": 169900,
+          "forever_upgrade": 280000
+        },
+        "vnd": {
+          "standard": 320000,
+          "forever": 580000,
+          "renewal": 160000,
+          "forever_upgrade": 260000
+        }
+      }
+    }
+  }
+}
