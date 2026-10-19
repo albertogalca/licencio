@@ -7,6 +7,9 @@
 # Inputs (scripts/regional_bands/), decided 2026-10-19:
 #   tiers-final.csv  iso2 -> band 1..5. A country not listed is band 1.
 #   stripe.csv       Standard and Forever, per currency and band, already rounded.
+#   storefronts.csv  App Store storefront (ISO 3166-1 alpha-3, as StoreKit sends it) -> iso2. The
+#                    alpha-3 codes of the World Bank table the tiers came from, except Kosovo, which
+#                    Apple codes XKS. A storefront not listed is band 1.
 #
 # Outputs:
 #   config/regional_bands/cozy.json        read by Product::RegionalPricing and scripts/stripe_prices.rb
@@ -94,6 +97,11 @@ countries = CSV.read(File.join(INPUTS, "tiers-final.csv"), headers: true)
   .to_h { |row| [ row["iso2"], Integer(row["tier"]) ] }
 abort "a band outside 1..5 in tiers-final.csv" unless countries.values.all? { |b| BANDS.include?(b) }
 
+storefronts = CSV.read(File.join(INPUTS, "storefronts.csv"), headers: true)
+  .to_h { |row| [ row["storefront"], row["iso2"] ] }.sort.to_h
+unknown = storefronts.values - countries.keys
+abort "storefronts.csv names countries tiers-final.csv lacks: #{unknown.join(", ")}" if unknown.any?
+
 stripe_rows = CSV.read(File.join(INPUTS, "stripe.csv"), headers: true)
   .reject { |row| row["currency"] == "USD" }
   .group_by { |row| row["currency"] }
@@ -134,8 +142,9 @@ banded = countries.select { |_, band| band > 1 }.sort.to_h
 pinned = banded.filter_map { |iso, band| [ iso, currency_of[iso] ] if band_currencies[band].include?(currency_of[iso]) }.to_h
 
 licencio = {
-  "generated_by" => "scripts/regional_bands.rb, from scripts/regional_bands/{tiers-final,stripe}.csv",
+  "generated_by" => "scripts/regional_bands.rb, from scripts/regional_bands/{tiers-final,stripe,storefronts}.csv",
   "countries" => banded,
+  "storefronts" => storefronts,
   "currencies" => pinned.transform_values(&:downcase),
   "bands" => BANDS.to_h do |band|
     [ band.to_s, {

@@ -1,4 +1,5 @@
 require "test_helper"
+require_relative "../support/app_store_signing"
 
 # A license keeps the band it was bought at: it renews and upgrades there, whatever country its
 # owner is in by then.
@@ -124,7 +125,53 @@ class LicenseRegionalBandTest < ActiveSupport::TestCase
     end
   end
 
+  test "an App Store claim takes the band of the storefront it was bought in" do
+    with_app_store do
+      { "IND" => [ 5, "IN" ], "ESP" => [ 2, "ES" ], "USA" => [ nil, "US" ], nil => [ nil, nil ],
+        "ZZZ" => [ nil, nil ], "ind" => [ nil, nil ] }.each_with_index do |(storefront, expected), index|
+        license = claim("40000000#{index}", storefront)
+        assert_equal expected, [ license.regional_band, license.payments.sole.regional_country ], storefront.inspect
+      end
+    end
+  end
+
+  test "an App Store license from India renews at the band 5 price" do
+    @product.update!(update_duration_days: 365)
+    license = with_app_store { claim("400000100", "IND") }
+    travel_to license.expires_at - 1.day do
+      session_price = nil
+      with_stripe(create: ->(params, *_) { session_price = params[:line_items].first[:price]; :session }) do
+        assert_equal :session, license.renewal_checkout
+      end
+      assert_equal "price_renewal_5", session_price
+    end
+  end
+
+  test "claiming the same App Store purchase again keeps the band it was first claimed at" do
+    with_app_store do
+      first = claim("400000200", "IND")
+      assert_no_changes -> { [ first.reload.regional_band, first.payments.pluck(:regional_country) ] } do
+        assert_equal first, claim("400000200", "USA")
+      end
+    end
+  end
+
   private
+    def with_app_store
+      signing = AppStoreSigning.new
+      AppStoreTransaction.trusted_root = signing.root
+      @signing = signing
+      yield
+    ensure
+      AppStoreTransaction.trusted_root = nil
+    end
+
+    def claim(original_transaction_id, storefront)
+      payload = AppStoreSigning.transaction("originalTransactionId" => original_transaction_id, "storefront" => storefront)
+      payload.delete("storefront") if storefront.nil?
+      License.claim_from_app_store!(@product, AppStoreTransaction.verify(@signing.jws(payload)), email: "ana@example.com")
+    end
+
     def annual(regional_band:, stripe_price_id: "price_standard_1", max_activations: nil)
       @product.licenses.create!(status: "active", update_policy: "time_limited", max_activations:,
         expires_at: 1.day.ago, regional_band:, stripe_price_id:, customer: customers(:alberto))

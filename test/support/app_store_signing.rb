@@ -18,7 +18,8 @@ class AppStoreSigning
     { "transactionId" => "2000000111", "originalTransactionId" => "2000000111",
       "bundleId" => "studio.cantimplora.cozy", "productId" => "studio.cantimplora.cozy.lifetime",
       "type" => "Non-Consumable", "environment" => "Production",
-      "purchaseDate" => now, "signedDate" => now, "price" => 49990, "currency" => "USD" }.merge(overrides)
+      "purchaseDate" => now, "signedDate" => now, "price" => 49990, "currency" => "USD",
+      "storefront" => "USA", "storefrontId" => "143441" }.merge(overrides)
   end
 
   def jws(payload = self.class.transaction, signing_key: @leaf_key)

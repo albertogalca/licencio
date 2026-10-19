@@ -1,7 +1,7 @@
 # A StoreKit 2 transaction whose signature has been checked. The only way to get one is
 # `verify`, so everything that receives one trusts it without looking again.
 class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_id, :product_id,
-  :bundle_id, :environment, :purchase_date, :revocation_date, :amount_cents, :currency)
+  :bundle_id, :environment, :purchase_date, :revocation_date, :amount_cents, :currency, :storefront)
   Invalid = Class.new(StandardError)
 
   # Apple marks its two signing certificates with these extensions. A chain to the root
@@ -87,7 +87,9 @@ class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_i
           revocation_date: payload["revocationDate"] && at_ms(payload["revocationDate"]),
           # Apple states price in thousandths of the currency unit.
           amount_cents: payload["price"] && payload["price"].to_i / 10,
-          currency: payload["currency"]&.downcase)
+          currency: payload["currency"]&.downcase,
+          # The App Store country the purchase was made in, ISO 3166-1 alpha-3 ("IND").
+          storefront: payload["storefront"].to_s.then { |code| code if code.match?(/\A[A-Z]{3}\z/) })
       end
 
       def at_ms(value) = Time.zone.at(value.to_i / 1000.0)

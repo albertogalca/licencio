@@ -18,6 +18,7 @@ class AppStoreTransactionTest < ActiveSupport::TestCase
     assert_equal "sandbox", transaction.environment
     assert_equal 4999, transaction.amount_cents
     assert_equal "usd", transaction.currency
+    assert_equal "USA", transaction.storefront
     assert_nil transaction.revocation_date
   end
 

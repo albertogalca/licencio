@@ -49,6 +49,9 @@ module Product::RegionalPricing
 
   def band_for(country) = (regional_table.dig("countries", country.to_s) if country) || FULL_BAND
 
+  # The country of an App Store storefront ("IND" is "IN"), or nil for one the table lacks.
+  def storefront_country(storefront) = regional_table.dig("storefronts", storefront.to_s)
+
   # The currency the band's price has an amount for, so checkout charges what the page showed.
   # nil leaves the choice to Stripe.
   def regional_currency(country) = regional_table.dig("currencies", country.to_s)

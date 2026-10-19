@@ -243,13 +243,18 @@ class License < ApplicationRecord
       return claimed.tap { |license| redeliver_claim(license, newsletter:) }
     end
 
+    # The storefront's country picks the band, as the site's country does for a Stripe sale, so
+    # the license renews in the band it was bought in. Band 1 stays nil, as the backfill leaves it.
+    country = product.storefront_country(store_transaction.storefront)
+    band = product.band_for(country)
     customer = Customer.upsert!(email:)
     license = transaction do
       product.issue_license!(customer:, quantity: grant[:seats], stripe_payment_id: nil,
         update_policy: grant[:update_policy], app_store_original_transaction_id: original_transaction_id,
-        app_store_environment: store_transaction.environment).tap do |issued|
+        app_store_environment: store_transaction.environment,
+        regional_band: (band unless band == Product::RegionalPricing::FULL_BAND)).tap do |issued|
         issued.payments.create!(stripe_payment_intent: "app_store:#{original_transaction_id}", kind: "purchase",
-          amount_cents: store_transaction.amount_cents, currency: store_transaction.currency)
+          amount_cents: store_transaction.amount_cents, currency: store_transaction.currency, regional_country: country)
         Purchase.record_app_store!(product, store_transaction, email:, tier: grant[:tier])
       end
     end
