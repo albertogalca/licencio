@@ -111,9 +111,10 @@ class Product < ApplicationRecord
     policy == "time_limited" && update_duration_days ? from + update_duration_days.days : nil
   end
 
+  # `origin` is where a sale that is not Stripe's came from (the App Store columns).
   def issue_license!(customer:, quantity:, stripe_payment_id:, update_policy: nil,
                      price_id: nil, stripe_customer_id: nil, amount_cents: nil, currency: nil,
-                     regional_band: nil, regional_country: nil)
+                     regional_band: nil, regional_country: nil, **origin)
     # Ignore an unrecognized policy from price metadata (falls back to the product's) rather than
     # letting a bad enum string raise ArgumentError and wedge fulfillment on Stripe's retries.
     update_policy = update_policy.presence_in(UPDATE_POLICIES.values)
@@ -121,7 +122,7 @@ class Product < ApplicationRecord
     license = licenses.create!(customer:, status: "active", max_activations: quantity,
       update_policy:, stripe_payment_id:, stripe_price_id: price_id, stripe_customer_id:, regional_band:,
       expires_at: license_expires_at(policy: effective),
-      licensed_version: (current_version if effective == "versioned"))
+      licensed_version: (current_version if effective == "versioned"), **origin)
     license.payments.create!(stripe_payment_intent: stripe_payment_id, kind: "purchase",
       amount_cents:, currency:, regional_country:) if stripe_payment_id
     license

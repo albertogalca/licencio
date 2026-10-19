@@ -8,6 +8,8 @@ class License < ApplicationRecord
   # "expired" (hourly expire_overdue! sweep), "inactive" (polar import: disabled keys).
   enum :status, { active: "active", inactive: "inactive", expired: "expired", refunded: "refunded" }
   enum :migration_source, { lemon_squeezy: "lemon_squeezy", polar: "polar" }, prefix: true
+  # Sandbox covers App Review and TestFlight, so those licenses can be found and cleaned up.
+  enum :app_store_environment, AppStoreTransaction::ENVIRONMENTS.values.index_by(&:itself), prefix: :app_store
 
   # sanitize_sql_like escapes % and _ so they match literally — an admin searching for an
   # underscore in a license key wants that character, not a wildcard, and a lone "%" would
@@ -227,6 +229,36 @@ class License < ApplicationRecord
       license.update_column(:regional_band, band) if country && !dry_run
     end
     counts
+  end
+
+  # An iPhone purchase claimed for the desktop: the same license the Stripe Standard price
+  # mints, recorded against its App Store transaction. Claiming a transaction again mints
+  # nothing and re-sends the key to whoever claimed it first, so the caller learns nothing
+  # about that address and a second claimant gets nothing.
+  def self.claim_from_app_store!(product, store_transaction, email:)
+    grant = store_transaction.grant_for(product) or raise AppStoreTransaction::Invalid, "grant"
+    original_transaction_id = store_transaction.original_transaction_id
+    if (claimed = product.licenses.find_by(app_store_original_transaction_id: original_transaction_id))
+      return claimed.tap { |license| license.redeliver_email_later("purchase") }
+    end
+
+    customer = Customer.upsert!(email:)
+    license = transaction do
+      product.issue_license!(customer:, quantity: grant[:seats], stripe_payment_id: nil,
+        update_policy: grant[:update_policy], app_store_original_transaction_id: original_transaction_id,
+        app_store_environment: store_transaction.environment).tap do |issued|
+        issued.payments.create!(stripe_payment_intent: "app_store:#{original_transaction_id}", kind: "purchase",
+          amount_cents: store_transaction.amount_cents, currency: store_transaction.currency)
+        Purchase.record_app_store!(product, store_transaction, email:, tier: grant[:tier])
+      end
+    end
+    customer.send_purchase_email_later(license:, amount: store_transaction.amount_cents, currency: store_transaction.currency)
+    customer.subscribe_to_loops_later(product:)
+    license
+  rescue ActiveRecord::RecordNotUnique
+    # A concurrent claim of the same transaction won the race; answer as a repeat claim.
+    product.licenses.find_by!(app_store_original_transaction_id: original_transaction_id)
+      .tap { |license| license.redeliver_email_later("purchase") }
   end
 
   # Look the license up through its payment history (not licenses.stripe_payment_id, which a

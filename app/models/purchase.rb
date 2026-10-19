@@ -64,6 +64,18 @@ class Purchase < ApplicationRecord
     end
   end
 
+  # The unlock-by-email half of an App Store claim, alongside the license as with Stripe.
+  def self.record_app_store!(product, transaction, email:, tier:)
+    purchased_at = Time.current
+    create_or_find_by!(provider: "app_store", provider_order_id: transaction.original_transaction_id) do |purchase|
+      purchase.product = product
+      purchase.email = email
+      purchase.tier = tier
+      purchase.purchased_at = purchased_at
+      purchase.updates_until = (purchased_at + 1.year).to_date if tier == "standard"
+    end
+  end
+
   # Idempotent: `live` means a redelivered charge.refunded finds nothing to do.
   def self.refund!(product:, provider_order_id:)
     live.find_by(product:, provider_order_id:)&.update!(refunded_at: Time.current)

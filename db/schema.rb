@@ -43,6 +43,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_120000) do
   end
 
   create_table "licenses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "app_store_environment"
+    t.string "app_store_original_transaction_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.uuid "customer_id"
@@ -63,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_120000) do
     t.boolean "trial", default: false, null: false
     t.string "update_policy"
     t.datetime "updated_at", null: false
+    t.index ["app_store_original_transaction_id"], name: "index_licenses_on_app_store_original_transaction_id", unique: true, where: "(app_store_original_transaction_id IS NOT NULL)"
     t.index ["customer_id"], name: "index_licenses_on_customer_id"
     t.index ["license_key"], name: "index_licenses_on_license_key", unique: true
     t.index ["product_id", "machine_id"], name: "index_licenses_on_product_and_machine_id", unique: true, where: "(machine_id IS NOT NULL)"
