@@ -37,6 +37,9 @@ Rails.application.routes.draw do
     match "unlock/request" => "unlocks#preflight", via: :options
     post  "unlock/verify"  => "unlocks#verify"
     match "unlock/verify"  => "unlocks#preflight", via: :options
+    # An iPhone purchase, claimed for the desktop license it includes.
+    post  "iap/claim" => "iap_claims#create"
+    match "iap/claim" => "iap_claims#preflight", via: :options
     # Shared-secret (X-Admin-Token), for answering "what did this address buy?" by hand.
     post  "support/lookup" => "support#lookup"
   end

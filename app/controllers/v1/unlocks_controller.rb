@@ -15,10 +15,6 @@ class V1::UnlocksController < Api::PublicController
   MAX_CODES_PER_WINDOW = 3
   CODE_REQUEST_WINDOW = 15.minutes
 
-  # Deliberately weak — this only has to catch a typo or a bot's garbage, never to judge
-  # whether an inbox exists. A wrong-but-plausible address simply gets no email.
-  EMAIL_SHAPE = /\A[^@\s]+@[^@\s]+\.[^@\s]+\z/
-
   # Sends mail to a caller-supplied address, so it's throttled per-IP too. The only place
   # this endpoint looks at an IP at all — nothing about the caller is logged or stored.
   #

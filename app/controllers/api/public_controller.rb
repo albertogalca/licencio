@@ -43,8 +43,17 @@ class Api::PublicController < ActionController::API
                           "your purchase receipt if that isn't right." ],
     purchase_not_found: [ :not_found,
                           "I can't find a Cozy license for that email address. If you bought with a " \
-                          "different one, try that address — or reply to your receipt and I'll sort it out." ]
+                          "different one, try that address — or reply to your receipt and I'll sort it out." ],
+    # In-app purchase claim. Covers a forged or garbled transaction as well as a real one
+    # this server will not honour (another product, the free trial, refunded by Apple).
+    transaction_invalid: [ :unprocessable_entity,
+                          "The App Store didn't confirm this purchase, so I can't send a license for it. " \
+                          "Tap Restore Purchases and try again." ]
   }.freeze
+
+  # Deliberately weak — this only has to catch a typo or a bot's garbage, never to judge
+  # whether an inbox exists. A wrong-but-plausible address simply gets no email.
+  EMAIL_SHAPE = /\A[^@\s]+@[^@\s]+\.[^@\s]+\z/
 
   before_action { Current.ip_address = request.remote_ip }
 
