@@ -1,87 +1,88 @@
-# Creates Cozy's Stripe prices and the education promotion code.
+# Creates Cozy's Stripe prices, one per SKU and regional band, and the education promotion code.
 #
-# Dry run (prints what it would create, touches nothing):
+# Plan only, no Stripe call at all (prints the 20 prices from config/regional_bands/cozy.json):
+#   ruby scripts/stripe_prices.rb --offline
+#
+# Dry run (reads Stripe, prints what it would create, touches nothing):
 #   bin/rails runner scripts/stripe_prices.rb
 #
-# For real:
+# For real, in test mode (the product's key is sk_test_...):
 #   bin/rails runner scripts/stripe_prices.rb -- --apply
 #
-# Standalone (no Rails — reads STRIPE_SECRET_KEY and STRIPE_PRODUCT_ID from the env):
+# For real, on the live account. Refused without --live, so a test run cannot become a live one
+# by accident:
+#   bin/rails runner scripts/stripe_prices.rb -- --apply --live
+#
+# Then, after `rake licenses:backfill_regional_bands[cozy] APPLY=1`, move the product's renewal
+# and upgrade columns to the band 1 prices:
+#   bin/rails runner scripts/stripe_prices.rb -- --apply --live --move-columns
+#
+# Standalone (no Rails, reads STRIPE_SECRET_KEY and STRIPE_PRODUCT_ID from the env):
 #   gem install stripe && ruby scripts/stripe_prices.rb --apply
 #
 # Under `rails runner` it reads the product's own stripe_secret_key out of the database
-# (Stripe is per-Product here — there is no global key).
+# (Stripe is per-Product here, there is no global key).
 #
 # Idempotent: every price carries a lookup_key, and one that already exists is left alone.
 # Safe to re-run after a partial failure.
 
 require "stripe" unless defined?(Stripe)
 require "json"
-require "net/http"
 
 APPLY = ARGV.include?("--apply")
+OFFLINE = ARGV.include?("--offline")
 SLUG  = ENV.fetch("PRODUCT_SLUG", "cozy")
 
-# ── Purchasing-power-parity tiers ────────────────────────────────────────────────
-# EDIT THESE. They're a judgement call, not a formula.
+# ── Regional bands ───────────────────────────────────────────────────────────────
+# One price per (SKU, band), 4 x 5. The amounts come from config/regional_bands/cozy.json, which
+# scripts/regional_bands.rb generates from the approved country table. Never edit an amount
+# here: change the CSV, run the generator, run this.
 #
-# Three tiers by income, applied to EVERY price as a percentage of its USD amount, so a
-# repricing carries the discount with it instead of stranding a hand-set number from the
-# era before. Tier 1 (US, UK, Canada, Australia, Japan, Western Europe) pays full price and
-# has no entry here.
+# This replaced the per-currency PPP_TIERS on 2026-10-19. A currency option is per currency, but
+# a band is per country, so Spain and Germany now pay in euros from two different prices. The
+# band 1 prices are new too: the old ones carry the tier 2 and 3 currency options, and would hand
+# the old discount to any checkout that arrives without a band.
 #
-# PPP rides as `currency_options` on each price — per-currency amounts Stripe Checkout picks
-# from the buyer's location. One price ID, no separate discounted link to leak. The mapping is
-# per CURRENCY, not per country: Spain and Italy belong in tier 2 by income but share EUR with
-# Germany and France, so they stay at full price. Everything below has a currency of its own.
-#
-# Currencies not listed fall through to Stripe Adaptive Pricing, which is a plain FX conversion
-# of the USD amount, no discount.
-PPP_TIERS = {
-  # Mid income → 65% of full price
-  2 => { pct: 0.65, currencies: %w[BRL MXN TRY PLN RON ARS CLP MYR THB ZAR PEN] },
-  # Low income → 35% of full price. China sits here, not in tier 2, since 2026-09-24: a
-  # student wrote that ¥126, the tier 2 price after the education discount, was four days
-  # of food. Market FX overstates what a yuan buys, so income alone put it a tier too high.
-  3 => { pct: 0.35, currencies: %w[INR IDR PHP VND EGP PKR NGN BDT UAH MAD KES LKR COP CNY] }
+# `sku` and `band` are what licencio reads (Product::RegionalPricing): checkout swaps a storefront
+# price for the same SKU in the visitor's band, and a license renews at its own band. `tier`,
+# `update_policy`, `seats` and `renewal` mean what they always meant, so fulfilment is unchanged.
+TABLE = JSON.parse(File.read(File.expand_path("../config/regional_bands/#{SLUG}.json", __dir__)))
+
+SKUS = {
+  "standard" => { name: "Cozy Standard",
+    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } },
+  "forever" => { name: "Cozy Forever",
+    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } },
+  # A renewal session writes a fresh `purchases` row through `tier`, which is how a renewal
+  # extends the email-unlock window.
+  "renewal" => { name: "Another year of updates",
+    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited", "renewal" => "1" } },
+  # `renewal` keeps it owner-only, `update_policy` flips the license to lifetime on fulfilment.
+  "forever_upgrade" => { name: "Cozy Forever upgrade (from Standard)",
+    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited", "renewal" => "1" } }
 }.freeze
 
-# Stripe treats these as zero-decimal: unit_amount is whole currency units.
-ZERO_DECIMAL = %w[CLP VND].freeze
+BAND_PRICES = TABLE.fetch("bands").flat_map do |band, spec|
+  SKUS.map do |sku, config|
+    off = (spec.fetch("discount") * 100).round
+    { lookup_key: "#{SLUG}_#{sku}_band#{band}",
+      nickname: "#{config[:name]}, band #{band}#{" (#{off}% off)" if off.positive?}",
+      amount: spec.fetch("usd").fetch(sku),
+      currency_options: spec.fetch("currency_options").transform_values { |amounts| amounts.fetch(sku) },
+      metadata: config[:metadata].merge("sku" => sku, "band" => band) }
+  end
+end.freeze
 
-# Round to two significant figures, so a converted price reads as a decision rather than as
-# arithmetic: 1,600 rupees, not 1,588.
-def round_price(x)
-  return 0 if x <= 0
-  mag = 10**(Math.log10(x).floor - 1)
-  (x / mag).round * mag
+def usd(cents) = format("$%.2f", cents / 100.0)
+
+if OFFLINE
+  puts "PLAN, no Stripe call. #{BAND_PRICES.size} prices:"
+  BAND_PRICES.each do |spec|
+    options = spec[:currency_options].map { |cur, amount| "#{cur} #{amount}" }.join(", ")
+    puts "  #{spec[:lookup_key].ljust(30)} #{usd(spec[:amount]).rjust(7)}  #{options.empty? ? "USD only" : options}"
+  end
+  exit
 end
-
-# `seats` is required by Product#create_checkout_session, and Cozy's whole promise is
-# unlimited devices — so every price says so explicitly rather than relying on a default.
-# `tier` is what opts a sale into the unlock flow (Purchase.record_stripe!); `update_policy`
-# is what the license-key system reads to decide lifetime vs. a year of updates.
-PRICES = [
-  { lookup_key: "cozy_standard_usd", nickname: "Cozy — one year of updates", amount: 4900,
-    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited" } },
-  { lookup_key: "cozy_forever_usd", nickname: "Cozy Forever — every update, always", amount: 8900,
-    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited" } },
-  # Half of $49, floored — the same rule that made $35's renew price $17. Becomes
-  # `renewal_stripe_price_id` on the cozy product at launch. The `tier` metadata means a
-  # renewal session also writes a fresh `purchases` row, which is how a renewal extends
-  # the email-unlock window: the unlock always reads the newest purchase for the address.
-  { lookup_key: "cozy_renewal_usd", nickname: "Another year of updates (renew, $49 era)", amount: 2400,
-    metadata: { "tier" => "standard", "update_policy" => "time_limited", "seats" => "unlimited",
-                "renewal" => "1" } },
-  # Moving a licence already sold to the lifetime tier. Goes on the cozy product's
-  # `lifetime_stripe_price_id`, which is what makes the portal offer it. $39 because
-  # 4900 + 3900 = 8800: any lower and buying standard then upgrading undercuts
-  # cozy_forever_usd on its own pricing card. `renewal` keeps it owner-only even before
-  # the column is set, and `update_policy` is what flips the licence on fulfillment.
-  { lookup_key: "cozy_forever_upgrade_usd", nickname: "Cozy Forever upgrade (from Standard)", amount: 3900,
-    metadata: { "tier" => "forever", "update_policy" => "lifetime", "seats" => "unlimited",
-                "renewal" => "1" } }
-].freeze
 
 # Renewal SKUs that predate our lookup keys, so they are keyed by price id, each with the
 # metadata it needs. `renewal_stripe_price_id` only ever names ONE price, so the moment it moves
@@ -127,35 +128,47 @@ else
 end
 abort "#{SLUG} has no stripe_secret_key" if secret_key.to_s.empty?
 abort "#{SLUG} has no stripe_product_id" if stripe_product_id.to_s.empty?
+if APPLY && secret_key.start_with?("sk_live_", "rk_live_") && !ARGV.include?("--live")
+  abort "#{SLUG} holds a LIVE key. Pass --live as well to write to the live account."
+end
 
 OPTS = { api_key: secret_key }.freeze
 
 def report(action, detail) = puts("#{APPLY ? action : "would #{action}"}  #{detail}")
 
-puts APPLY ? "APPLYING to #{stripe_product_id}" : "DRY RUN — nothing will be created. Pass --apply to execute."
+puts APPLY ? "APPLYING to #{stripe_product_id} (#{secret_key[0, 8]}...)" : "DRY RUN, nothing will be created. Pass --apply to execute."
 puts
 
-existing = Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100 }, OPTS)
-  .data.index_by(&:lookup_key)
+existing = {}
+Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100, expand: [ "data.currency_options" ] }, OPTS)
+  .auto_paging_each { |price| existing[price.lookup_key] = price if price.lookup_key }
 
-PRICES.each do |spec|
-  if existing[spec[:lookup_key]]
-    report("keep", "#{spec[:lookup_key]} (#{existing[spec[:lookup_key]].id}) already exists")
+BAND_PRICES.each do |spec|
+  if (price = existing[spec[:lookup_key]])
+    # A currency option is write-once, so drift is printed, never fixed in place: a new amount is
+    # a new price (create it, transfer_lookup_key, archive the old one).
+    have = (price.currency_options&.to_h || {}).transform_keys(&:to_s).except("usd")
+      .transform_values { |option| option[:unit_amount] || option["unit_amount"] }
+    drift = spec[:currency_options].reject { |cur, amount| have[cur] == amount }
+    warn "  ! #{spec[:lookup_key]} differs from the table: #{drift}. Needs a NEW price." if drift.any? || price.unit_amount != spec[:amount]
+    report("keep", "#{spec[:lookup_key]} (#{price.id}) already exists")
     next
   end
-  report("create price", "#{spec[:lookup_key]} $#{"%.2f" % (spec[:amount] / 100.0)} #{spec[:metadata]}")
+
+  report("create price", "#{spec[:lookup_key]} #{usd(spec[:amount])} + #{spec[:currency_options].size} currencies #{spec[:metadata]}")
   next unless APPLY
 
   price = Stripe::Price.create({ product: stripe_product_id, currency: "usd",
     unit_amount: spec[:amount], nickname: spec[:nickname], lookup_key: spec[:lookup_key],
+    currency_options: spec[:currency_options].transform_values { |amount| { unit_amount: amount } },
     metadata: spec[:metadata] }, OPTS)
-  puts "  → #{price.id}"
+  existing[spec[:lookup_key]] = price
+  puts "  -> #{price.id}"
 end
 
-# Metadata on prices that already exist. Only ever ADDS missing keys — an existing value is
-# left alone, so re-running can't rewrite a price's meaning under a license already sold.
-(PRICES.filter_map { |spec| [ existing[spec[:lookup_key]]&.id, spec[:metadata] ] if existing[spec[:lookup_key]] } +
-  LEGACY_RENEWAL_PRICES.to_a +
+# Metadata on prices that already exist. Only ever ADDS missing keys: an existing value is left
+# alone, so re-running can't rewrite a price's meaning under a license already sold.
+(LEGACY_RENEWAL_PRICES.to_a +
   GRANDFATHERED_RENEWALS.map { |bought, renews| [ bought, { "renewal_price" => renews } ] }).each do |price_id, wanted|
   current = Stripe::Price.retrieve(price_id, OPTS).metadata.to_h.transform_keys(&:to_s)
   missing = wanted.reject { |k, _| current.key?(k) }
@@ -165,55 +178,16 @@ end
   Stripe::Price.update(price_id, { metadata: missing }, OPTS) if APPLY
 end
 
-puts
-
-# ── PPP currency_options on every price ─────────────────────────────────────────
-#
-# A currency_options entry is WRITE-ONCE on Stripe: adding a currency that is missing is
-# fine, changing the amount of one already there is refused ("attempting to update an
-# immutable field"). So this only ever adds, and prints the drift it cannot fix. Repricing
-# an existing band means creating a NEW price with the right amounts, moving the lookup key
-# to it (transfer_lookup_key), archiving the old one, and updating src/config/pricing.ts in
-# cozy-marketing — which is exactly what happened on 2026-09-22 when the $35-era bands were
-# still riding on the $49 standard price, and on 2026-09-24 when CNY moved to tier 3 and all
-# four prices were minted again (the renewal and upgrade ones also move the product's
-# renewal_stripe_price_id and lifetime_stripe_price_id columns).
-all_prices = Stripe::Price.list({ product: stripe_product_id, active: true, limit: 100 }, OPTS).data
-fx = JSON.parse(Net::HTTP.get(URI("https://open.er-api.com/v6/latest/USD"))).fetch("rates")
-
-all_prices.each do |price|
-  next if price.unit_amount.nil?
-
-  usd = price.unit_amount / 100.0
-  label = price.lookup_key || price.id
-  full = Stripe::Price.retrieve({ id: price.id, expand: [ "currency_options" ] }, OPTS)
-  present = (full.currency_options&.to_h || {}).transform_keys { |k| k.to_s.upcase }
-  additions = {}
-
-  PPP_TIERS.each do |tier, config|
-    config[:currencies].each do |cur|
-      rate = fx[cur] or (warn "  ! no FX rate for #{cur}, skipped"; next)
-      local = round_price(usd * config[:pct] * rate)
-      minor = ZERO_DECIMAL.include?(cur) ? local : local * 100
-
-      if (have = present[cur])
-        next if have.unit_amount == minor
-        warn format("  ! %s %s is %s, tier %d wants %s — needs a NEW price, Stripe refuses the edit",
-          label, cur, have.unit_amount, tier, minor)
-        next
-      end
-
-      additions[cur.downcase] = { unit_amount: minor }
-      report("add currency", format("%s %s %s ≈ $%.2f (tier %d, %d%% of $%.2f)",
-        label, cur, local, local / rate.to_f, tier, config[:pct] * 100, usd))
-    end
-  end
-
-  if additions.empty?
-    report("keep", "currency_options already complete on #{label}")
-  elsif APPLY
-    Stripe::Price.update(price.id, { currency_options: additions }, OPTS)
-    puts "  → #{additions.size} currencies added to #{price.id}"
+# The product's columns name band 1's renewal and upgrade. Moved only on request, and only after
+# the backfill: until a license has its band, the column is what it renews at, and the old
+# column price still carries the old per-currency discount.
+if ARGV.include?("--move-columns")
+  abort "--move-columns needs rails runner" unless defined?(Rails)
+  { renewal_stripe_price_id: "#{SLUG}_renewal_band1", lifetime_stripe_price_id: "#{SLUG}_forever_upgrade_band1" }.each do |column, key|
+    target = existing[key]&.id or abort("no #{key} price yet: run with --apply first")
+    next if product.public_send(column) == target
+    report("move column", "#{column} #{product.public_send(column).inspect} -> #{target}")
+    product.update!(column => target) if APPLY
   end
 end
 
