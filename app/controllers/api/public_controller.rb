@@ -48,7 +48,14 @@ class Api::PublicController < ActionController::API
     # this server will not honour (another product, the free trial, refunded by Apple).
     transaction_invalid: [ :unprocessable_entity,
                           "The App Store didn't confirm this purchase, so I can't send a license for it. " \
-                          "Tap Restore Purchases and try again." ]
+                          "Tap Restore Purchases and try again." ],
+    # Gift cards. Read by the recipient, holding the card, so each says what to do next.
+    gift_not_found:     [ :not_found,
+                          "I can't find a gift with that code. Check it against the card and try again." ],
+    gift_redeemed:      [ :conflict,
+                          "This gift has already been opened. If that wasn't you, write to me and I'll sort it out." ],
+    gift_refunded:      [ :gone,
+                          "This gift was refunded, so there's nothing left to open." ]
   }.freeze
 
   # Deliberately weak — this only has to catch a typo or a bot's garbage, never to judge

@@ -3,9 +3,9 @@
     that says whether they're filled in. A section holding a validation error is forced open —
     otherwise a rejected save hides the field that caused it. %>
 <% sections = {
-     stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret region_token_secret checkout_success_url checkout_cancel_url],
+     stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret region_token_secret checkout_success_url checkout_cancel_url gift_card_url],
      email:    %w[sender_email loops_transactional_id purchase_transactional_id refund_transactional_id
-                  expiry_reminder_transactional_id checkout_recovery_transactional_id loops_api_key
+                  expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id loops_api_key
                   loops_mailing_list_id],
      branding: %w[logo_url accent_color background_color]
    } %>
@@ -153,6 +153,11 @@
         <%= form.label :checkout_cancel_url, "Checkout cancel URL", class: "field-label" %>
         <%= form.url_field :checkout_cancel_url, class: "field-input" %>
       </div>
+      <div>
+        <%= form.label :gift_card_url, "Gift card URL", class: "field-label" %>
+        <%= form.url_field :gift_card_url, class: "field-input" %>
+        <p class="field-hint">The storefront page that shows a gift card and redeems it. Leave blank to sell no gifts.</p>
+      </div>
     </div>
   </details>
 
@@ -190,6 +195,11 @@
         <%= form.label :checkout_recovery_transactional_id, "Checkout recovery transactional ID", class: "field-label" %>
         <%= form.text_field :checkout_recovery_transactional_id, class: "field-input" %>
         <p class="field-hint">Sent once to a buyer who left checkout and agreed to promotional email. Leave blank to turn it off. Accept the promotions terms in the Stripe dashboard first.</p>
+      </div>
+      <div>
+        <%= form.label :gift_transactional_id, "Gift card transactional ID", class: "field-label" %>
+        <%= form.text_field :gift_transactional_id, class: "field-input" %>
+        <p class="field-hint">Sent to the buyer of a gift: the card link (card_url), the code (gift_code), and who it is for (to_name).</p>
       </div>
       <div>
         <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>

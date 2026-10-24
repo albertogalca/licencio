@@ -52,22 +52,29 @@ class Purchase < ApplicationRecord
     tag = session.metadata["licencio_product_id"].presence
     return if tag && tag.to_s != product.id.to_s
 
-    purchased_at = Time.current
     # Stripe delivers at least once; the unique index turns a redelivery into a find.
-    create_or_find_by!(provider: "stripe",
-                       provider_order_id: session.payment_intent || session.id) do |purchase|
-      purchase.product = product
-      purchase.email = session.customer_details.email
-      purchase.tier = tier
-      purchase.purchased_at = purchased_at
-      purchase.updates_until = (purchased_at + 1.year).to_date if tier == "standard"
-    end
+    record!(product:, provider: "stripe", provider_order_id: session.payment_intent || session.id,
+      email: session.customer_details.email, tier:)
+  end
+
+  # The unlock-by-email half of a redeemed gift, under the gift's payment intent, so a refund
+  # finds it exactly as it finds a purchase bought for oneself.
+  def self.record_gift!(gift, email:)
+    return unless gift.tier.in?(tiers.values)
+    record!(product: gift.product, provider: "stripe", provider_order_id: gift.stripe_payment_intent,
+      email:, tier: gift.tier)
   end
 
   # The unlock-by-email half of an App Store claim, alongside the license as with Stripe.
   def self.record_app_store!(product, transaction, email:, tier:)
+    record!(product:, provider: "app_store", provider_order_id: transaction.original_transaction_id,
+      email:, tier:)
+  end
+
+  # Standard comes with a year of updates from the day it was bought; forever has no end.
+  def self.record!(product:, provider:, provider_order_id:, email:, tier:)
     purchased_at = Time.current
-    create_or_find_by!(provider: "app_store", provider_order_id: transaction.original_transaction_id) do |purchase|
+    create_or_find_by!(provider:, provider_order_id:) do |purchase|
       purchase.product = product
       purchase.email = email
       purchase.tier = tier
@@ -75,6 +82,7 @@ class Purchase < ApplicationRecord
       purchase.updates_until = (purchased_at + 1.year).to_date if tier == "standard"
     end
   end
+  private_class_method :record!
 
   # Idempotent: `live` means a redelivered charge.refunded finds nothing to do.
   def self.refund!(product:, provider_order_id:)

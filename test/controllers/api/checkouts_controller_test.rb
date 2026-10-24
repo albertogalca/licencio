@@ -152,6 +152,33 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_not calls.last.key?(:discounts)
   end
 
+  test "a gift checkout asks for the card and comes back to it" do
+    @product.update!(gift_card_url: "https://picmal.example/gift/card/")
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+        post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", gift: "1" }
+      end
+    end
+
+    assert_response :ok
+    assert_equal "1", captured[:metadata][:gift]
+    assert_equal %w[to from note], captured[:custom_fields].map { _1[:key] }
+    assert_equal "https://picmal.example/gift/card/?session={CHECKOUT_SESSION_ID}", captured[:success_url]
+  end
+
+  test "a renewal cannot be bought as a gift" do
+    @product.update!(gift_card_url: "https://picmal.example/gift/card/")
+    price = fake_price("price_renew", @product.stripe_product_id, { "seats" => "5", "renewal" => "1" })
+    Stripe::Price.stub(:retrieve, price) do
+      Stripe::Checkout::Session.stub(:create, ->(*) { flunk "no session for a gifted renewal" }) do
+        post "/api/checkout", params: { product_slug: @product.slug, price_id: "price_renew", gift: "1" }
+      end
+    end
+    assert_response :service_unavailable
+  end
+
   test "a renewal takes no code, from the link or the coupon field" do
     license = @product.licenses.create!(status: "active", max_activations: 5, expires_at: 1.day.ago)
     price = fake_price("price_renew", @product.stripe_product_id, { "seats" => "5", "renewal" => "1" })

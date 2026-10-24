@@ -40,6 +40,12 @@ Rails.application.routes.draw do
     # An iPhone purchase, claimed for the desktop license it includes.
     post  "iap/claim" => "iap_claims#create"
     match "iap/claim" => "iap_claims#preflight", via: :options
+    # A gift card: the code on it is the credential. The card page on the storefront reads it,
+    # finds it again from the checkout it came from, and redeems it for an address.
+    get   "gifts/checkout/:session_id" => "gifts#from_checkout"
+    get   "gifts/:code"               => "gifts#show"
+    post  "gifts/:code/redeem"        => "gifts#redeem"
+    match "gifts/*path"               => "gifts#preflight", via: :options
     # Shared-secret (X-Admin-Token), for answering "what did this address buy?" by hand.
     post  "support/lookup" => "support#lookup"
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_130000) do
     t.string "name"
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_customers_on_email", unique: true
+  end
+
+  create_table "gifts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "amount_cents"
+    t.string "buyer_email", null: false
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.datetime "emailed_at"
+    t.string "from_name"
+    t.uuid "license_id"
+    t.string "note"
+    t.string "price_id"
+    t.uuid "product_id", null: false
+    t.integer "quantity"
+    t.datetime "redeemed_at"
+    t.datetime "refunded_at"
+    t.integer "regional_band"
+    t.string "regional_country"
+    t.string "stripe_payment_intent", null: false
+    t.string "stripe_session_id", null: false
+    t.string "tier"
+    t.string "to_name"
+    t.string "update_policy"
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_gifts_on_code", unique: true
+    t.index ["license_id"], name: "index_gifts_on_license_id"
+    t.index ["product_id"], name: "index_gifts_on_product_id"
+    t.index ["stripe_payment_intent"], name: "index_gifts_on_stripe_payment_intent", unique: true
+    t.index ["stripe_session_id"], name: "index_gifts_on_stripe_session_id", unique: true
   end
 
   create_table "licenses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -142,6 +172,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_130000) do
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
+    t.string "gift_card_url"
+    t.string "gift_transactional_id"
     t.string "issuance_api_key"
     t.string "license_prefix", null: false
     t.string "lifetime_stripe_price_id"
@@ -334,6 +366,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_130000) do
   end
 
   add_foreign_key "activations", "licenses"
+  add_foreign_key "gifts", "licenses"
+  add_foreign_key "gifts", "products"
   add_foreign_key "licenses", "customers"
   add_foreign_key "licenses", "products"
   add_foreign_key "login_codes", "products"

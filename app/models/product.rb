@@ -27,6 +27,7 @@ class Product < ApplicationRecord
   has_many :activations, through: :licenses
   has_many :customers, through: :licenses
   has_many :purchases, dependent: :restrict_with_error
+  has_many :gifts, dependent: :restrict_with_error
   has_many :login_codes, dependent: :delete_all
 
   encrypts :loops_api_key
@@ -58,7 +59,7 @@ class Product < ApplicationRecord
   validates :current_version, presence: true, if: -> { update_policy == "versioned" }
   validates :accent_color, :background_color, format: { with: HEX_COLOR,
     message: "must be a hex color, like #2563eb" }, allow_blank: true
-  validates :logo_url, format: { with: HTTP_URL,
+  validates :logo_url, :gift_card_url, format: { with: HTTP_URL,
     message: "must start with http:// or https://" }, allow_blank: true
   # A Stripe-selling product must carry its full credential set, so it can't validate yet
   # blow up at checkout/webhook. Blank secrets on edit are dropped by the controller, so an
@@ -297,8 +298,20 @@ class Product < ApplicationRecord
       { label: "Somewhere else",       value: "other" } ] }
   }.freeze
 
+  # A gift checkout asks for what goes on the card instead. Stripe allows three custom fields,
+  # so the source question gives way: the buyer of a present is rarely the one who found us
+  # for themselves anyway. Labels are capped at 50 characters, text at 255.
+  GIFT_FIELDS = [
+    { key: "to", type: "text", optional: true, label: { type: "custom", custom: "Who is it for? (for the card)" },
+      text: { maximum_length: Gift::TEXT_LIMITS[:to_name] } },
+    { key: "from", type: "text", optional: true, label: { type: "custom", custom: "Who is it from? (for the card)" },
+      text: { maximum_length: Gift::TEXT_LIMITS[:from_name] } },
+    { key: "note", type: "text", optional: true, label: { type: "custom", custom: "A note for the card" },
+      text: { maximum_length: Gift::TEXT_LIMITS[:note] } }
+  ].freeze
+
   def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
-      client_reference_id: nil, affonso_referral: nil, promo: nil, region: nil)
+      client_reference_id: nil, affonso_referral: nil, promo: nil, region: nil, gift: false)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -347,6 +360,11 @@ class Product < ApplicationRecord
     # that, because the email is blank whenever the caller did not prefill one and Stripe has
     # not collected it yet. The price is known now and is already validated.
     owner_only_price = owner_only_price?(price)
+    # A renewal or an upgrade belongs to a license somebody already holds; there is nothing
+    # there to give. And without a card page the code would have nowhere to go.
+    if gift && (owner_only_price || gift_card_url.blank?)
+      raise CheckoutNotConfigured, "#{slug} cannot sell price #{price.id} as a gift"
+    end
     # Another year of updates stays at its own price through every offer (decided 2026-10-19,
     # for Cozy's Black Friday): it takes no code from the link and shows no coupon field. The
     # lifetime upgrade is a purchase like any other and keeps both.
@@ -363,7 +381,7 @@ class Product < ApplicationRecord
       # Only first-time buyers get asked. A renewal or a seat upgrade is an existing owner
       # who answered this once already, and asking again would double-count the channel
       # that actually brought them.
-      custom_fields: owner_only_price ? [] : [ SOURCE_FIELD ],
+      custom_fields: (GIFT_FIELDS if gift) || (owner_only_price ? [] : [ SOURCE_FIELD ]),
       line_items: [ { price: price.id, quantity: 1 } ],
       customer_email: email.presence,
       client_reference_id: client_reference_id.presence, # optional caller-supplied analytics id, passed through to Stripe
@@ -384,8 +402,11 @@ class Product < ApplicationRecord
                   # Read back at fulfilment: the band goes on the license, the country on the
                   # payment, next to the card's country once Stripe reports it.
                   regional_band: price_band(price),
-                  regional_country: country }.compact,
-      success_url: checkout_success_url, cancel_url: checkout_cancel_url, currency: }.compact
+                  regional_country: country,
+                  # Read by the webhook: a gift mints a code and a card, not a license.
+                  gift: ("1" if gift) }.compact,
+      # The card itself, once the webhook has made it. Stripe fills in the session id.
+      success_url: gift ? "#{gift_card_url}?session={CHECKOUT_SESSION_ID}" : checkout_success_url, cancel_url: checkout_cancel_url, currency: }.compact
     params.merge!(CHECKOUT_RECOVERY.deep_merge(after_expiration: { recovery: { allow_promotion_codes: takes_codes } })) if checkout_recovery?
     begin
       Stripe::Checkout::Session.create(params, stripe_opts)

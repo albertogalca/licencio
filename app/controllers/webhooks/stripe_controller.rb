@@ -17,6 +17,11 @@ class Webhooks::StripeController < ActionController::API
       # event fulfills through the same branch. async_payment_failed needs no handler: nothing
       # was minted, so there is nothing to revoke.
       return head :ok unless session.payment_status.to_s.in?(%w[paid no_payment_required])
+      # A gift waits for its recipient: no license, no purchase, until somebody redeems the code.
+      if Gift.requested?(session)
+        Gift.create_from_stripe_session!(product, session)
+        return head :ok
+      end
       License.fulfill_from_stripe_session(product, session)
       CardCountryJob.perform_later(product, session.payment_intent) if product.regional_pricing? && session.payment_intent
       # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
@@ -30,6 +35,8 @@ class Webhooks::StripeController < ActionController::API
       # Full refunds only revoke the license; partial refunds — and uncaptured charges, where
       # both amounts are 0 — leave it active.
       if charge.amount_captured.to_i.positive? && charge.amount_refunded == charge.amount_captured
+        # First, so a redemption in flight finishes and its license is there to revoke.
+        Gift.refund!(product:, payment_intent: charge.payment_intent)
         License.refund!(product:, stripe_payment_intent: charge.payment_intent)
         Purchase.refund!(product:, provider_order_id: charge.payment_intent)
       end
@@ -38,6 +45,7 @@ class Webhooks::StripeController < ActionController::API
       # money the moment the dispute opens, so it is treated identically. ponytail: no restore
       # path for a dispute we later win — rare enough on a $39 Mac app to fix by hand; handle
       # charge.dispute.closed if that stops being true.
+      Gift.refund!(product:, payment_intent: event.data.object.payment_intent)
       License.refund!(product:, stripe_payment_intent: event.data.object.payment_intent)
       Purchase.refund!(product:, provider_order_id: event.data.object.payment_intent)
     end

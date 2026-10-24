@@ -74,6 +74,7 @@ class Api::CheckoutsController < Api::PublicController
         client_reference_id: params[:client_reference_id],
         affonso_referral: params[:affonso_referral],
         promo: params[:promo],
+        gift: params[:gift] == "1",
         # The site's signed visitor country. Anything wrong with it is full price.
         region: params[:region])
     end
