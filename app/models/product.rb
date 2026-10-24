@@ -300,9 +300,10 @@ class Product < ApplicationRecord
 
   # A gift checkout asks for what goes on the card instead. Stripe allows three custom fields,
   # so the source question gives way: the buyer of a present is rarely the one who found us
-  # for themselves anyway. Labels are capped at 50 characters, text at 255.
+  # for themselves anyway. Labels are capped at 50 characters, text at 255. The name is required:
+  # a card has to say who it is for; who it is from and the note can stay unsaid.
   GIFT_FIELDS = [
-    { key: "to", type: "text", optional: true, label: { type: "custom", custom: "Who is it for? (for the card)" },
+    { key: "to", type: "text", optional: false, label: { type: "custom", custom: "Who is it for? (for the card)" },
       text: { maximum_length: Gift::TEXT_LIMITS[:to_name] } },
     { key: "from", type: "text", optional: true, label: { type: "custom", custom: "Who is it from? (for the card)" },
       text: { maximum_length: Gift::TEXT_LIMITS[:from_name] } },

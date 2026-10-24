@@ -165,6 +165,7 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "1", captured[:metadata][:gift]
     assert_equal %w[to from note], captured[:custom_fields].map { _1[:key] }
+    assert_equal [ false, true, true ], captured[:custom_fields].map { _1[:optional] }, "the name is required"
     assert_equal "https://picmal.example/gift/card/?session={CHECKOUT_SESSION_ID}", captured[:success_url]
   end
 
