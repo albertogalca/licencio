@@ -22,6 +22,16 @@ class AppStoreSigning
       "storefront" => "USA", "storefrontId" => "143441" }.merge(overrides)
   end
 
+  # A V2 server notification as Apple posts it: the envelope and the transaction inside it
+  # are each signed. The transaction defaults to the standard one, refunded now.
+  def notification(type, transaction = self.class.transaction("revocationDate" => (Time.current.to_f * 1000).to_i),
+    signing_key: @leaf_key)
+    jws({ "notificationType" => type, "notificationUUID" => SecureRandom.uuid,
+      "signedDate" => (Time.current.to_f * 1000).to_i,
+      "data" => { "bundleId" => transaction["bundleId"], "environment" => transaction["environment"],
+        "signedTransactionInfo" => jws(transaction) } }, signing_key:)
+  end
+
   def jws(payload = self.class.transaction, signing_key: @leaf_key)
     header = { alg: "ES256", x5c: [ @leaf, @intermediate, @root ].map { |c| Base64.strict_encode64(c.to_der) } }
     input = [ header, payload ].map { |part| Base64.urlsafe_encode64(JSON.generate(part), padding: false) }.join(".")

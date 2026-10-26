@@ -275,6 +275,16 @@ class License < ApplicationRecord
   end
   private_class_method :redeliver_claim
 
+  # Apple refunded or revoked a claimed purchase. The claim recorded its payment under this
+  # intent, so refund! finds the license and stays idempotent across Apple's redeliveries.
+  def self.revoke_from_app_store!(product, store_transaction)
+    original_transaction_id = store_transaction.original_transaction_id
+    transaction do
+      refund!(product:, stripe_payment_intent: "app_store:#{original_transaction_id}")
+      Purchase.refund!(product:, provider_order_id: original_transaction_id)
+    end
+  end
+
   # Look the license up through its payment history (not licenses.stripe_payment_id, which a
   # renewal overwrites) so refunding the ORIGINAL purchase after a renewal still finds it.
   # Scoped to the refunding product's own licenses. Idempotent: a Stripe redelivery of

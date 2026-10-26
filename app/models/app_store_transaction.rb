@@ -3,6 +3,7 @@
 class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_id, :product_id,
   :bundle_id, :environment, :purchase_date, :revocation_date, :amount_cents, :currency, :storefront)
   Invalid = Class.new(StandardError)
+  Notification = Data.define(:type, :transaction)
 
   # Apple marks its two signing certificates with these extensions. A chain to the root
   # alone is not enough: Apple's root signs plenty of intermediates that never sign purchases.
@@ -30,26 +31,42 @@ class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_i
     end
 
     def verify(jws)
-      parts = jws.to_s.split(".", -1)
-      raise Invalid, "malformed" unless parts.size == 3
-      header, payload = parts.first(2).map { |part| JSON.parse(decode(part)) }
-      raise Invalid, "malformed" unless header.is_a?(Hash) && payload.is_a?(Hash)
-      raise Invalid, "alg" unless header["alg"] == "ES256"
+      from_payload(verified_payload(jws))
+    rescue JSON::ParserError, ArgumentError, TypeError, KeyError, OpenSSL::OpenSSLError => error
+      raise Invalid, error.class.name
+    end
 
-      leaf, intermediate = Array(header["x5c"]).first(2).map do |der|
-        OpenSSL::X509::Certificate.new(Base64.strict_decode64(der.to_s))
-      end
-      raise Invalid, "x5c" unless leaf && intermediate
-      # Checked at the time Apple signed, as Apple's own server library does by default, so a
-      # buyer holding an older transaction is not refused once a leaf certificate expires.
-      verify_chain!(leaf, intermediate, at: Time.zone.at(Integer(payload.fetch("signedDate")) / 1000))
-      verify_signature!(leaf, "#{parts[0]}.#{parts[1]}", decode(parts[2]))
-      from_payload(payload)
+    # An App Store Server Notification V2, as Apple posts it to the webhook. The envelope is
+    # signed like a transaction, and the transaction inside it is verified on its own.
+    def verify_notification(signed_payload)
+      payload = verified_payload(signed_payload)
+      data = payload["data"]
+      signed_transaction = data["signedTransactionInfo"] if data.is_a?(Hash)
+      Notification.new(type: payload.fetch("notificationType"),
+        transaction: signed_transaction && verify(signed_transaction))
     rescue JSON::ParserError, ArgumentError, TypeError, KeyError, OpenSSL::OpenSSLError => error
       raise Invalid, error.class.name
     end
 
     private
+      def verified_payload(jws)
+        parts = jws.to_s.split(".", -1)
+        raise Invalid, "malformed" unless parts.size == 3
+        header, payload = parts.first(2).map { |part| JSON.parse(decode(part)) }
+        raise Invalid, "malformed" unless header.is_a?(Hash) && payload.is_a?(Hash)
+        raise Invalid, "alg" unless header["alg"] == "ES256"
+
+        leaf, intermediate = Array(header["x5c"]).first(2).map do |der|
+          OpenSSL::X509::Certificate.new(Base64.strict_decode64(der.to_s))
+        end
+        raise Invalid, "x5c" unless leaf && intermediate
+        # Checked at the time Apple signed, as Apple's own server library does by default, so a
+        # buyer holding an older transaction is not refused once a leaf certificate expires.
+        verify_chain!(leaf, intermediate, at: Time.zone.at(Integer(payload.fetch("signedDate")) / 1000))
+        verify_signature!(leaf, "#{parts[0]}.#{parts[1]}", decode(parts[2]))
+        payload
+      end
+
       def decode(part) = Base64.urlsafe_decode64(part)
 
       def verify_chain!(leaf, intermediate, at:)
@@ -95,11 +112,15 @@ class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_i
       def at_ms(value) = Time.zone.at(value.to_i / 1000.0)
   end
 
+  # Whether this is a purchase of one of `product`'s App Store products, refunded or not.
+  def for?(product)
+    grant = GRANTS[product_id]
+    grant.present? && grant[:product_slug] == product.slug && grant[:bundle_id] == bundle_id
+  end
+
   # What this transaction entitles its holder to on `product`, or nil when it entitles them
   # to nothing there: another app's purchase, the $0 trial, or one Apple has refunded.
   def grant_for(product)
-    grant = GRANTS[product_id]
-    grant if grant && revocation_date.nil? &&
-      grant[:product_slug] == product.slug && grant[:bundle_id] == bundle_id
+    GRANTS[product_id] if for?(product) && revocation_date.nil?
   end
 end

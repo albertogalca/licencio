@@ -63,4 +63,17 @@ class AppStoreTransactionTest < ActiveSupport::TestCase
     assert_nil grant.call("revocationDate" => (Time.current.to_f * 1000).to_i)
     assert_nil AppStoreTransaction.verify(@signing.jws).grant_for(products(:picmal))
   end
+
+  test "a notification signed through the trusted chain carries its type and verified transaction" do
+    notification = AppStoreTransaction.verify_notification(@signing.notification("REFUND"))
+
+    assert_equal "REFUND", notification.type
+    assert_equal "2000000111", notification.transaction.original_transaction_id
+    assert_not_nil notification.transaction.revocation_date
+  end
+
+  test "a notification whose envelope is signed by another key is refused" do
+    forged = @signing.notification("REFUND", signing_key: OpenSSL::PKey::EC.generate("prime256v1"))
+    assert_raises(AppStoreTransaction::Invalid) { AppStoreTransaction.verify_notification(forged) }
+  end
 end

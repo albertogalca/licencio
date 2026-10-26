@@ -74,6 +74,8 @@ Rails.application.routes.draw do
   # Each Stripe account POSTs to its own product's endpoint; verified with that
   # product's stripe_webhook_secret.
   post "webhooks/stripe/:product_id" => "webhooks/stripe#create", as: :webhooks_stripe
+  # Each app's App Store Server Notifications V2 URL; verified against Apple's root.
+  post "webhooks/app_store/:product_id" => "webhooks/app_store#create", as: :webhooks_app_store
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
