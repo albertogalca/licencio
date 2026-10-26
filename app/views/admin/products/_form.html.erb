@@ -65,6 +65,13 @@
       <%= form.number_field :max_activations_default, class: "field-input" %>
     </div>
     <div>
+      <label class="flex items-center gap-2 text-body">
+        <%= form.check_box :issues_unlimited_seats %>
+        Bundle stores may issue unlimited seats
+      </label>
+      <p class="field-hint">Allows <code>?seats=unlimited</code> on the issue endpoint.</p>
+    </div>
+    <div>
       <%= form.label :update_duration_days, "Update duration (days)", class: "field-label" %>
       <%= form.number_field :update_duration_days, class: "field-input" %>
       <p class="field-hint">For time_limited policy.</p>

@@ -495,8 +495,12 @@ class Product < ApplicationRecord
     # otherwise, never clamped: a silent clamp hands the buyer a different license from the one
     # they paid for. Base 10, because Ruby's literal rules would read "010" as 8 and accept "0x0A".
     # With no count, the product default applies, which an admin set and is trusted as is.
+    # "unlimited" (nil max_activations) only for a product whose admin opted in, so a leaked key
+    # for a seat-counted product still can't mint a license for a whole office.
     def issued_seats(requested)
-      if requested.present?
+      if requested.to_s == "unlimited"
+        issues_unlimited_seats? ? nil : raise(InvalidSeats, requested.to_s)
+      elsif requested.present?
         seats = Integer(requested.to_s, 10, exception: false)
 
         if seats&.between?(1, MAX_ISSUED_SEATS)

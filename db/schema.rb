@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -175,6 +175,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_120000) do
     t.string "gift_card_url"
     t.string "gift_transactional_id"
     t.string "issuance_api_key"
+    t.boolean "issues_unlimited_seats", default: false, null: false
     t.string "license_prefix", null: false
     t.string "lifetime_stripe_price_id"
     t.string "logo_url"

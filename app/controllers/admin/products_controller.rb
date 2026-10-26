@@ -37,7 +37,7 @@ class Admin::ProductsController < Admin::BaseController
     # slug / bundle_identifier / license_prefix are baked into issued license keys —
     # only settable on create. eddsa_private_key & api_key never come from the form.
     def product_params
-      permitted = %i[name update_policy current_version max_activations_default trial_days
+      permitted = %i[name update_policy current_version max_activations_default issues_unlimited_seats trial_days
         update_duration_days renewal_stripe_price_id lifetime_stripe_price_id sender_email stripe_product_id stripe_secret_key stripe_webhook_secret
         region_token_secret
         checkout_success_url checkout_cancel_url gift_card_url download_url loops_transactional_id purchase_transactional_id

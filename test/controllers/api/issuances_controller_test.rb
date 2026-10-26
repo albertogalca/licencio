@@ -133,4 +133,22 @@ class Api::IssuancesControllerTest < ActionDispatch::IntegrationTest
     end
     assert_response :service_unavailable
   end
+
+  test "seats=unlimited mints an unlimited license for a product that allows it" do
+    @product.update!(issues_unlimited_seats: true)
+
+    post "/api/licenses/issue?seats=unlimited",
+      params: { email: "ada@example.com", name: "Ada" }, headers: @headers, as: :json
+
+    assert_response :ok
+    assert_nil @product.licenses.sole.max_activations
+  end
+
+  test "seats=unlimited is refused for a product that counts seats" do
+    assert_no_difference [ "License.count", "Customer.count" ] do
+      issue(seats: "unlimited")
+    end
+    assert_response :unprocessable_entity
+    assert_equal "invalid_seats", response.parsed_body["code"]
+  end
 end
