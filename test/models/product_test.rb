@@ -381,8 +381,12 @@ class ProductTest < ActiveSupport::TestCase
     full = fake.new("price_full", product.stripe_product_id, { "seats" => "1" })
     field = ask.call(full).sole
     assert_equal "source", field[:key]
-    assert field[:optional], "a required question at the pay button is a conversion tax"
-    assert_equal "How did you find us?", field[:label][:custom]
+    assert_not field[:optional], "sales by source needs every first-time buyer's answer"
+    assert_equal "How did you find this app?", field[:label][:custom]
+    values = field[:dropdown][:options].map { |o| o[:value] }
+    assert_includes values, "dontremember", "a required question needs an honest way out"
+    assert_empty %w[reddit indieappsales xtwitter newsletterblog search friend aiassistant bundledeal other] - values,
+      "renaming a value breaks comparison with earlier weeks"
     assert field[:dropdown][:options].all? { |o| o[:value].match?(/\A[a-z0-9]+\z/) },
       "Stripe rejects option values that are not alphanumeric"
 

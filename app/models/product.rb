@@ -272,8 +272,9 @@ class Product < ApplicationRecord
   # migrate, nothing to write on the webhook, and the weekly metrics script reads it out of
   # the sessions list it already pulls.
   #
-  # Optional on purpose: a required question at the pay button is a conversion tax, and a
-  # forced answer is a guess more often than it is data.
+  # Required since 2026-10-31 (owner): only 6 of 32 Picmal buyers answered while it was
+  # optional, and sales by source is how the marketing engine judges a channel. "I don't
+  # remember" is there so nobody has to make an answer up.
   #
   # `key` and every option `value` must be ALPHANUMERIC — Stripe rejects underscores and
   # hyphens, which is why it reads `indieappsales`. Changing a value silently breaks
@@ -284,18 +285,22 @@ class Product < ApplicationRecord
   # ponytail: one constant shared by every product. Add a per-product column the day a
   # product needs its own question.
   SOURCE_FIELD = {
-    key: "source", type: "dropdown", optional: true,
-    label: { type: "custom", custom: "How did you find us?" },
+    key: "source", type: "dropdown", optional: false,
+    label: { type: "custom", custom: "How did you find this app?" },
     dropdown: { options: [
-      { label: "Reddit",               value: "reddit" },
-      { label: "Indie App Sales",      value: "indieappsales" },
-      { label: "X/Twitter",            value: "xtwitter" },
-      { label: "A newsletter or blog", value: "newsletterblog" },
-      { label: "Search",               value: "search" },
-      { label: "A friend",             value: "friend" },
-      { label: "An AI assistant",      value: "aiassistant" },
-      { label: "A bundle or deal",     value: "bundledeal" },
-      { label: "Somewhere else",       value: "other" } ] }
+      { label: "Google or another search engine", value: "search" },
+      { label: "ChatGPT, Claude or another AI",   value: "aiassistant" },
+      { label: "An article, review or app list",  value: "article" },
+      { label: "A newsletter or blog",            value: "newsletterblog" },
+      { label: "A YouTube video",                 value: "youtube" },
+      { label: "X/Twitter",                       value: "xtwitter" },
+      { label: "Alberto's blog or newsletter",    value: "albertogalca" },
+      { label: "Reddit",                          value: "reddit" },
+      { label: "A friend",                        value: "friend" },
+      { label: "A bundle or deal",                value: "bundledeal" },
+      { label: "Indie App Sales",                 value: "indieappsales" },
+      { label: "I don't remember",                value: "dontremember" },
+      { label: "Somewhere else",                  value: "other" } ] }
   }.freeze
 
   # A gift checkout asks for what goes on the card instead. Stripe allows three custom fields,
