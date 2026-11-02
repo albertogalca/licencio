@@ -1,21 +1,27 @@
 <!--
 Loops transactional template → product.redemption_transactional_id
-Subject: Your {DATA_VARIABLE:product_name} license key
-Data variables: product_name, license_keys, macs, magic_link_url, sender_email
+Subject: Your {DATA_VARIABLE:product_name} license
+Preview: Your key, and how to register it
+Data variables: product_name, license_keys, macs, magic_link_url
 -->
 
-# Your {DATA_VARIABLE:product_name} license
+Hello! 👋
 
-Thanks for buying {DATA_VARIABLE:product_name} on AppSumo. Here is your key. It works on {DATA_VARIABLE:macs} Mac, and updates are free forever.
+Thanks for getting {DATA_VARIABLE:product_name} on AppSumo.
 
-```
+Here is your license key:
+
 {DATA_VARIABLE:license_keys}
-```
 
-Open {DATA_VARIABLE:product_name}, choose **Register license**, and paste the key.
+It works on {DATA_VARIABLE:macs} Mac, and every future update is free.
 
-Have more codes? Redeem them with this same email and each one adds a Mac to this key.
+To register it, open {DATA_VARIABLE:product_name}, choose Register license, and paste the key.
 
-[Manage your license and devices]({DATA_VARIABLE:magic_link_url})
+Have more codes? Redeem them with this same email. Each one adds a Mac to this key.
 
-Questions? Reply to this email.
+👉 [Access your license & devices]({DATA_VARIABLE:magic_link_url})
+
+If you have any questions, simply reply to this email.
+
+Best,
+Alberto
