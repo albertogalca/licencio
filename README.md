@@ -62,6 +62,8 @@ Product ──< License ──< Activation        (a Product owns Licenses; a Li
 | `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
 | `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
 | `POST /api/admin/migrations/import` | `Bearer ADMIN_API_KEY` | bulk-import licenses (Lemon Squeezy / Polar) |
+| `POST /api/admin/redemption_codes/revoke` | `Bearer ADMIN_API_KEY` | revoke a deal code (AppSumo refund) and take back its seat |
+| `GET/POST /redeem` | none (the code is the credential) | redeem a deal code for a license, or one more seat on the email's license |
 | `POST /v1/unlock/request` | none | email → six-digit code in the buyer's inbox (always `{ ok: true }`) |
 | `POST /v1/unlock/verify` | none | code → permanent Ed25519 entitlement token |
 | `POST /v1/support/lookup` | `X-Admin-Token: SUPPORT_ADMIN_TOKEN` | what did this address buy, and optionally re-send a code |
@@ -120,6 +122,57 @@ keep verifying against `a`, which clients still trust.
 
 Do this **before the first client ships**. Afterwards there is no way to add a second key
 to installs that never update.
+
+## Deal codes (AppSumo)
+
+One AppSumo code is the 1 Mac plan with updates forever. A buyer redeems it at `/redeem` with
+their email. The first code makes a license with 1 seat. Each further code for the same email
+adds 1 seat to that license, and the key stays the same. An email holds 4 codes at most. If the
+email already has a license for the product, bought anywhere, the codes add to it. The deal
+terms live in `RedemptionCode::DEALS`.
+
+The redeem page for Picmal is `https://<your host>/redeem?product=picmal`. The `product` param
+only puts the logo on the page; the code itself names the product.
+
+### Generate the code list
+
+```sh
+bin/rails "codes:generate[picmal]" > appsumo-codes.csv          # 10,000 codes
+bin/rails "codes:generate[picmal,500]" > appsumo-extra.csv      # any count
+```
+
+One code per line, no header, random order. 16 characters, uppercase letters and digits, without
+0, O, 1, I or L. The database keeps only a SHA-256 digest and the last 4 characters, so this file
+is the only copy of the codes. Upload it to AppSumo, then keep it somewhere safe or delete it.
+
+To load a list that came from somewhere else (same format, 3 to 200 characters per code):
+
+```sh
+bin/rails "codes:import[picmal,path/to/codes.csv]"
+```
+
+Duplicates are skipped, so an import can run twice.
+
+### Revoke a code (AppSumo refund)
+
+In the admin, open **Codes**, search for the full code or the buyer's email, and press
+**Revoke**. Or from a script:
+
+```sh
+curl -X POST https://<your host>/api/admin/redemption_codes/revoke \
+  -H "Authorization: Bearer $ADMIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"code":"ABCDEFGH23456789"}'
+```
+
+Revoking takes 1 seat back from the license and signs out the newest device past the new limit.
+At 0 seats the license becomes inactive. A revoked code can't be redeemed again, and it no
+longer counts toward the email's 4.
+
+### Emails
+
+Two Loops templates, set per product in the admin: `Code redeemed` (new license) and `Code
+stacked` (one more Mac). Copy for both is in `docs/email-templates/code-*.md`. Leave a field blank
+and that email is skipped.
 
 ## Self-hosting
 

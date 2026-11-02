@@ -28,6 +28,7 @@ class Product < ApplicationRecord
   has_many :customers, through: :licenses
   has_many :purchases, dependent: :restrict_with_error
   has_many :gifts, dependent: :restrict_with_error
+  has_many :redemption_codes, dependent: :restrict_with_error
   has_many :login_codes, dependent: :delete_all
 
   encrypts :loops_api_key

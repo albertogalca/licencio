@@ -1,0 +1,93 @@
+<% content_for :title, "Codes — Licencio" %>
+
+<h1 class="mb-8 text-title font-bold tracking-tight">Codes</h1>
+
+<% if @stats.empty? %>
+  <div class="empty-state">
+    <p>No codes yet. Generate a pool with <code>bin/rails "codes:generate[picmal]" &gt; codes.csv</code>.</p>
+  </div>
+<% else %>
+  <div class="mb-8 divide-y divide-gray-200 border-y border-gray-200">
+    <% @stats.each do |(product_id, source), counts| %>
+      <div class="flex items-center justify-between gap-6 py-5">
+        <div class="min-w-0 mr-auto">
+          <h2 class="text-lead font-bold tracking-tight">
+            <%= @products[product_id]&.name %> <span class="font-normal text-gray-500"><%= source %></span>
+          </h2>
+          <p class="mt-1 text-body text-gray-600">
+            <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(counts["unredeemed"]) %></span> unredeemed
+            <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+            <span class="tabular-nums font-medium text-gray-900"><%= number_with_delimiter(counts["redeemed"]) %></span> redeemed
+            <span aria-hidden="true" class="px-1 text-gray-300">·</span>
+            <span class="<%= "font-medium text-red-700" if counts["revoked"].positive? %>">
+              <span class="tabular-nums"><%= number_with_delimiter(counts["revoked"]) %></span> revoked
+            </span>
+          </p>
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="text-display font-bold tabular-nums tracking-tight"><%= number_with_delimiter(counts.values.sum) %></p>
+          <p class="text-meta text-gray-500">total</p>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<%= form_with url: admin_redemption_codes_path, method: :get, class: "mb-5 flex flex-wrap items-center gap-3" do |form| %>
+  <%= form.text_field :q, value: params[:q], placeholder: "Full code or customer email…",
+    autocomplete: "off", class: "field-input min-w-64 flex-1" %>
+  <%= form.select :status, RedemptionCode.statuses.keys, { include_blank: "Redeemed and revoked", selected: params[:status] },
+    class: "field-select w-auto", onchange: "this.form.requestSubmit()" %>
+  <%= form.submit "Search", class: "btn-primary" %>
+  <% if params[:q].present? || params[:status].present? %>
+    <%= link_to "Clear", admin_redemption_codes_path, class: "link-muted px-1" %>
+  <% end %>
+<% end %>
+
+<% if @codes.any? %>
+  <div class="card overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Customer</th>
+          <th>License</th>
+          <th>Status</th>
+          <th>Updated</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @codes.each do |code| %>
+          <tr class="<%= "row-refunded" if code.revoked? %>">
+            <td class="font-mono text-meta text-gray-600">…<%= code.code_hint %></td>
+            <td>
+              <%= code.customer ? link_to(code.customer.email, admin_customer_path(code.customer), class: "hover:text-gray-900") : "—" %>
+            </td>
+            <td class="font-mono text-meta">
+              <% if code.license %>
+                <%= link_to code.license.license_key, edit_admin_license_path(code.license),
+                      class: "text-gray-900 underline-offset-2 hover:text-accent-700 hover:underline" %>
+                <span class="text-gray-500">(<%= code.license.max_activations || "∞" %>)</span>
+              <% end %>
+            </td>
+            <td><%= status_badge(code.status) %></td>
+            <td class="text-meta tabular-nums text-gray-600"><%= l(code.updated_at.to_date) %></td>
+            <td class="text-right">
+              <% unless code.revoked? %>
+                <%= button_to "Revoke", revoke_admin_redemption_code_path(code, q: params[:q].presence), method: :post,
+                      form: { data: { turbo_confirm: "Revoke this code? Its seat is taken back from the license." } },
+                      class: "link-muted text-meta" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <%= render "admin/pagination" %>
+<% elsif params[:q].present? || params[:status].present? %>
+  <p class="empty-state">No codes match that search.</p>
+<% else %>
+  <p class="empty-state">No code has been redeemed yet.</p>
+<% end %>

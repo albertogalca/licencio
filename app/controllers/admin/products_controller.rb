@@ -42,6 +42,7 @@ class Admin::ProductsController < Admin::BaseController
         region_token_secret
         checkout_success_url checkout_cancel_url gift_card_url download_url loops_transactional_id purchase_transactional_id
         refund_transactional_id expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id
+        redemption_transactional_id seats_added_transactional_id
         loops_api_key loops_mailing_list_id
         logo_url accent_color background_color]
       permitted += %i[slug bundle_identifier license_prefix] if @product.nil? || @product.new_record?

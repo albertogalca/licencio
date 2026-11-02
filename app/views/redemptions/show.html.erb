@@ -1,0 +1,57 @@
+<% content_for :title, "Your #{@product.name} license" %>
+<% content_for :centered, "1" %>
+<% macs = @license.max_activations %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-center text-display text-balance font-bold tracking-tight">
+    <% if @code.issued_license? %>
+      Your <%= @product.name %> license is ready
+    <% else %>
+      One more Mac added
+    <% end %>
+  </h1>
+  <p class="mx-auto mb-6 max-w-sm text-balance text-center text-lead text-gray-600">
+    <% if macs %>
+      This key now works on <%= pluralize(macs, "Mac") %>.
+    <% else %>
+      This key works on every Mac you own.
+    <% end %>
+    I've also emailed it to you.
+  </p>
+
+  <div class="card space-y-5 p-6">
+    <div>
+      <label for="license_key" class="field-label">License key</label>
+      <div data-controller="clipboard" class="relative">
+        <input id="license_key" type="text" readonly value="<%= @license.license_key %>"
+               data-clipboard-target="source" data-action="focus->clipboard#select"
+               class="field-input w-full pr-11 font-mono text-body">
+        <button type="button" data-action="clipboard#copy" aria-label="Copy license key"
+                class="absolute inset-y-0 right-0 flex cursor-pointer items-center rounded-r-md px-3 text-gray-600 transition-colors hover:text-gray-900">
+          <svg data-clipboard-target="copyIcon" class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="7" y="7" width="9" height="9" rx="2" /><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+          </svg>
+          <svg data-clipboard-target="checkIcon" class="hidden h-4 w-4 text-accent-600" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 10.5l3.5 3.5L15 6.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <ol class="list-decimal space-y-1.5 pl-5 text-body text-gray-700">
+      <li>Open <%= @product.name %>.</li>
+      <li>Choose <strong>Register license</strong>.</li>
+      <li>Paste the key.</li>
+    </ol>
+
+    <% if @product.download_url.present? %>
+      <p class="text-body text-gray-600">
+        Don't have it yet? <%= link_to "Download #{@product.name}", @product.download_url, class: "link-accent" %>.
+      </p>
+    <% end %>
+  </div>
+
+  <p class="mt-6 text-center text-meta text-gray-600">
+    Have another code? <%= link_to "Redeem it", redeem_path(product: @product.slug), class: "link-accent" %> with the same email.
+  </p>
+</div>

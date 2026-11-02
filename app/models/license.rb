@@ -381,6 +381,23 @@ class License < ApplicationRecord
     end
   end
 
+  # A seat from a redemption code: same key, one more Mac. An unlimited license stays unlimited.
+  def add_seats!(count)
+    with_lock { update!(max_activations: max_activations + count) if max_activations }
+  end
+
+  # The reverse, for a revoked code. The newest devices past the new cap are signed out, or
+  # they would keep working: activate! never re-checks the cap for a device already on it.
+  # At zero seats nothing is left to activate, so the license goes inactive.
+  def remove_seats!(count)
+    with_lock do
+      next unless max_activations
+      seats = [ max_activations - count, 0 ].max
+      update!(max_activations: seats, status: seats.zero? && active? ? "inactive" : status)
+      activations.active.order(:activated_at).offset(seats).each(&:deactivate!)
+    end
+  end
+
   def deliver_later
     customer&.send_portal_access_later(product:)
   end

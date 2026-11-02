@@ -10,6 +10,8 @@ module ApplicationHelper
     "expired" => "badge-amber",
     "refunded" => "badge-red",
     "inactive" => "badge-gray",
+    "redeemed" => "badge-accent",
+    "revoked" => "badge-red",
     "approved" => "badge-accent",
     "pending" => "badge-amber",
     "rejected" => "badge-red"

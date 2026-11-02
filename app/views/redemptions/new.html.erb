@@ -1,0 +1,32 @@
+<% content_for :title, "Redeem a code" %>
+<% content_for :centered, "1" %>
+
+<div class="w-full max-w-sm">
+  <h1 class="mb-2 text-center text-display text-balance font-bold tracking-tight">
+    Redeem your <%= @product&.name || "license" %> code
+  </h1>
+  <p class="mx-auto mb-6 max-w-sm text-balance text-center text-lead text-gray-600">
+    Each code adds one Mac. Use the same email for every code and they all go on one license key.
+  </p>
+
+  <div class="card p-6">
+    <%= form_with url: redeem_path, method: :post, class: "space-y-4",
+          data: { turbo: false, controller: "submit-lock", action: "submit->submit-lock#lock" } do |form| %>
+      <%= form.hidden_field :product, value: params[:product] if params[:product].present? %>
+      <div>
+        <%= form.label :email, "Email", class: "field-label" %>
+        <%= form.email_field :email, value: @email, required: true, autofocus: @email.blank?,
+              autocomplete: "email", placeholder: "you@example.com", class: "field-input" %>
+        <p class="field-hint">Your license key is sent here.</p>
+      </div>
+      <div>
+        <%= form.label :code, "Code", class: "field-label" %>
+        <%= form.text_field :code, required: true, autofocus: @email.present?,
+              autocomplete: "off", autocapitalize: "characters", spellcheck: false,
+              placeholder: "XXXXXXXXXXXXXXXX", class: "field-input font-mono" %>
+      </div>
+      <%= form.submit "Redeem code", class: "btn-primary w-full",
+            data: { "submit-lock-target": "button", locked_label: "Redeeming…" } %>
+    <% end %>
+  </div>
+</div>

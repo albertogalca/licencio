@@ -5,7 +5,8 @@
 <% sections = {
      stripe:   %w[stripe_product_id stripe_secret_key stripe_webhook_secret region_token_secret checkout_success_url checkout_cancel_url gift_card_url],
      email:    %w[sender_email loops_transactional_id purchase_transactional_id refund_transactional_id
-                  expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id loops_api_key
+                  expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id
+                  redemption_transactional_id seats_added_transactional_id loops_api_key
                   loops_mailing_list_id],
      branding: %w[logo_url accent_color background_color]
    } %>
@@ -207,6 +208,16 @@
         <%= form.label :gift_transactional_id, "Gift card transactional ID", class: "field-label" %>
         <%= form.text_field :gift_transactional_id, class: "field-input" %>
         <p class="field-hint">Sent to the buyer of a gift: the card link (card_url), the code (gift_code), and who it is for (to_name).</p>
+      </div>
+      <div>
+        <%= form.label :redemption_transactional_id, "Code redeemed transactional ID", class: "field-label" %>
+        <%= form.text_field :redemption_transactional_id, class: "field-input" %>
+        <p class="field-hint">Sent when a deal code (AppSumo) creates a license: the key (license_keys) and the Mac count (macs).</p>
+      </div>
+      <div>
+        <%= form.label :seats_added_transactional_id, "Code stacked transactional ID", class: "field-label" %>
+        <%= form.text_field :seats_added_transactional_id, class: "field-input" %>
+        <p class="field-hint">Sent when another deal code adds a Mac to an existing license: the key and the new Mac count (macs).</p>
       </div>
       <div>
         <%= form.label :loops_api_key, "Loops API key", class: "field-label" %>

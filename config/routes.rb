@@ -27,6 +27,8 @@ Rails.application.routes.draw do
     namespace :admin do
       post "migrations/import" => "migrations#import"
       get  "products/:product_slug/trials" => "trials#index"
+      # A deal site's refund: revoke the code, take back its seat.
+      post "redemption_codes/revoke" => "redemption_codes#revoke"
     end
   end
 
@@ -58,6 +60,9 @@ Rails.application.routes.draw do
     end
     resources :customers, only: [ :index, :show ]
     resources :activations, only: [ :index, :destroy ]
+    resources :redemption_codes, only: :index do
+      post :revoke, on: :member
+    end
     root to: "dashboard#show"
   end
 
@@ -70,6 +75,10 @@ Rails.application.routes.draw do
     resources :recoveries, only: [ :new, :create ] # public recovery form
     root to: "dashboard#show"
   end
+
+  # A deal-site code (AppSumo) becomes a license, or one more seat on the buyer's license.
+  get  "redeem" => "redemptions#new", as: :redeem
+  post "redeem" => "redemptions#create"
 
   # Each Stripe account POSTs to its own product's endpoint; verified with that
   # product's stripe_webhook_secret.

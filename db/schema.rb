@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_02_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -185,9 +185,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
     t.integer "max_activations_default"
     t.string "name", null: false
     t.string "purchase_transactional_id"
+    t.string "redemption_transactional_id"
     t.string "refund_transactional_id"
     t.string "region_token_secret"
     t.string "renewal_stripe_price_id"
+    t.string "seats_added_transactional_id"
     t.string "sender_email"
     t.string "slug", null: false
     t.string "stripe_product_id"
@@ -222,6 +224,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
     t.index "product_id, (((\nCASE\n    WHEN (split_part(lower(btrim((email)::text)), '@'::text, 2) = ANY (ARRAY['gmail.com'::text, 'googlemail.com'::text])) THEN replace(split_part(split_part(lower(btrim((email)::text)), '@'::text, 1), '+'::text, 1), '.'::text, ''::text)\n    ELSE split_part(split_part(lower(btrim((email)::text)), '@'::text, 1), '+'::text, 1)\nEND || '@'::text) || split_part(lower(btrim((email)::text)), '@'::text, 2)))", name: "index_purchases_on_product_and_normalized_email"
     t.index ["product_id"], name: "index_purchases_on_product_id"
     t.index ["provider", "provider_order_id"], name: "index_purchases_on_provider_and_provider_order_id", unique: true
+  end
+
+  create_table "redemption_codes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "code_digest", null: false
+    t.string "code_hint", null: false
+    t.datetime "created_at", null: false
+    t.uuid "customer_id"
+    t.uuid "license_id"
+    t.uuid "product_id", null: false
+    t.datetime "redeemed_at"
+    t.datetime "revoked_at"
+    t.string "source", null: false
+    t.string "status", default: "unredeemed", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code_digest"], name: "index_redemption_codes_on_code_digest", unique: true
+    t.index ["customer_id"], name: "index_redemption_codes_on_customer_id"
+    t.index ["license_id"], name: "index_redemption_codes_on_license_id"
+    t.index ["product_id", "source", "status"], name: "index_redemption_codes_on_product_id_and_source_and_status"
+    t.index ["product_id"], name: "index_redemption_codes_on_product_id"
   end
 
   create_table "solid_cable_messages", force: :cascade do |t|
@@ -377,6 +398,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
   add_foreign_key "portal_tokens", "customers"
   add_foreign_key "portal_tokens", "products"
   add_foreign_key "purchases", "products"
+  add_foreign_key "redemption_codes", "customers"
+  add_foreign_key "redemption_codes", "licenses"
+  add_foreign_key "redemption_codes", "products"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
