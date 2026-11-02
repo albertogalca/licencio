@@ -1,4 +1,7 @@
 class LicenseEmailJob < ApplicationJob
+  # The arguments carry license keys, and the enqueue line is logged at info in production.
+  self.log_arguments = false
+
   def perform(portal_token, template:, kind:, reference_id:, data: {})
     return if portal_token.nil?
     customer = portal_token.customer
