@@ -137,13 +137,17 @@ only puts the logo on the page; the code itself names the product.
 ### Generate the code list
 
 ```sh
-bin/rails "codes:generate[picmal]" > appsumo-codes.csv          # 10,000 codes
-bin/rails "codes:generate[picmal,500]" > appsumo-extra.csv      # any count
+bin/rails "codes:generate[picmal]" OUT=appsumo-codes.csv           # 10,000 codes
+bin/rails "codes:generate[picmal,500]" OUT=appsumo-extra.csv       # any count
 ```
 
 One code per line, no header, random order. 16 characters, uppercase letters and digits, without
 0, O, 1, I or L. The database keeps only a SHA-256 digest and the last 4 characters, so this file
 is the only copy of the codes. Upload it to AppSumo, then keep it somewhere safe or delete it.
+
+Without `OUT` the codes go to stdout. On a server that is risky: boot warnings also print to
+stdout and land in the file as an extra line. In a container, write with `OUT=/tmp/codes.csv`,
+copy the file out with `docker cp`, and delete it from the container.
 
 To load a list that came from somewhere else (same format, 3 to 200 characters per code):
 
