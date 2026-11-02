@@ -2,6 +2,7 @@ class Customer < ApplicationRecord
   has_many :licenses, dependent: :nullify
   has_many :activations, through: :licenses
   has_many :portal_tokens, dependent: :delete_all
+  has_many :redemption_codes, dependent: :nullify
 
   validates :email, presence: true, uniqueness: true
 
@@ -22,7 +23,15 @@ class Customer < ApplicationRecord
     # Concurrent first-time webhooks for the same email raced on the unique index — the other
     # won; reuse it (name reconciliation isn't worth a second write).
     find_by!(email:)
+  rescue ActiveRecord::RecordInvalid => error
+    # The same race, lost one step earlier: the other insert committed between our lookup and
+    # the uniqueness validation.
+    raise unless error.record.errors.of_kind?(:email, :taken)
+    find_by!(email:)
   end
+
+  # Emails are stored as typed, so a buyer who once wrote Name@Example.com is still found.
+  def self.with_email(email) = where("lower(email) = ?", email.to_s.strip.downcase).order(:created_at).first
 
   def send_portal_access_later(product:)
     return unless licenses.exists?(product:) # nothing to deliver — don't issue a token or email
@@ -38,6 +47,15 @@ class Customer < ApplicationRecord
     LicenseEmailJob.perform_later(token, template: :purchase_transactional_id,
       kind: "purchase", reference_id: license.stripe_payment_id || license.id,
       data: { amount: format_money(amount, currency), license_keys: license.license_key })
+  end
+
+  # A redeemed code: the key for a new license, or the new Mac count for a stacked one.
+  def send_redemption_email_later(license:, reference_id:, issued:)
+    token = PortalToken.issue!(customer: self, product: license.product)
+    LicenseEmailJob.perform_later(token,
+      template: issued ? :redemption_transactional_id : :seats_added_transactional_id,
+      kind: issued ? "redemption" : "seats_added", reference_id:,
+      data: { license_keys: license.license_key, macs: (license.max_activations || "unlimited").to_s })
   end
 
   def send_refund_email_later(license:)
