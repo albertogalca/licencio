@@ -1,5 +1,5 @@
 Sentry.init do |config|
-  config.dsn = "https://c98b9cf27d3c880aeb7708ecf2cf2fe8@o4510719096717312.ingest.de.sentry.io/4511717090394192"
+  config.dsn = ENV["SENTRY_DSN"]                # set in Coolify; kept out of the public repo so clones don't report here
   config.breadcrumbs_logger = [ :active_support_logger, :http_logger ]
   config.send_default_pii = false               # no licensee IP/email/params sent to Sentry
   config.rails.structured_logging.enabled = false # sentry 7 ships Rails logs by default; they carry emails and keys
