@@ -8,8 +8,8 @@ class StudentDiscountJobTest < ActiveJob::TestCase
 
     codes = []
     Loops.stub(:send_transactional, ->(**kwargs) { codes << kwargs[:data][:discount_code] }) do
-      StudentDiscountJob.perform_now(cozy, "drmoali@uw.edu")
-      StudentDiscountJob.perform_now(picmal, "drmoali@uw.edu")
+      StudentDiscountJob.perform_now(cozy, "student@uw.edu")
+      StudentDiscountJob.perform_now(picmal, "student@uw.edu")
     end
 
     assert_equal %w[COZYEDU STUDENT], codes,
@@ -21,7 +21,7 @@ class StudentDiscountJobTest < ActiveJob::TestCase
 
     sends = 0
     Loops.stub(:send_transactional, ->(**) { sends += 1 }) do
-      2.times { StudentDiscountJob.perform_now(picmal, "drmoali@uw.edu") }
+      2.times { StudentDiscountJob.perform_now(picmal, "student@uw.edu") }
     end
 
     assert_equal 1, sends

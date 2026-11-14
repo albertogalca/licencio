@@ -47,3 +47,7 @@
 /scratchpad
 
 .DS_Store
+
+# Ops runbooks and security audits stay local: the repo is public.
+/LAUNCH.md
+/docs/security/
