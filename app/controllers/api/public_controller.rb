@@ -39,10 +39,10 @@ class Api::PublicController < ActionController::API
                           "new one to start over." ],
     # Factual, not accusatory: it states what the record says and offers a way to correct it.
     purchase_refunded:  [ :forbidden,
-                          "This Cozy license was refunded, so it no longer unlocks the app. Reply to " \
+                          "This license was refunded, so it no longer unlocks the app. Reply to " \
                           "your purchase receipt if that isn't right." ],
     purchase_not_found: [ :not_found,
-                          "I can't find a Cozy license for that email address. If you bought with a " \
+                          "I can't find a license for that email address. If you bought with a " \
                           "different one, try that address — or reply to your receipt and I'll sort it out." ],
     # In-app purchase claim. Covers a forged or garbled transaction as well as a real one
     # this server will not honour (another product, the free trial, refunded by Apple).
