@@ -51,3 +51,4 @@
 # Ops runbooks and security audits stay local: the repo is public.
 /LAUNCH.md
 /docs/security/
+/CLAUDE.local.md

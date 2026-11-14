@@ -1,5 +1,17 @@
 # Licencio
 
+## This repo is public
+
+Licencio is open source. Everything committed here (code, comments, tests, fixtures, docs, commit messages, PR text) is readable by anyone. Never write anything that points at the owner's own products or business:
+
+- No names of the owner's own products, projects or studio, no real bundle ids, personal domains, or sibling repo paths. The list of names lives in `CLAUDE.local.md` (untracked). Read it before writing.
+- No production facts: hosts, customer emails or counts, sales numbers, traffic anecdotes, Stripe/Apple ids, prices.
+- Use neutral placeholders instead: `my-app`, `acme`, `com.example.myapp`, `buyer@example.com`, `YOUR_HOST`.
+- Product-specific behaviour belongs in Product columns or config set at runtime, never hardcoded in code keyed on a real product.
+- Before committing, run the grep in `CLAUDE.local.md` over `git diff --cached`. It must print nothing.
+
+Private runbooks (like `LAUNCH.md`) and `CLAUDE.local.md` stay untracked.
+
 ## Local database — DBngin (NOT Homebrew)
 
 Postgres is managed by **DBngin**, engine named **`licencio`** — PostgreSQL 18.4, port **5432**, user `postgres`, no password. This matches `config/database.yml` as-is.
