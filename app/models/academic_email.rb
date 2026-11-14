@@ -10,8 +10,9 @@
 # on a plain national domain (uni-koeln.de, ucm.es) fall through and have to email.
 module AcademicEmail
   # The country code is capped at two letters on purpose: {2,3} would also swallow
-  # edu.com and ac.net.
-  PATTERN = /\.(edu|ac)(\.[a-z]{2})?\z/
+  # edu.com and ac.net. `ac` always needs one: a bare .ac is Ascension Island's open TLD,
+  # where anyone can buy a domain and collect the code.
+  PATTERN = /\.(edu(\.[a-z]{2})?|ac\.[a-z]{2})\z/
 
   def self.match?(email)
     parts = email.to_s.strip.downcase.split("@", -1)
