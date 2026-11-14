@@ -4,269 +4,101 @@
 
 <h1 align="center">Licencio</h1>
 
-Self-hostable licensing backend for your apps. Sell license keys through Stripe;
-each activated device gets a signed key it can check **offline** — no license
-server to call every time the app launches.
+Licencio is a self-hosted licensing backend for desktop and mobile apps. You sell through
+Stripe, Licencio issues the license key, and each device gets a signed token it checks
+**offline**. Your app never has to call home on launch.
 
-Under the hood that signed key is an EdDSA (Ed25519) JWT the device verifies with
-a public key you ship in the app — so there's no phone-home and no shared secret
-in the client. Built on Rails 8 + Postgres with the Solid stack (Queue/Cache/Cable,
-all in one database): no Redis, nothing external beyond Stripe and (optionally)
-Loops for email.
+The token is an Ed25519-signed JWT. Your app verifies it with a public key you ship inside
+the build, so there's no shared secret in the client and nothing to break when your server
+is down.
 
-- **License**: MIT (see [`LICENSE`](LICENSE))
-- **Operating guide** (setup → Stripe/Loops → admin → website): [`docs/operating-guide.md`](docs/operating-guide.md)
-- **Client integration**: [`docs/client-integration.md`](docs/client-integration.md)
+It's a Rails 8 app on one Postgres database. Jobs, cache and websockets all live in that
+database (the Solid stack), so there's no Redis. The only outside services are Stripe and,
+if you want email, Loops.
 
-## The Studio Model
-
-One Licencio instance hosts many independent **Products** — one row per app you
-sell. Each Product is a self-contained tenant that owns:
-
-- its own **Stripe account** — `stripe_product_id`, `stripe_secret_key`, and
-  `stripe_webhook_secret` (the two keys encrypted at rest), so different Products can
-  bill through entirely separate Stripe accounts,
-- its own **EdDSA signing keypair** (auto-generated; private key encrypted at rest),
-- its own **device API key** (`prod_…`, auto-generated),
-- its own **Loops** email config (optional per-product API key + templates).
-
-Credentials never cross Products — a customer email for one app never lists keys
-from another. That isolation is the "Studio Model": run your whole studio's
-catalog from a single deployment.
+## How it works
 
 ```
-Product ──< License ──< Activation        (a Product owns Licenses; a License owns device seats)
-                └─ Customer               (the buyer; passwordless, magic-link portal)
+Your website ──buy link──> Stripe Checkout ──webhook──> Licencio ──email──> Buyer
+                                                           │
+Your app ──POST /api/licenses/activate (license key)───────┘
+         <── signed token, verified offline from then on
 ```
 
-- **Product** — a sellable app. Default update policy is `lifetime`, `time_limited`
-  (`update_duration_days`), or `versioned` (gated by `current_version`, the latest
-  released major version). Sets `max_activations_default` (seats per license).
-- **License** — issued on purchase. Has a unique `license_key`, a seat cap
-  (`max_activations`), optional `expires_at`. Can carry its own `update_policy`
-  (overrides the product's) plus `licensed_version` — so one product can sell both
-  lifetime and version-locked (e.g. "v1") licenses at once.
-- **Activation** — one device seat (`hardware_id` + `device_name`).
-- **Customer** — the buyer. No passwords; signs into the portal via emailed
-  magic link.
+1. A buyer clicks a buy link on your site and pays on Stripe Checkout.
+2. Stripe calls Licencio's webhook. Licencio creates the license and emails the key.
+3. The buyer pastes the key into your app. The app activates once and gets a token.
+4. On every launch the app checks that token offline. Every few days, when it's online, it
+   quietly re-activates to refresh it. That refresh is how refunds take effect.
 
-### Endpoints
+One Licencio instance can sell many apps. Each app is a **Product** with its own Stripe
+account, its own signing key, its own API key and its own email setup. Nothing is shared
+between Products, so a buyer of one app never sees keys from another.
 
-| Route | Auth | Purpose |
-|-------|------|---------|
-| `GET /api/products/:slug/variants` | none | list a product's variants (Stripe prices) for a pricing page |
-| `GET /api/products/:slug/stats` | none | product's distinct customer count (for "trusted by N" social proof) |
-| `GET /api/checkout?product_slug=…&price_id=…` | none | 302-redirect a plain buy link straight to Stripe Checkout |
-| `POST /api/checkout` | product `slug` + Stripe `price_id` in body | create a Stripe Checkout session (Managed Payments) → `{ url }` |
-| `POST /api/licenses/activate` | `X-Api-Key` | activate a device → `{ jwt, public_key }` |
-| `DELETE /api/licenses/deactivate` | `X-Api-Key` | free a device seat |
-| `POST /api/licenses/recover` | `X-Api-Key` | email the customer a portal magic link |
-| `POST /api/admin/migrations/import` | `Bearer ADMIN_API_KEY` | bulk-import licenses (Lemon Squeezy / Polar) |
-| `POST /api/admin/redemption_codes/revoke` | `Bearer ADMIN_API_KEY` | revoke a deal code (AppSumo refund) and take back its seat |
-| `GET/POST /redeem` | none (the code is the credential) | redeem a deal code for a license, or one more seat on the email's license |
-| `POST /v1/unlock/request` | none | email → six-digit code in the buyer's inbox (always `{ ok: true }`) |
-| `POST /v1/unlock/verify` | none | code → permanent Ed25519 entitlement token |
-| `POST /v1/support/lookup` | `X-Admin-Token: SUPPORT_ADMIN_TOKEN` | what did this address buy, and optionally re-send a code |
-| `POST /webhooks/stripe/:product_id` | Stripe signature | fulfill + email purchases (`checkout.session.completed`); revoke on refund (`charge.refunded`). Verified with that Product's `stripe_webhook_secret` |
-| `GET /portal` … | session cookie | customer self-serve portal |
-| `GET /up`, `/health` | — | health checks |
+## What you get
 
-## Unlock by email (no accounts, no keys)
+- License keys with device seats, trials, expiry, and per-license update policies
+  (lifetime, a year of updates, or locked to a major version).
+- Stripe Checkout with Stripe as merchant of record, so Stripe handles sales tax.
+- A customer portal with magic-link sign-in. Buyers recover keys, free up devices, renew and
+  add seats there without emailing you.
+- An admin at `/admin` for products, licenses, customers and devices.
+- Optional extras: unlock by email (no keys at all), AppSumo-style deal codes, gift cards,
+  bundle-store issuance, and imports from Lemon Squeezy and Polar.
 
-A second way in, alongside the license-key system — not a replacement. Nothing about
-license keys changes, and both work at the same time.
+## Docs
 
-A buyer types their email, gets six digits, types them back, and the app is permanently
-unlocked. There is no account, no password, no device limit, and nothing that revokes.
-The apps work forever, offline, after one unlock.
+Read them in this order. Each one is for a different job.
 
-1. `POST /v1/unlock/request` → always `{ ok: true }`, at the same speed, whatever the
-   answer. Whether the address bought anything is decided in `UnlockCodeJob`, behind the
-   queue, so a caller can't learn it by timing the response. Three codes per address per
-   fifteen minutes; over budget the answer is still `{ ok: true }` and no mail is sent.
-2. `POST /v1/unlock/verify` → a `LoginCode` allows five wrong guesses inside ten minutes;
-   the sixth burns it. On success the newest live `Purchase` for that address is signed
-   into an entitlement token.
+| Doc | Read it when you want to |
+|-----|--------------------------|
+| [Self-hosting](docs/self-hosting.md) | get Licencio running, locally or on a server |
+| [Operating guide](docs/operating-guide.md) | set up a product, connect Stripe, put buy links on your site, handle refunds |
+| [Client integration](docs/client-integration.md) | make your app activate a key and verify the token offline |
+| [API reference](docs/api.md) | look up an endpoint, its auth, and its errors |
+| [Unlock by email](docs/unlock-by-email.md) | let buyers unlock with a 6-digit code instead of a key |
+| [Deal codes](docs/deal-codes.md) | sell on AppSumo or another code-based deal site |
+| [Optional features](docs/optional-features.md) | gifts, bundles, seat upgrades, student pricing, regional pricing, App Store |
 
-The token is an EdDSA compact JWT with **no `exp`** — permanently valid by design. Its
-claims are `{ v, sub, tier, updates_until, device, iat }`. `device` is echoed straight
-back from the request and stored nowhere: unlimited devices means there is nothing to
-count. `tier` is `standard` (a year of updates) or `forever`; neither ever stops the app
-working.
+## Quick start
 
-Addresses are matched on a **normalized** form — lowercased, trimmed, `+tag` stripped,
-and dots stripped for `gmail.com`/`googlemail.com` only. `Purchase.normalize_email` and
-`Purchase::NORMALIZED_EMAIL_SQL` are the same rule in Ruby and in Postgres (an expression
-index backs the lookup), and a test asserts the two agree — a disagreement is a customer
-who paid and can't unlock.
-
-Purchases are written by the Stripe webhook next to the license it already mints, but
-only for prices whose metadata carries a `tier`. A product that doesn't tag its prices is
-untouched by all of this.
-
-### Key rotation (kid `a` / `b`)
-
-Clients verify these tokens offline, forever, and may never contact the server again — so
-a key can only be rotated if every client already trusts the replacement. Ship **two**
-public keys in every build, keyed by the token header's `kid`:
-
-```
-rake "unlock:generate_backup_key[cozy]"   # prints the private half ONCE — cold-store it
-```
-
-That mints key `b`, stores only its public half (`products.eddsa_backup_public_key`), and
-prints both `(kid, public key)` pairs to embed. `products.eddsa_key_id` says which one
-signs today — `a`, the key already in `eddsa_public_key`. To rotate, restore the cold
-private key into `eddsa_private_key` and set `eddsa_key_id` to `b`; already-issued tokens
-keep verifying against `a`, which clients still trust.
-
-Do this **before the first client ships**. Afterwards there is no way to add a second key
-to installs that never update.
-
-## Deal codes (AppSumo)
-
-One AppSumo code is the 1 Mac plan with updates forever. A buyer redeems it at `/redeem` with
-their email. The first code makes a license with 1 seat. Each further code for the same email
-adds 1 seat to that license, and the key stays the same. An email holds 4 codes at most. If the
-email already has a license for the product, bought anywhere, the codes add to it. The deal
-terms live in `RedemptionCode::DEALS`.
-
-The redeem page for Picmal is `https://<your host>/redeem?product=picmal`. The `product` param
-only puts the logo on the page; the code itself names the product.
-
-### Generate the code list
-
-```sh
-bin/rails "codes:generate[picmal]" OUT=appsumo-codes.csv           # 10,000 codes
-bin/rails "codes:generate[picmal,500]" OUT=appsumo-extra.csv       # any count
-```
-
-One code per line, no header, random order. 16 characters, uppercase letters and digits, without
-0, O, 1, I or L. The database keeps only a SHA-256 digest and the last 4 characters, so this file
-is the only copy of the codes. Upload it to AppSumo, then keep it somewhere safe or delete it.
-
-Without `OUT` the codes go to stdout. On a server that is risky: boot warnings also print to
-stdout and land in the file as an extra line. In a container, write with `OUT=/tmp/codes.csv`,
-copy the file out with `docker cp`, and delete it from the container.
-
-To load a list that came from somewhere else (same format, 3 to 200 characters per code):
-
-```sh
-bin/rails "codes:import[picmal,path/to/codes.csv]"
-```
-
-Duplicates are skipped, so an import can run twice.
-
-### Revoke a code (AppSumo refund)
-
-In the admin, open **Codes**, search for the full code or the buyer's email, and press
-**Revoke**. Or from a script:
-
-```sh
-curl -X POST https://<your host>/api/admin/redemption_codes/revoke \
-  -H "Authorization: Bearer $ADMIN_API_KEY" -H "Content-Type: application/json" \
-  -d '{"code":"ABCDEFGH23456789"}'
-```
-
-Revoking takes 1 seat back from the license and signs out the newest device past the new limit.
-At 0 seats the license becomes inactive. A revoked code can't be redeemed again, and it no
-longer counts toward the email's 4.
-
-### Emails
-
-Two Loops templates, set per product in the admin: `Code redeemed` (new license) and `Code
-stacked` (one more Mac). Copy for both is in `docs/email-templates/code-*.md`. Leave a field blank
-and that email is skipped.
-
-## Self-hosting
-
-### First-time setup (Docker)
-
-Requires Docker with Compose. One Postgres, one database, one web container
-(Solid Queue runs inside Puma). Run these once:
+You need Docker with Compose. The [self-hosting guide](docs/self-hosting.md) explains
+each step.
 
 ```bash
-git clone <your-fork> licencio && cd licencio
-
-# 1. Create your master key + credentials (skip if you already have config/master.key).
-#    Keep config/master.key secret and OUT of git — it's already gitignored.
-EDITOR=true bin/rails credentials:edit
-
-# 2. Add the Active Record encryption keys. These encrypt each Product's Stripe,
-#    Loops, and signing secrets at rest. Generate them, then paste them into your
-#    credentials under `active_record_encryption:`.
-bin/rails db:encryption:init          # prints keys to copy
-bin/rails credentials:edit            # paste them under active_record_encryption:
-
-# 3. Set up the environment file.
+git clone https://github.com/<you>/licencio && cd licencio
+EDITOR=true bin/rails credentials:edit     # creates config/master.key
+bin/rails db:encryption:init               # prints 3 keys; paste them into credentials
 cp env.example .env
 echo "RAILS_MASTER_KEY=$(cat config/master.key)" >> .env
-#    ...then edit .env and fill in the rest (see Environment variables below).
-
-# 4. Boot it. The container runs db:prepare (create + migrate) on start.
 docker compose up --build
-```
-
-The app comes up on `http://localhost` (health check at `/up`). `RAILS_MASTER_KEY`
-is the one thing that unlocks everything in production — without it the app can't
-decrypt credentials or take payments.
-
-Behind a TLS-terminating proxy (Coolify, Render, Caddy, Kamal proxy) it enforces
-HTTPS automatically.
-
-> **One-click platforms** (Coolify / Render / Hetzner / DigitalOcean App Platform)
-> read this repo's `docker-compose.yml` or `Dockerfile` directly. Set the same
-> environment variables in their dashboard and point `DATABASE_URL` at your managed
-> Postgres — any managed Postgres works, since it's a **single database**.
-
-## Environment variables
-
-See [`env.example`](env.example) for the full, commented list. The essentials:
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `RAILS_MASTER_KEY` | ✅ | unlocks credentials + Active Record encryption |
-| `DATABASE_URL` | ✅ (auto-set by compose) | Postgres connection (single database) |
-| `APP_HOST` | ✅ in prod | host for magic-link / mailer URLs, e.g. `licenses.yourapp.com` |
-| `ADMIN_API_KEY` | for imports | Bearer token for `/api/admin/*` |
-| `SUPPORT_ADMIN_TOKEN` | for unlock support | `X-Admin-Token` for `POST /v1/support/lookup` |
-| `LOOPS_API_KEY_DEFAULT` | for email | fallback Loops key (per-Product key overrides it) |
-
-Everything Stripe — including the checkout success/cancel redirect URLs — lives
-**per-Product** in `/admin`, not in the environment.
-
-## Creating your first Product
-
-Create an admin login (the password is read from a hidden prompt, so it never
-lands in your shell history), then use the admin UI:
-
-```bash
 docker compose exec web bin/rails "admin:create[you@example.com]"
 ```
 
-Sign in at `/admin` and go to **Products → New**. The full field-by-field
-walkthrough — connecting Stripe, adding variants, wiring email, and putting
-buy/recover links on your website — is the
-**[operating guide](docs/operating-guide.md)**. To build the app that verifies
-license tokens, see **[client integration](docs/client-integration.md)**.
+Open `http://localhost/admin`, sign in, and follow the
+[operating guide](docs/operating-guide.md) to create your first Product.
 
 ## Development
 
-Postgres, Ruby (see `.ruby-version`), then:
+You need Postgres and Ruby (version in `.ruby-version`).
 
 ```bash
-bin/setup                        # installs gems, prepares the dev database
-PARALLEL_WORKERS=1 bin/rails test # Minitest suite (run single-process)
-bin/dev                          # Rails server + Tailwind watcher
+bin/setup                          # installs gems, prepares the dev database
+bin/dev                            # Rails server + Tailwind watcher
+PARALLEL_WORKERS=1 bin/rails test  # Minitest suite, single process
 ```
 
 ## Known limitations
 
-- **Refunds revoke on a lease, not instantly.** A `charge.refunded` webhook flips
-  the license to `refunded`, which blocks new and renewed activations. Tokens carry
-  a short **lease** (`exp`, 7 days), so a device that stays fully offline keeps
-  verifying until the lease lapses — inherent to offline verification. An online app
-  re-activates in the background before the lease expires and gets the `403` then, so
-  connected users revoke near-instantly. See [client integration](docs/client-integration.md#token-lease--revocation).
+- **A refund doesn't lock an offline device straight away.** Tokens carry a 7-day lease.
+  An app that's online re-activates in the background and gets the refusal within a day or
+  so. A device that stays fully offline keeps working until its lease runs out, up to 7
+  days. That's the cost of offline verification. See
+  [token lease](docs/client-integration.md#token-lease-and-revocation).
+- **The App Store claim isn't configurable yet.** Which App Store product grants which
+  license is set in code, not in the admin. See
+  [optional features](docs/optional-features.md#app-store-purchases).
 
-PRs welcome.
+## License
+
+MIT, see [`LICENSE`](LICENSE). PRs welcome.

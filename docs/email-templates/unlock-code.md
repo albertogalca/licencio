@@ -16,7 +16,7 @@ LoginCode::MAX_ATTEMPTS). Say the ten minutes — a code that dies silently read
 broken app rather than an expired code.
 
 WORDING MATTERS: there is no account here, and never was. Nobody signed up, nothing was
-created, nothing can be locked out. Say "your Cozy license", never "your account" — and
+created, nothing can be locked out. Say "your license", never "your account" — and
 tell an unexpected recipient plainly that ignoring this costs them nothing, because a
 six-digit code in a stranger's inbox is alarming otherwise.
 -->

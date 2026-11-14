@@ -24,4 +24,4 @@ Have more codes? Redeem them with this same email. Each one adds a Mac to this k
 If you have any questions, simply reply to this email.
 
 Best,
-Alberto
+[Your name]

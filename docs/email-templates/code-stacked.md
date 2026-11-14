@@ -20,4 +20,4 @@ On the new Mac, open {DATA_VARIABLE:product_name}, choose Register license, and 
 If you have any questions, simply reply to this email.
 
 Best,
-Alberto
+[Your name]
