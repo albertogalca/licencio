@@ -27,6 +27,7 @@ Rails.application.routes.draw do
     namespace :admin do
       post "migrations/import" => "migrations#import"
       get  "products/:product_slug/trials" => "trials#index"
+      get  "products/:product_slug/trials/cohorts" => "trial_cohorts#index"
       # A deal site's refund: revoke the code, take back its seat.
       post "redemption_codes/revoke" => "redemption_codes#revoke"
     end
