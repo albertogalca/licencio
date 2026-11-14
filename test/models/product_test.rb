@@ -290,6 +290,35 @@ class ProductTest < ActiveSupport::TestCase
     end
   end
 
+  # A valid key used to be enough: the buyer typed another address at Stripe, fulfill! saw a
+  # customer who didn't own the license, and minted a brand-new full license at the discount.
+  # Prefilling the owner's address locks Stripe's email field, so the payment lands on the owner.
+  test "create_checkout_session locks owner-only prices to the license owner's email" do
+    product = products(:picmal)
+    product.update!(renewal_stripe_price_id: "price_renew")
+    fake = Struct.new(:id, :product, :metadata)
+    renewal = fake.new("price_renew", product.stripe_product_id, { "seats" => "1" })
+    upgrade = fake.new("price_up", product.stripe_product_id, { "seats" => "5", "upgrade_from_seats" => "2" })
+    owned = licenses(:picmal_expired)
+    upgradable = product.licenses.create!(status: "active", max_activations: 2, customer: owned.customer)
+    unclaimed = product.licenses.create!(status: "active", max_activations: 2)
+
+    email_for = lambda do |price, **keys|
+      captured = nil
+      Stripe::Price.stub(:retrieve, ->(*_) { price }) do
+        Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; :session }) do
+          product.create_checkout_session(price_id: price.id, email: "someone-else@example.com", **keys)
+        end
+      end
+      captured[:customer_email]
+    end
+
+    assert_equal owned.customer.email, email_for.call(renewal, renew_license_key: owned.license_key)
+    assert_equal owned.customer.email, email_for.call(upgrade, upgrade_license_key: upgradable.license_key)
+    assert_equal "someone-else@example.com", email_for.call(upgrade, upgrade_license_key: unclaimed.license_key),
+      "an imported license has no owner yet, so whoever pays claims it"
+  end
+
   test "variants hides a flagged renewal price the column doesn't name" do
     product = products(:picmal)
     product.update!(renewal_stripe_price_id: nil)

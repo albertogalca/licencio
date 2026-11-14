@@ -339,16 +339,21 @@ class Product < ApplicationRecord
     # that: any junk string got past it, then fulfill! failed to find the license and fell
     # through to issue_license!, minting a full new license at the discounted price. The key has
     # to resolve to a license of this product that is actually due for renewal.
-    if renewal_price?(price) &&
-        !licenses.find_by(license_key: renew_license_key.to_s.strip)&.renewable_with?(price)
-      raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key"
+    if renewal_price?(price)
+      held = licenses.find_by(license_key: renew_license_key.to_s.strip)
+      raise CheckoutNotConfigured, "#{slug} renewal price needs a renewable license key" unless held&.renewable_with?(price)
     end
     # Same reasoning for upgrade prices: they're pay-the-difference discounts, so the key has to
     # resolve to a license of this product actually sitting at the price's `upgrade_from_seats`.
-    if price.metadata["upgrade_from_seats"].present? &&
-        !licenses.find_by(license_key: upgrade_license_key.to_s.strip)&.upgradeable_with?(price)
-      raise CheckoutNotConfigured, "#{slug} upgrade price needs an eligible license key"
+    if price.metadata["upgrade_from_seats"].present?
+      held = licenses.find_by(license_key: upgrade_license_key.to_s.strip)
+      raise CheckoutNotConfigured, "#{slug} upgrade price needs an eligible license key" unless held&.upgradeable_with?(price)
     end
+    # A real key is still not proof the buyer owns it. With the email left open, the buyer typed
+    # another address at Stripe, fulfill! found a payer who didn't own the license and minted a
+    # full new one at the discount. Stripe locks a prefilled email, so the owner's address goes in
+    # whatever the caller sent. An unclaimed (imported) license has no owner yet: whoever pays claims it.
+    email = held.customer.email if held&.customer
     # Never silently ship an unlimited-seat license from an unconfigured price: unlimited must be
     # declared (seats "unlimited"/"0"); anything else needs a seat count from price metadata or the
     # product default.
