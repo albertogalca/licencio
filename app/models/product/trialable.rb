@@ -32,14 +32,15 @@ module Product::Trialable
     def rate = (converted.fdiv(decided) unless decided.zero?)
   end
 
-  # The whole window as one cohort, plus each week of it, newest first.
-  TrialReport = Data.define(:total, :weeks) do
+  # The whole window as one cohort, plus each week of it, newest first. unlinked counts trials
+  # that could not be traced to a purchase at all, so converted is a floor when it is not zero.
+  TrialReport = Data.define(:total, :weeks, :unlinked) do
     def self.window(now) = ((now - TRIAL_COHORT_WEEKS.weeks).beginning_of_week..)
 
-    def self.from(trials, now:)
+    def self.from(trials, now:, unlinked: 0)
       weeks = trials.group_by { _1.started_at.to_date.beginning_of_week }.sort.reverse
         .map { |week, cohort| TrialCohort.from(cohort, week:, now:) }
-      new(total: TrialCohort.from(trials, week: nil, now:), weeks:)
+      new(total: TrialCohort.from(trials, week: nil, now:), weeks:, unlinked:)
     end
 
     def empty? = weeks.empty?

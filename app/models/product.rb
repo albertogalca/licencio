@@ -2,6 +2,7 @@ require "ed25519"
 
 class Product < ApplicationRecord
   include Trialable
+  include AppStoreTrialable
   include RegionalPricing
 
   Variant = Data.define(:price_id, :name, :amount_cents, :seats)
