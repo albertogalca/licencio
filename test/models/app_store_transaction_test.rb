@@ -76,4 +76,12 @@ class AppStoreTransactionTest < ActiveSupport::TestCase
     forged = @signing.notification("REFUND", signing_key: OpenSSL::PKey::EC.generate("prime256v1"))
     assert_raises(AppStoreTransaction::Invalid) { AppStoreTransaction.verify_notification(forged) }
   end
+
+  test "a transaction carries the buyer's app transaction id when Apple sends one" do
+    with_id = AppStoreSigning.transaction("productId" => "com.example.myapp.unlock", "appTransactionId" => "705000000000001")
+    without_id = AppStoreSigning.transaction("productId" => "com.example.myapp.unlock")
+
+    assert_equal "705000000000001", AppStoreTransaction.verify(@signing.jws(with_id)).app_transaction_id
+    assert_nil AppStoreTransaction.verify(@signing.jws(without_id)).app_transaction_id
+  end
 end

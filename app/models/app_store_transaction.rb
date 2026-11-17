@@ -1,7 +1,8 @@
 # A StoreKit 2 transaction whose signature has been checked. The only way to get one is
 # `verify`, so everything that receives one trusts it without looking again.
 class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_id, :product_id,
-  :bundle_id, :environment, :purchase_date, :revocation_date, :amount_cents, :currency, :storefront)
+  :bundle_id, :environment, :purchase_date, :revocation_date, :amount_cents, :currency, :storefront,
+  :app_transaction_id)
   Invalid = Class.new(StandardError)
   Notification = Data.define(:type, :transaction)
 
@@ -106,7 +107,10 @@ class AppStoreTransaction < Data.define(:original_transaction_id, :transaction_i
           amount_cents: payload["price"] && payload["price"].to_i / 10,
           currency: payload["currency"]&.downcase,
           # The App Store country the purchase was made in, ISO 3166-1 alpha-3 ("IND").
-          storefront: payload["storefront"].to_s.then { |code| code if code.match?(/\A[A-Z]{3}\z/) })
+          storefront: payload["storefront"].to_s.then { |code| code if code.match?(/\A[A-Z]{3}\z/) },
+          # One id per Apple account per app, so every purchase one person makes in the app
+          # shares it. Apple sends it from iOS 18.4 on; older transactions have none.
+          app_transaction_id: payload["appTransactionId"]&.to_s)
       end
 
       def at_ms(value) = Time.zone.at(value.to_i / 1000.0)
