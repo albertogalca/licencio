@@ -34,6 +34,14 @@ module Product::Trialable
 
   # The whole window as one cohort, plus each week of it, newest first.
   TrialReport = Data.define(:total, :weeks) do
+    def self.window(now) = ((now - TRIAL_COHORT_WEEKS.weeks).beginning_of_week..)
+
+    def self.from(trials, now:)
+      weeks = trials.group_by { _1.started_at.to_date.beginning_of_week }.sort.reverse
+        .map { |week, cohort| TrialCohort.from(cohort, week:, now:) }
+      new(total: TrialCohort.from(trials, week: nil, now:), weeks:)
+    end
+
     def empty? = weeks.empty?
   end
 
@@ -81,10 +89,7 @@ module Product::Trialable
   end
 
   def trial_report(now: Time.current)
-    trials = trial_days ? trials_started((now - TRIAL_COHORT_WEEKS.weeks).beginning_of_week..) : []
-    weeks = trials.group_by { _1.started_at.to_date.beginning_of_week }.sort.reverse
-      .map { |week, cohort| TrialCohort.from(cohort, week:, now:) }
-    TrialReport.new(total: TrialCohort.from(trials, week: nil, now:), weeks:)
+    TrialReport.from(trial_days ? trials_started(TrialReport.window(now)) : [], now:)
   end
 
   # Every trial started up to the end of `to`: one bought this week may have started months ago.
