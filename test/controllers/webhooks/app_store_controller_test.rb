@@ -109,4 +109,73 @@ class Webhooks::AppStoreControllerTest < ActionDispatch::IntegrationTest
     notify @signing.notification("REFUND"), product_id: SecureRandom.uuid
     assert_response :not_found
   end
+
+  def unlock(**overrides)
+    AppStoreSigning.transaction("transactionId" => "2000000500", "originalTransactionId" => "2000000500",
+      "bundleId" => "com.example.myapp", "productId" => "com.example.myapp.unlock",
+      "appTransactionId" => "705000000000001", "price" => 19990, **overrides)
+  end
+
+  def ms(time) = (time.to_f * 1000).to_i
+
+  test "a ONE_TIME_CHARGE records the charge with the buyer's app transaction id" do
+    purchased_at = Time.utc(2026, 11, 3, 9, 30)
+
+    notify @signing.notification("ONE_TIME_CHARGE", unlock("purchaseDate" => ms(purchased_at)))
+
+    assert_response :ok
+    charge = @product.app_store_charges.sole
+    assert_equal [ "com.example.myapp.unlock", "2000000500", "2000000500", "705000000000001", "com.example.myapp" ],
+      [ charge.store_product_id, charge.transaction_id, charge.original_transaction_id,
+        charge.app_transaction_id, charge.bundle_id ]
+    assert_equal [ "production", purchased_at, 1999, "usd", "USA" ],
+      [ charge.environment, charge.purchased_at, charge.amount_cents, charge.currency, charge.storefront ]
+    assert_nil charge.revoked_at
+  end
+
+  test "a redelivered ONE_TIME_CHARGE leaves one charge" do
+    2.times do
+      notify @signing.notification("ONE_TIME_CHARGE", unlock)
+      assert_response :ok
+    end
+
+    assert_equal 1, AppStoreCharge.count
+  end
+
+  test "a ONE_TIME_CHARGE without an app transaction id records the charge without one" do
+    notify @signing.notification("ONE_TIME_CHARGE", unlock.except("appTransactionId"))
+
+    assert_response :ok
+    assert_nil @product.app_store_charges.sole.app_transaction_id
+  end
+
+  %w[REFUND REVOKE].each do |type|
+    test "a #{type} marks the recorded charge revoked" do
+      revoked_at = Time.utc(2026, 11, 10, 8)
+      notify @signing.notification("ONE_TIME_CHARGE", unlock)
+
+      notify @signing.notification(type, unlock("revocationDate" => ms(revoked_at)))
+
+      assert_response :ok
+      assert_equal revoked_at, @product.app_store_charges.sole.revoked_at
+    end
+  end
+
+  test "a REFUND sent to another product's endpoint leaves this product's charge unrevoked" do
+    notify @signing.notification("ONE_TIME_CHARGE", unlock)
+
+    notify @signing.notification("REFUND", unlock("revocationDate" => ms(Time.current))),
+      product_id: Product.where.not(id: @product.id).first.id
+
+    assert_nil @product.app_store_charges.sole.revoked_at
+  end
+
+  test "notifications other than a one-time charge record nothing" do
+    %w[REFUND CONSUMPTION_REQUEST REFUND_DECLINED REFUND_REVERSED TEST].each do |type|
+      notify @signing.notification(type, unlock)
+      assert_response :ok
+    end
+
+    assert_equal 0, AppStoreCharge.count
+  end
 end

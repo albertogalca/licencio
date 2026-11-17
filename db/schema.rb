@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -32,6 +32,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_120000) do
     t.string "password_digest", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admin_users_on_email", unique: true
+  end
+
+  create_table "app_store_charges", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "amount_cents"
+    t.string "app_transaction_id"
+    t.string "bundle_id"
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.string "environment", null: false
+    t.string "original_transaction_id", null: false
+    t.uuid "product_id", null: false
+    t.datetime "purchased_at", null: false
+    t.datetime "revoked_at"
+    t.string "store_product_id", null: false
+    t.string "storefront"
+    t.string "transaction_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_id", "app_transaction_id"], name: "index_app_store_charges_on_product_id_and_app_transaction_id"
+    t.index ["transaction_id"], name: "index_app_store_charges_on_transaction_id", unique: true
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -388,6 +407,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_120000) do
   end
 
   add_foreign_key "activations", "licenses"
+  add_foreign_key "app_store_charges", "products"
   add_foreign_key "gifts", "licenses"
   add_foreign_key "gifts", "products"
   add_foreign_key "licenses", "customers"
