@@ -163,6 +163,13 @@ For refunds, point the app's App Store Server Notifications V2 URL at
 `https://YOUR_HOST/webhooks/app_store/PRODUCT_ID`. `REFUND` and `REVOKE` revoke the license.
 A later `REFUND_REVERSED` doesn't restore it.
 
+The same URL records every one-time purchase (`ONE_TIME_CHARGE`), free or paid. If the app
+sells a $0 purchase that starts a trial, set the Product's `trial_days` to its length and
+`GET /api/admin/products/:slug/trials/cohorts?source=app_store` reports which trials turned
+into a paid purchase and how many days it took. Apple's `appTransactionId` links the two, and
+purchases made before iOS 18.4 don't carry one. Those trials count as not bought, and the
+response's `unlinked` says how many there were, so the conversion it shows is a floor.
+
 **This one isn't configurable yet.** Which App Store product id maps to which Product,
 tier and update policy lives in `AppStoreTransaction::GRANTS`, in
 `app/models/app_store_transaction.rb`. Add your own entry there.

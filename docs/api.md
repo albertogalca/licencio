@@ -81,7 +81,7 @@ Details in [optional features](optional-features.md). All are CORS open.
 | `POST /api/admin/migrations/import` | admin key | bulk-imports licenses. See [moving from another store](operating-guide.md#7-move-from-another-store) | 5/min |
 | `POST /api/admin/redemption_codes/revoke` | admin key | `{ code }`. Revokes a deal code and takes back its seat | 5/min |
 | `GET /api/admin/products/:slug/trials?from=YYYY-MM-DD&to=YYYY-MM-DD` | admin key | trials started, bought, expired and running in that window | 5/min |
-| `GET /api/admin/products/:slug/trials/cohorts` | admin key | trial to paid by the week each trial started, last 8 weeks, newest first | 5/min |
+| `GET /api/admin/products/:slug/trials/cohorts?source=app_store` | admin key | trial to paid by the week each trial started, last 8 weeks, newest first. Mac trials without `source`; App Store trials with `source=app_store`, plus `unlinked` | 5/min |
 | `POST /api/licenses/issue` | issuance key | `{ email, name?, seats? }`. Issues a license for a bundle store and returns the bare key as plain text | |
 
 The 5/min admin limit is shared across all `/api/admin/*` calls.
@@ -91,7 +91,7 @@ The 5/min admin limit is shared across all `/api/admin/*` calls.
 | Path | Sender | What it handles |
 |------|--------|-----------------|
 | `POST /webhooks/stripe/:product_id` | Stripe | `checkout.session.completed` issues and emails the license. `charge.refunded` revokes it on a full refund. Verified with that Product's `stripe_webhook_secret` |
-| `POST /webhooks/app_store/:product_id` | Apple | App Store Server Notifications V2. `REFUND` and `REVOKE` revoke the license. Everything else gets `200` so Apple stops retrying |
+| `POST /webhooks/app_store/:product_id` | Apple | App Store Server Notifications V2. `ONE_TIME_CHARGE` records the purchase. `REFUND` and `REVOKE` mark it revoked and revoke the license. Everything else gets `200` so Apple stops retrying |
 
 ## Health
 
