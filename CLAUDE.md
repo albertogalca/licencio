@@ -10,7 +10,7 @@ Licencio is open source. Everything committed here (code, comments, tests, fixtu
 - Product-specific behaviour belongs in Product columns or config set at runtime, never hardcoded in code keyed on a real product.
 - Before committing, run the grep in `CLAUDE.local.md` over `git diff --cached`. It must print nothing.
 
-Private runbooks (like `LAUNCH.md`) and `CLAUDE.local.md` stay untracked.
+Runbooks live in the Obsidian vault (the launch runbook is "Cozy unlock launch runbook"). `CLAUDE.local.md` stays untracked.
 
 ## Local database — DBngin (NOT Homebrew)
 
