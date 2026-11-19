@@ -50,6 +50,31 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "eur", captured[:currency]
   end
 
+  test "a buyer in China gets a checkout without managed payments, which refuses China" do
+    cozy = products(:cozy)
+    cozy.update!(stripe_product_id: "prod_cozy", stripe_secret_key: "sk_test_cozy", stripe_webhook_secret: "whsec",
+      checkout_success_url: "https://cozy.example/thanks", checkout_cancel_url: "https://cozy.example/",
+      region_token_secret: "shared-with-the-site")
+    full = fake_price("price_standard_1", "prod_cozy", { "sku" => "standard", "band" => "1", "seats" => "unlimited" })
+    checkout_from = ->(country) do
+      payload = "#{country}.#{Time.current.to_i}"
+      region = "#{payload}.#{Base64.urlsafe_encode64(OpenSSL::HMAC.digest("SHA256", "shared-with-the-site", payload), padding: false)}"
+      captured = nil
+      Stripe::Price.stub(:retrieve, full) do
+        Stripe::Price.stub(:list, ->(*) { Struct.new(:data).new([ full ]) }) do
+          Stripe::Checkout::Session.stub(:create, ->(params, _opts = {}) { captured = params; fake_session }) do
+            get "/api/checkout", params: { product_slug: "cozy", price_id: "price_standard_1", region: }, headers: BROWSER
+          end
+        end
+      end
+      assert_redirected_to "https://stripe.test/session"
+      captured
+    end
+
+    assert_not checkout_from.("CN").key?(:managed_payments)
+    assert_equal({ enabled: true }, checkout_from.("ES")[:managed_payments])
+  end
+
   test "GET redirects the buyer straight to Stripe Checkout and forwards client_reference_id" do
     price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
     captured = nil

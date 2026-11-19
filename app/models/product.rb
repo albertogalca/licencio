@@ -240,6 +240,12 @@ class Product < ApplicationRecord
     after_expiration: { recovery: { enabled: true, allow_promotion_codes: true } }
   }.freeze
 
+  # Managed Payments refuses buyers in China, whatever payment methods the account has on
+  # (docs.stripe.com/payments/managed-payments/eligibility). A buyer the site places there gets
+  # a plain checkout instead, so the sale is ours to account for: Stripe collects no tax on it.
+  # The rest of Stripe's list is sanctioned countries we do not sell to either way.
+  OUTSIDE_MANAGED_PAYMENTS = %w[CN].freeze
+
   CheckoutNotConfigured = Class.new(StandardError)
   InvalidSeats = Class.new(StandardError)
 
@@ -386,9 +392,9 @@ class Product < ApplicationRecord
     promotion_code = active_promotion_code(promo) if takes_codes
     params = {
       mode: "payment", customer_creation: "always",
-      managed_payments: { enabled: true }, # Stripe as merchant of record: calculates, collects &
-      # remits global VAT/sales tax (no registrations on our end).
-      # MoR owns tax config, so do NOT set automatic_tax here.
+      # Stripe as merchant of record: calculates, collects & remits global VAT/sales tax (no
+      # registrations on our end). MoR owns tax config, so do NOT set automatic_tax here.
+      **(OUTSIDE_MANAGED_PAYMENTS.include?(country) ? {} : { managed_payments: { enabled: true } }),
       # A code from the buy link arrives already applied. Stripe takes `discounts` or the
       # coupon field, never both, so a link with a code trades the field for it.
       **(promotion_code ? { discounts: [ { promotion_code: promotion_code.id } ] } : { allow_promotion_codes: takes_codes || nil }.compact),
