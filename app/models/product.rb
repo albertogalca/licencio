@@ -37,6 +37,7 @@ class Product < ApplicationRecord
   encrypts :eddsa_private_key
   encrypts :stripe_secret_key
   encrypts :stripe_webhook_secret
+  encrypts :ga4_api_secret
   # Deterministic, unlike its four siblings: this one is a lookup key
   # (Api::BaseController finds the product by it) and carries a unique index, both of which
   # need the same plaintext to always produce the same ciphertext.
@@ -80,6 +81,17 @@ class Product < ApplicationRecord
 
   def loops_api_key_or_default
     loops_api_key.presence || ENV["LOOPS_API_KEY_DEFAULT"]
+  end
+
+  def reports_purchases? = ga4_measurement_id.present? && ga4_api_secret.present?
+
+  # Only a sale whose buy link carried a GA4 visit: a visitor who refused analytics, or never had
+  # it, left nothing to report the sale under.
+  def report_purchase_later(session)
+    return unless reports_purchases? && GoogleAnalytics::Visitor.parse(session.client_reference_id)
+    PurchaseAnalyticsJob.perform_later(self, reference: session.client_reference_id,
+      transaction_id: session.id, amount: session.amount_total, currency: session.currency,
+      item: session.metadata["price_id"].presence || slug)
   end
 
   # Per-product theming for the customer-facing portal, emitted inline on <html> so it
@@ -274,7 +286,7 @@ class Product < ApplicationRecord
   def rotate_api_key! = rotate!(:api_key, "prod")
   def rotate_issuance_api_key! = rotate!(:issuance_api_key, "iss")
 
-  # The one question every new sale carries. Seline only ever sees the browser side of a
+  # The one question every new sale carries. Analytics only ever sees the browser side of a
   # purchase, and the channels that actually sell (a forum post, a newsletter, a friend)
   # arrive with no usable referrer at all, so asking the buyer beats tracking them. Stripe
   # stores the answer on the Session itself (custom_fields[0].dropdown.value) — nothing to
@@ -412,10 +424,6 @@ class Product < ApplicationRecord
                   update_policy: (lifetime_price?(price) ? "lifetime" : price.metadata["update_policy"].presence),
                   renew_license_key: renew_license_key.presence,
                   upgrade_license_key: upgrade_license_key.presence,
-                  # The storefronts send Seline's visitor id as client_reference_id, but Seline
-                  # matches a guest charge to a visit only by this metadata key. Same value,
-                  # copied under the name Seline looks for.
-                  seline_visitor_id: client_reference_id.presence,
                   # Affonso attributes commissions by reading exactly this key off the
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence,

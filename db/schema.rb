@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -191,6 +191,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_120000) do
     t.string "eddsa_private_key", null: false
     t.string "eddsa_public_key", null: false
     t.string "expiry_reminder_transactional_id"
+    t.string "ga4_api_secret"
+    t.string "ga4_measurement_id"
     t.string "gift_card_url"
     t.string "gift_transactional_id"
     t.string "issuance_api_key"
