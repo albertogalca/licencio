@@ -7,7 +7,7 @@ class Portal::BaseController < ApplicationController
 
   # The public keyed checkouts (renewals, upgrades) carry these from the storefront link,
   # through the form as hidden fields, into the Stripe session — the same way /api/checkout's do.
-  ATTRIBUTION_PARAMS = %i[client_reference_id affonso_referral].freeze
+  ATTRIBUTION_PARAMS = %i[client_reference_id seline_visitor_id affonso_referral].freeze
 
   private
     # Anything long enough to make Stripe reject the whole session is dropped rather than

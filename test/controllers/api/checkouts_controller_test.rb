@@ -90,6 +90,25 @@ class Api::CheckoutsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "ph_abc", captured[:metadata][:seline_visitor_id]
   end
 
+  test "a GA4 visit and a Seline visitor each reach their own place" do
+    price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
+    captured = nil
+    checkout = ->(params) do
+      Stripe::Price.stub(:retrieve, price) do
+        Stripe::Checkout::Session.stub(:create, ->(sent, _opts = {}) { captured = sent; fake_session }) do
+          get "/api/checkout", params: { product_slug: @product.slug, price_id: "price_3", **params }, headers: BROWSER
+        end
+      end
+    end
+
+    checkout.(client_reference_id: "12.34.56", seline_visitor_id: "sln_1")
+    assert_equal "12.34.56", captured[:client_reference_id]
+    assert_equal "sln_1", captured[:metadata][:seline_visitor_id]
+
+    checkout.(client_reference_id: "12.34.56")
+    assert_not captured[:metadata].key?(:seline_visitor_id), "a GA4 visit is not a Seline id"
+  end
+
   test "forwards affonso_referral into the session metadata" do
     price = fake_price("price_3", @product.stripe_product_id, { "seats" => "3" })
     captured = nil

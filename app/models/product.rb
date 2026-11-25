@@ -338,7 +338,7 @@ class Product < ApplicationRecord
   ].freeze
 
   def create_checkout_session(price_id:, email:, renew_license_key: nil, upgrade_license_key: nil,
-      client_reference_id: nil, affonso_referral: nil, promo: nil, region: nil, gift: false)
+      client_reference_id: nil, seline_visitor_id: nil, affonso_referral: nil, promo: nil, region: nil, gift: false)
     # Fail loud rather than hand Stripe a nil redirect (e.g. a product created before
     # the checkout-URL columns existed and never re-saved).
     if checkout_success_url.blank? || checkout_cancel_url.blank?
@@ -424,9 +424,9 @@ class Product < ApplicationRecord
                   update_policy: (lifetime_price?(price) ? "lifetime" : price.metadata["update_policy"].presence),
                   renew_license_key: renew_license_key.presence,
                   upgrade_license_key: upgrade_license_key.presence,
-                  # Seline matches a guest charge to a visit only by this metadata key. Same value as
-                  # client_reference_id, kept until the last storefront stops sending Seline's id.
-                  seline_visitor_id: client_reference_id.presence,
+                  # Seline matches a guest charge to a visit only by this metadata key. Gone when the
+                  # last storefront stops loading Seline.
+                  seline_visitor_id: seline_visitor_id.presence || legacy_seline_id(client_reference_id),
                   # Affonso attributes commissions by reading exactly this key off the
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence,
@@ -499,6 +499,12 @@ class Product < ApplicationRecord
   end
 
   private
+    # A buy link with no Seline id of its own carries it as client_reference_id, unless that is a
+    # GA4 visit.
+    def legacy_seline_id(reference)
+      reference.presence unless GoogleAnalytics::Visitor.parse(reference)
+    end
+
     def stripe_opts = { api_key: stripe_secret_key }
 
     # The `promo` param is public, so it only ever names a code this Stripe account already
