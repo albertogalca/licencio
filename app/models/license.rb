@@ -107,7 +107,7 @@ class License < ApplicationRecord
   # The attribution params ride along the same way they do on /api/checkout. Without them a
   # renewal reached Stripe with no client_reference_id, so no sale could be matched to a visit
   # and every renewal landed in the revenue chart as unattributed.
-  def renewal_checkout(kind: nil, client_reference_id: nil, affonso_referral: nil)
+  def renewal_checkout(kind: nil, **attribution)
     kind = (kind.presence || :annual).to_sym
     raise ActiveRecord::RecordNotFound unless renewal_options.include?(kind)
     price_id = kind == :forever ? (band_price_id("forever_upgrade") || product.lifetime_stripe_price_id) : renewal_price_id
@@ -115,7 +115,7 @@ class License < ApplicationRecord
     # has nothing to charge. Same answer as an option this license never had.
     raise ActiveRecord::RecordNotFound if price_id.blank?
     product.create_checkout_session(price_id:, email: customer&.email,
-      renew_license_key: license_key, client_reference_id:, affonso_referral:)
+      renew_license_key: license_key, **attribution)
   end
 
   # One name for "this key can take part in seat upgrades at all" — every seat question below
@@ -155,10 +155,10 @@ class License < ApplicationRecord
   # The upgrade checkout. price_id is client-picked (a 1-seat license has two targets) but only
   # ever from this license's own upgrade_options — never an arbitrary price. Same email
   # prefill/attribution reasoning as renewal_checkout above.
-  def upgrade_checkout(price_id:, client_reference_id: nil, affonso_referral: nil)
+  def upgrade_checkout(price_id:, **attribution)
     raise ActiveRecord::RecordNotFound unless upgrade_options.any? { |v| v.price_id == price_id }
     product.create_checkout_session(price_id:, email: customer&.email,
-      upgrade_license_key: license_key, client_reference_id:, affonso_referral:)
+      upgrade_license_key: license_key, **attribution)
   end
 
   before_validation :assign_license_key, on: :create

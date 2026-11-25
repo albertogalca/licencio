@@ -72,6 +72,7 @@ class Api::CheckoutsController < Api::PublicController
         renew_license_key: params[:renew_license_key],
         upgrade_license_key: params[:upgrade_license_key],
         client_reference_id: params[:client_reference_id],
+        seline_visitor_id: params[:seline_visitor_id],
         affonso_referral: params[:affonso_referral],
         promo: params[:promo],
         gift: params[:gift] == "1",

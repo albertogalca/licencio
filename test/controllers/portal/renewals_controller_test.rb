@@ -82,11 +82,12 @@ class Portal::RenewalsControllerTest < ActionDispatch::IntegrationTest
     Stripe::Price.stub(:retrieve, ->(*_) { price }) do
       Stripe::Checkout::Session.stub(:create, ->(params, *_) { captured = params; Stub.new(url: "https://stripe.test/checkout") }) do
         post portal_renewals_path, params: { license_key: license.license_key,
-          client_reference_id: "visitor_abc", affonso_referral: "aff_1" }
+          client_reference_id: "visitor_abc", seline_visitor_id: "sln_1", affonso_referral: "aff_1" }
       end
     end
 
     assert_equal "visitor_abc", captured[:client_reference_id]
+    assert_equal "sln_1", captured[:metadata][:seline_visitor_id]
     assert_equal "aff_1", captured[:metadata][:affonso_referral]
   end
 
