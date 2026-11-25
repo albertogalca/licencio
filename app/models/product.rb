@@ -424,6 +424,9 @@ class Product < ApplicationRecord
                   update_policy: (lifetime_price?(price) ? "lifetime" : price.metadata["update_policy"].presence),
                   renew_license_key: renew_license_key.presence,
                   upgrade_license_key: upgrade_license_key.presence,
+                  # Seline matches a guest charge to a visit only by this metadata key. Same value as
+                  # client_reference_id, kept until the last storefront stops sending Seline's id.
+                  seline_visitor_id: client_reference_id.presence,
                   # Affonso attributes commissions by reading exactly this key off the
                   # completed session; the storefront forwards its cookie as this param.
                   affonso_referral: affonso_referral.presence,
