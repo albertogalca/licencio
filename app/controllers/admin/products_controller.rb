@@ -44,11 +44,12 @@ class Admin::ProductsController < Admin::BaseController
         refund_transactional_id expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id
         redemption_transactional_id seats_added_transactional_id
         loops_api_key loops_mailing_list_id
+        ga4_measurement_id ga4_api_secret
         logo_url accent_color background_color]
       permitted += %i[slug bundle_identifier license_prefix] if @product.nil? || @product.new_record?
       attrs = params.require(:product).permit(*permitted)
       # blank secret = leave existing key untouched
-      %i[loops_api_key stripe_secret_key stripe_webhook_secret region_token_secret].each do |k|
+      %i[loops_api_key stripe_secret_key stripe_webhook_secret region_token_secret ga4_api_secret].each do |k|
         attrs.delete(k) if attrs[k].blank?
       end
       attrs

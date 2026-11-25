@@ -8,6 +8,7 @@
                   expiry_reminder_transactional_id checkout_recovery_transactional_id gift_transactional_id
                   redemption_transactional_id seats_added_transactional_id loops_api_key
                   loops_mailing_list_id],
+     analytics: %w[ga4_measurement_id ga4_api_secret],
      branding: %w[logo_url accent_color background_color]
    } %>
 <% filled = ->(key) { sections[key].count { |f| product.public_send(f).present? } } %>
@@ -228,6 +229,25 @@
         <%= form.label :loops_mailing_list_id, "Loops newsletter list ID", class: "field-label" %>
         <%= form.text_field :loops_mailing_list_id, class: "field-input" %>
         <p class="field-hint">Buyers are added to this mailing list on purchase. Leave blank to not add buyers to any list.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="disclosure" <%= "open" if failed.(:analytics) %>>
+    <summary>
+      <span class="section-title">Analytics</span>
+      <span class="ml-auto text-meta text-gray-500"><%= state.(:analytics) %></span>
+    </summary>
+    <div class="disclosure-body">
+      <p class="max-w-[68ch] text-body text-gray-600">Reports each sale to Google Analytics 4, under the visit its buy link carried. Leave both blank to report nothing.</p>
+      <div>
+        <%= form.label :ga4_measurement_id, "GA4 measurement ID", class: "field-label" %>
+        <%= form.text_field :ga4_measurement_id, placeholder: "G-XXXXXXXXXX", class: "field-input" %>
+      </div>
+      <div>
+        <%= form.label :ga4_api_secret, "GA4 API secret", class: "field-label" %>
+        <%= form.password_field :ga4_api_secret, value: nil, autocomplete: "off", class: "field-input" %>
+        <p class="field-hint">Google Analytics, Admin, Data streams, Measurement Protocol API secrets. Leave blank to keep the stored one.</p>
       </div>
     </div>
   </details>

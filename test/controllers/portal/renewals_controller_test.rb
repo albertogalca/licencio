@@ -87,8 +87,6 @@ class Portal::RenewalsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal "visitor_abc", captured[:client_reference_id]
-    assert_equal "visitor_abc", captured[:metadata][:seline_visitor_id],
-      "Seline matches a guest charge only on this key"
     assert_equal "aff_1", captured[:metadata][:affonso_referral]
   end
 
@@ -107,7 +105,6 @@ class Portal::RenewalsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to "https://stripe.test/checkout", "the renewal still goes through"
     assert_nil captured[:client_reference_id]
-    assert_nil captured[:metadata][:seline_visitor_id]
   end
 
   test "new carries the attribution params across the form as hidden fields" do

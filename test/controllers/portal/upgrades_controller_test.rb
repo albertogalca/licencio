@@ -50,7 +50,6 @@ class Portal::UpgradesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal "visitor_abc", captured[:client_reference_id]
-    assert_equal "visitor_abc", captured[:metadata][:seline_visitor_id]
     assert_equal "aff_1", captured[:metadata][:affonso_referral]
   end
 

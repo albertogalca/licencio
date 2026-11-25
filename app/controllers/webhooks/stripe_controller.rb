@@ -19,10 +19,13 @@ class Webhooks::StripeController < ActionController::API
       return head :ok unless session.payment_status.to_s.in?(%w[paid no_payment_required])
       # A gift waits for its recipient: no license, no purchase, until somebody redeems the code.
       if Gift.requested?(session)
-        Gift.create_from_stripe_session!(product, session)
+        gift = Gift.create_from_stripe_session!(product, session)
+        product.report_purchase_later(session) if gift&.previously_new_record?
         return head :ok
       end
-      License.fulfill_from_stripe_session(product, session)
+      # nil on a duplicate delivery, so a sale is reported once.
+      license = License.fulfill_from_stripe_session(product, session)
+      product.report_purchase_later(session) if license
       CardCountryJob.perform_later(product, session.payment_intent) if product.regional_pricing? && session.payment_intent
       # The unlock flow is opted into per price, by a `tier` in its metadata, and lives
       # alongside the license it just minted — the same sale grants both. A price with no

@@ -105,8 +105,8 @@ class License < ApplicationRecord
   # whoever pays — fulfill! already allows exactly that.
   #
   # The attribution params ride along the same way they do on /api/checkout. Without them a
-  # renewal reached Stripe with seline_visitor_id nil, so Seline could not match the charge to
-  # a visit and every renewal landed in the revenue chart as unattributed.
+  # renewal reached Stripe with no client_reference_id, so no sale could be matched to a visit
+  # and every renewal landed in the revenue chart as unattributed.
   def renewal_checkout(kind: nil, client_reference_id: nil, affonso_referral: nil)
     kind = (kind.presence || :annual).to_sym
     raise ActiveRecord::RecordNotFound unless renewal_options.include?(kind)

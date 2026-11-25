@@ -259,7 +259,7 @@ Optional fields, in the query string or the body:
 | `email` | prefills the email on Checkout |
 | `renew_license_key` | renews that license instead of issuing a new one |
 | `promo` | a Stripe promotion code to apply |
-| `client_reference_id` | passed through to the Stripe session |
+| `client_reference_id` | passed through to the Stripe session. As `<GA4 client id>.<GA4 session id>` it also reports the sale to Google Analytics (set the product's GA4 measurement ID and API secret) |
 
 The price must belong to the Product's Stripe product, or you get a `404`. Checkout shows a
 coupon field.
